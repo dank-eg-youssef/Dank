@@ -1,0 +1,856 @@
+{
+  "entities": {
+    "UserPublic": {
+      "title": "UserPublic",
+      "description": "Public user profile, presence, badges, and invite code metrics without PII.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "username": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 40,
+          "pattern": "^[a-z0-9_]+$"
+        },
+        "photoURL": {
+          "type": "string",
+          "maxLength": 250000
+        },
+        "bio": {
+          "type": "string",
+          "maxLength": 240
+        },
+        "language": {
+          "type": "string",
+          "enum": ["ar", "en"]
+        },
+        "isOnline": {
+          "type": "boolean"
+        },
+        "lastSeen": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "activeChatId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "isAdmin": {
+          "type": "boolean"
+        },
+        "isVerified": {
+          "type": "boolean"
+        },
+        "inviteCode": {
+          "type": "string",
+          "maxLength": 16
+        },
+        "invitedBy": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "inviteCount": {
+          "type": "integer"
+        },
+        "isVip": {
+          "type": "boolean"
+        },
+        "isBanned": {
+          "type": "boolean"
+        },
+        "mutedUntil": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "name", "username", "isOnline", "lastSeen", "createdAt", "updatedAt"]
+    },
+    "UserPrivate": {
+      "title": "UserPrivate",
+      "description": "Isolated private PII for a user account.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 200
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "email", "createdAt", "updatedAt"]
+    },
+    "MutedChat": {
+      "title": "MutedChat",
+      "description": "Per-user muted chat preference.",
+      "type": "object",
+      "properties": {
+        "chatId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "muted": {
+          "type": "boolean"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["chatId", "muted", "updatedAt"]
+    },
+    "InviteCode": {
+      "title": "InviteCode",
+      "description": "Lookup table mapping DANK-XXXX invite codes to user UIDs.",
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "minLength": 6,
+          "maxLength": 16,
+          "pattern": "^DANK-[A-Z0-9]{4,10}$"
+        },
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["code", "uid", "createdAt"]
+    },
+    "Referral": {
+      "title": "Referral",
+      "description": "Immutable one-time referral redemption record per user.",
+      "type": "object",
+      "properties": {
+        "referredUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "referrerUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "code": {
+          "type": "string",
+          "minLength": 6,
+          "maxLength": 16
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["referredUid", "referrerUid", "code", "createdAt"]
+    },
+    "Story": {
+      "title": "Story",
+      "description": "24-hour disappearing photo or video story.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "authorId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "authorName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "authorPhoto": {
+          "type": "string",
+          "maxLength": 250000
+        },
+        "mediaType": {
+          "type": "string",
+          "enum": ["image", "video"]
+        },
+        "mediaData": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 800000
+        },
+        "caption": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "chunkCount": {
+          "type": "integer"
+        },
+        "videoDuration": {
+          "type": "number"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "authorId", "authorName", "mediaType", "mediaData", "createdAt", "expiresAt"]
+    },
+    "StoryChunk": {
+      "title": "StoryChunk",
+      "description": "Ordered base64 chunk for compressed story videos exceeding single-document size.",
+      "type": "object",
+      "properties": {
+        "index": {
+          "type": "integer"
+        },
+        "data": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 550000
+        }
+      },
+      "required": ["index", "data"]
+    },
+    "StoryView": {
+      "title": "StoryView",
+      "description": "Viewer record and optional emoji reaction on a story.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "viewerName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "viewerPhoto": {
+          "type": "string",
+          "maxLength": 250000
+        },
+        "emoji": {
+          "type": "string",
+          "maxLength": 16
+        },
+        "viewedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "viewerName", "viewedAt"]
+    },
+    "Chat": {
+      "title": "Chat",
+      "description": "Private 1-to-1 chat, group chat, or broadcast channel.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["private", "group", "channel"]
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "photoURL": {
+          "type": "string",
+          "maxLength": 250000
+        },
+        "isPublic": {
+          "type": "boolean"
+        },
+        "createdBy": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "dmPeerIds": {
+          "type": "array"
+        },
+        "lastMessageText": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "lastMessageType": {
+          "type": "string",
+          "enum": ["", "text", "image", "audio"]
+        },
+        "lastMessageSenderId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "lastMessageSenderName": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "lastMessageStatus": {
+          "type": "string",
+          "enum": ["", "sent", "delivered", "seen"]
+        },
+        "lastMessageAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "pinnedMessageId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "pinnedMessageText": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "pinnedMessageSenderName": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "memberCount": {
+          "type": "integer"
+        },
+        "messages24hCount": {
+          "type": "integer"
+        },
+        "messages24hWindowStart": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "type", "isPublic", "createdBy", "memberCount", "createdAt", "updatedAt"]
+    },
+    "ChatMember": {
+      "title": "ChatMember",
+      "description": "Membership record inside a chat.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "chatId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin", "member"]
+        },
+        "joinedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastReadAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "chatId", "role", "joinedAt", "lastReadAt"]
+    },
+    "UserChatRef": {
+      "title": "UserChatRef",
+      "description": "Index entry linking a user to a joined chat.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "chatId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "chatType": {
+          "type": "string",
+          "enum": ["private", "group", "channel"]
+        },
+        "joinedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "chatId", "chatType", "joinedAt", "updatedAt"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "Real-time text, photo, or voice note message in a chat.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "chatId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "senderId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "senderName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "senderPhoto": {
+          "type": "string",
+          "maxLength": 250000
+        },
+        "type": {
+          "type": "string",
+          "enum": ["text", "image", "audio"]
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "imageData": {
+          "type": "string",
+          "maxLength": 500000
+        },
+        "audioData": {
+          "type": "string",
+          "maxLength": 500000
+        },
+        "audioDuration": {
+          "type": "number"
+        },
+        "waveform": {
+          "type": "array"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["sent", "delivered", "seen"]
+        },
+        "replyToId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "replyToSenderName": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "replyToText": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "chatId", "senderId", "senderName", "type", "status", "createdAt", "updatedAt"]
+    },
+    "Reaction": {
+      "title": "Reaction",
+      "description": "Emoji reaction by a chat member on a message.",
+      "type": "object",
+      "properties": {
+        "messageId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "chatId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "userName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "emoji": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["messageId", "chatId", "uid", "userName", "emoji", "updatedAt"]
+    },
+    "TypingState": {
+      "title": "TypingState",
+      "description": "Ephemeral typing indicator state for a user inside a chat.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "isTyping": {
+          "type": "boolean"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "name", "isTyping", "updatedAt"]
+    },
+    "AdsBanner": {
+      "title": "AdsBanner",
+      "description": "Global admin-controlled promotional banner displayed above the chat list.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 220
+        },
+        "link": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "imageData": {
+          "type": "string",
+          "maxLength": 350000
+        },
+        "updatedBy": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "enabled", "text", "updatedAt"]
+    },
+    "Post": {
+      "title": "Post",
+      "description": "Social feed post with 1-4 photos, caption, and hashtags.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "authorId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "authorName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "authorUsername": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "authorPhoto": { "type": "string", "maxLength": 250000 },
+        "authorIsAdmin": { "type": "boolean" },
+        "authorIsVerified": { "type": "boolean" },
+        "authorIsVip": { "type": "boolean" },
+        "images": { "type": "array" },
+        "caption": { "type": "string", "maxLength": 1000 },
+        "hashtags": { "type": "array" },
+        "likeCount": { "type": "integer" },
+        "commentCount": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "authorId", "authorName", "authorUsername", "images", "likeCount", "commentCount", "createdAt", "updatedAt"]
+    },
+    "Reel": {
+      "title": "Reel",
+      "description": "Vertical short-form video reel (max 60 seconds) with music, caption, and hashtags.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "authorId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "authorName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "authorUsername": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "authorPhoto": { "type": "string", "maxLength": 250000 },
+        "authorIsAdmin": { "type": "boolean" },
+        "authorIsVerified": { "type": "boolean" },
+        "authorIsVip": { "type": "boolean" },
+        "videoUrl": { "type": "string", "minLength": 1, "maxLength": 800000 },
+        "chunkCount": { "type": "integer" },
+        "videoDuration": { "type": "number" },
+        "caption": { "type": "string", "maxLength": 500 },
+        "musicName": { "type": "string", "maxLength": 120 },
+        "hashtags": { "type": "array" },
+        "likeCount": { "type": "integer" },
+        "commentCount": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "authorId", "authorName", "authorUsername", "videoUrl", "likeCount", "commentCount", "createdAt", "updatedAt"]
+    },
+    "ReelChunk": {
+      "title": "ReelChunk",
+      "description": "Ordered video media chunk for Reels when Storage fallback is used.",
+      "type": "object",
+      "properties": {
+        "index": { "type": "integer" },
+        "data": { "type": "string", "minLength": 1, "maxLength": 550000 }
+      },
+      "required": ["index", "data"]
+    },
+    "ContentLike": {
+      "title": "ContentLike",
+      "description": "User like record on a post, reel, or comment.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "createdAt"]
+    },
+    "FeedComment": {
+      "title": "FeedComment",
+      "description": "Comment or reply on a post or reel.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "targetId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "authorId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "authorName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "authorUsername": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "authorPhoto": { "type": "string", "maxLength": 250000 },
+        "authorIsAdmin": { "type": "boolean" },
+        "authorIsVerified": { "type": "boolean" },
+        "authorIsVip": { "type": "boolean" },
+        "text": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "replyToId": { "type": "string", "maxLength": 128 },
+        "replyToAuthorName": { "type": "string", "maxLength": 80 },
+        "likeCount": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "targetId", "authorId", "authorName", "authorUsername", "text", "likeCount", "createdAt", "updatedAt"]
+    },
+    "FollowRelation": {
+      "title": "FollowRelation",
+      "description": "Directed user follow relationship.",
+      "type": "object",
+      "properties": {
+        "followerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "targetUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["followerUid", "targetUid", "createdAt"]
+    },
+    "SavedItem": {
+      "title": "SavedItem",
+      "description": "Bookmarked post or reel saved by a user.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "itemType": { "type": "string", "enum": ["post", "reel"] },
+        "targetId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "itemType", "targetId", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users_public/{userId}": {
+      "schema": { "$ref": "#/entities/UserPublic" },
+      "description": "Public profiles, online presence, badges, and invite counters."
+    },
+    "/users_private/{userId}": {
+      "schema": { "$ref": "#/entities/UserPrivate" },
+      "description": "Private PII (email) accessible only by owner or admin."
+    },
+    "/users_private/{userId}/muted_chats/{chatId}": {
+      "schema": { "$ref": "#/entities/MutedChat" },
+      "description": "Muted chat preferences for the user."
+    },
+    "/invite_codes/{code}": {
+      "schema": { "$ref": "#/entities/InviteCode" },
+      "description": "Invite code to user UID mapping."
+    },
+    "/referrals/{referredUid}": {
+      "schema": { "$ref": "#/entities/Referral" },
+      "description": "One-time referral redemption records."
+    },
+    "/stories/{storyId}": {
+      "schema": { "$ref": "#/entities/Story" },
+      "description": "24-hour disappearing photo and video stories."
+    },
+    "/stories/{storyId}/views/{viewerUid}": {
+      "schema": { "$ref": "#/entities/StoryView" },
+      "description": "Story view receipts and emoji reactions."
+    },
+    "/stories/{storyId}/chunks/{chunkId}": {
+      "schema": { "$ref": "#/entities/StoryChunk" },
+      "description": "Ordered media chunks for longer compressed video stories."
+    },
+    "/chats/{chatId}": {
+      "schema": { "$ref": "#/entities/Chat" },
+      "description": "Private DMs, groups, and broadcast channels."
+    },
+    "/chats/{chatId}/members/{memberUid}": {
+      "schema": { "$ref": "#/entities/ChatMember" },
+      "description": "Master gate membership records for each chat."
+    },
+    "/chats/{chatId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/Message" },
+      "description": "Messages inside a chat with status tracking."
+    },
+    "/chats/{chatId}/reactions/{reactionId}": {
+      "schema": { "$ref": "#/entities/Reaction" },
+      "description": "Message emoji reactions scoped to chat members."
+    },
+    "/chats/{chatId}/typing/{uid}": {
+      "schema": { "$ref": "#/entities/TypingState" },
+      "description": "Live typing indicator documents for chat members."
+    },
+    "/user_chats/{docId}": {
+      "schema": { "$ref": "#/entities/UserChatRef" },
+      "description": "Query-enforced user chat membership index."
+    },
+    "/app_config/{docId}": {
+      "schema": { "$ref": "#/entities/AdsBanner" },
+      "description": "Admin-managed global app configuration such as the Ads banner."
+    },
+    "/users_private/{userId}/saved_items/{itemId}": {
+      "schema": { "$ref": "#/entities/SavedItem" },
+      "description": "User-saved posts and reels."
+    },
+    "/posts/{postId}": {
+      "schema": { "$ref": "#/entities/Post" },
+      "description": "Public photo posts feed."
+    },
+    "/posts/{postId}/likes/{uid}": {
+      "schema": { "$ref": "#/entities/ContentLike" },
+      "description": "Likes on a post."
+    },
+    "/posts/{postId}/comments/{commentId}": {
+      "schema": { "$ref": "#/entities/FeedComment" },
+      "description": "Comments and replies on a post."
+    },
+    "/posts/{postId}/comments/{commentId}/likes/{uid}": {
+      "schema": { "$ref": "#/entities/ContentLike" },
+      "description": "Likes on a post comment."
+    },
+    "/reels/{reelId}": {
+      "schema": { "$ref": "#/entities/Reel" },
+      "description": "Vertical short video reels feed."
+    },
+    "/reels/{reelId}/chunks/{chunkId}": {
+      "schema": { "$ref": "#/entities/ReelChunk" },
+      "description": "Ordered video media chunks for reels when Storage fallback is used."
+    },
+    "/reels/{reelId}/likes/{uid}": {
+      "schema": { "$ref": "#/entities/ContentLike" },
+      "description": "Likes on a reel."
+    },
+    "/reels/{reelId}/comments/{commentId}": {
+      "schema": { "$ref": "#/entities/FeedComment" },
+      "description": "Comments and replies on a reel."
+    },
+    "/reels/{reelId}/comments/{commentId}/likes/{uid}": {
+      "schema": { "$ref": "#/entities/ContentLike" },
+      "description": "Likes on a reel comment."
+    },
+    "/follows/{followId}": {
+      "schema": { "$ref": "#/entities/FollowRelation" },
+      "description": "User follow relationships."
+    }
+  }
+}

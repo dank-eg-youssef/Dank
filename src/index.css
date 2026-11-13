@@ -1,0 +1,83 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --dank-navy: #0A1931;
+    --dank-navy-light: #13284A;
+    --dank-sky: #38BDF8;
+    --dank-beige: #E8DCC6;
+    --dank-card: #F5EFE6;
+    --dank-paper: #FAF7F2;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+    font-family: 'Cairo', 'Poppins', system-ui, -apple-system, sans-serif;
+  }
+
+  html[dir="rtl"],
+  html[dir="rtl"] body,
+  html[dir="rtl"] input,
+  html[dir="rtl"] textarea,
+  html[dir="rtl"] button {
+    font-family: 'Cairo', 'Poppins', system-ui, -apple-system, sans-serif;
+  }
+
+  html[dir="rtl"] body {
+    text-align: right;
+  }
+
+  html[dir="ltr"],
+  html[dir="ltr"] body,
+  html[dir="ltr"] input,
+  html[dir="ltr"] textarea,
+  html[dir="ltr"] button {
+    font-family: 'Poppins', 'Cairo', system-ui, -apple-system, sans-serif;
+  }
+
+  html[dir="ltr"] body {
+    text-align: left;
+  }
+}
+
+.font-arabic {
+  font-family: 'Cairo', 'Poppins', system-ui, sans-serif;
+}
+
+.font-english {
+  font-family: 'Poppins', 'Cairo', system-ui, sans-serif;
+}
+
+.dank-chat-bg {
+  background-color: #E8DCC6;
+  background-image:
+    radial-gradient(rgba(10, 25, 49, 0.055) 1px, transparent 1px),
+    radial-gradient(rgba(56, 189, 248, 0.06) 1px, transparent 1px);
+  background-size: 28px 28px;
+  background-position: 0 0, 14px 14px;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Subtle custom scrollbar matching DANK palette */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(10, 25, 49, 0.18);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(10, 25, 49, 0.32);
+}
