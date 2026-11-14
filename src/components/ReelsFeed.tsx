@@ -200,7 +200,7 @@ const ReelSlide: React.FC<ReelSlideProps> = ({
   const handleToggleLike = async () => {
     try {
       if (!isLiked) triggerHeartBurst();
-      await toggleReelLike(reel.id, currentUser.uid, isLiked);
+      await toggleReelLike(reel.id, currentUser.uid, isLiked, currentUser, reel.authorId);
     } catch (err) {
       onNotify(err instanceof Error ? err.message : 'Could not update like.');
     }
@@ -212,7 +212,7 @@ const ReelSlide: React.FC<ReelSlideProps> = ({
       lastTapRef.current = 0;
       triggerHeartBurst();
       if (!isLiked) {
-        void toggleReelLike(reel.id, currentUser.uid, false);
+        void toggleReelLike(reel.id, currentUser.uid, false, currentUser, reel.authorId);
       }
       return;
     }
@@ -266,7 +266,7 @@ const ReelSlide: React.FC<ReelSlideProps> = ({
     if (isOwnReel || followLoading) return;
     setFollowLoading(true);
     try {
-      const nowFollowing = await toggleFollowUser(currentUser.uid, reel.authorId);
+      const nowFollowing = await toggleFollowUser(currentUser.uid, reel.authorId, currentUser);
       onNotify(
         nowFollowing
           ? `${t.reels.followingPrefix} ${authorName}`
@@ -297,7 +297,7 @@ const ReelSlide: React.FC<ReelSlideProps> = ({
       <div className="relative w-full max-w-[460px] h-full bg-black flex items-center justify-center">
         {loadingVideo ? (
           <div className="flex flex-col items-center gap-2 text-white">
-            <Loader2 className="w-8 h-8 text-[#25D366] animate-spin" />
+            <Loader2 className="w-8 h-8 text-[#2AABEE] animate-spin" />
             <span className="text-xs text-slate-300">{t.reels.loadingReel}</span>
           </div>
         ) : videoSrc.trim() ? (
@@ -335,7 +335,7 @@ const ReelSlide: React.FC<ReelSlideProps> = ({
               transition={{ duration: 0.35 }}
               className="absolute inset-0 flex items-center justify-center pointer-events-none"
             >
-              <Heart className="w-24 h-24 fill-[#25D366] text-[#25D366] drop-shadow-2xl" />
+              <Heart className="w-24 h-24 fill-[#2AABEE] text-[#2AABEE] drop-shadow-2xl" />
             </motion.div>
           )}
         </AnimatePresence>
@@ -347,7 +347,7 @@ const ReelSlide: React.FC<ReelSlideProps> = ({
           title={t.reels.muteUnmute}
           className="absolute top-16 end-3 z-20 w-10 h-10 rounded-full bg-black/50 hover:bg-black/75 text-white flex items-center justify-center backdrop-blur-xs cursor-pointer"
         >
-          {muted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5 text-[#25D366]" />}
+          {muted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5 text-[#2AABEE]" />}
         </button>
 
         <div className="absolute end-3 bottom-24 z-20 flex flex-col items-center gap-4">
@@ -367,8 +367,8 @@ const ReelSlide: React.FC<ReelSlideProps> = ({
                 aria-label={isFollowing ? t.reels.unfollowUser : t.reels.followUser}
                 className={`-mt-2.5 w-6 h-6 rounded-full flex items-center justify-center shadow-md cursor-pointer ${
                   isFollowing
-                    ? 'bg-white text-[#0a2e1f]'
-                    : 'bg-[#25D366] text-[#052014]'
+                    ? 'bg-white text-[#0E1621]'
+                    : 'bg-[#2AABEE] text-white'
                 }`}
               >
                 {isFollowing ? (
@@ -420,7 +420,7 @@ const ReelSlide: React.FC<ReelSlideProps> = ({
             <div className="w-11 h-11 rounded-full bg-black/45 hover:bg-black/65 flex items-center justify-center backdrop-blur-xs">
               <Bookmark
                 className={`w-6 h-6 ${
-                  isSaved ? 'fill-[#25D366] text-[#25D366]' : 'text-white'
+                  isSaved ? 'fill-[#2AABEE] text-[#2AABEE]' : 'text-white'
                 }`}
               />
             </div>
@@ -481,7 +481,7 @@ const ReelSlide: React.FC<ReelSlideProps> = ({
                 className={`ms-1 h-7 px-3 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors ${
                   isFollowing
                     ? 'bg-white/20 text-white hover:bg-white/30'
-                    : 'bg-[#25D366] text-[#052014] hover:bg-[#1ebe5d]'
+                    : 'bg-[#2AABEE] text-white hover:bg-[#229ED9]'
                 }`}
               >
                 {!isFollowing && <UserPlus className="w-3 h-3" />}
@@ -497,22 +497,22 @@ const ReelSlide: React.FC<ReelSlideProps> = ({
           )}
 
           {reel.hashtags && reel.hashtags.length > 0 && (
-            <p dir="ltr" className="text-xs font-semibold text-[#25D366] truncate text-start">
+            <p dir="ltr" className="text-xs font-semibold text-[#2AABEE] truncate text-start">
               {reel.hashtags.map((tag) => `#${tag}`).join(' ')}
             </p>
           )}
 
           <div className="flex items-center gap-2 pt-0.5">
             <div
-              className={`w-7 h-7 rounded-full bg-[#0a2e1f] border border-white/30 flex items-center justify-center shrink-0 ${
+              className={`w-7 h-7 rounded-full bg-[#17212B] border border-white/30 flex items-center justify-center shrink-0 ${
                 isPlaying ? 'animate-spin' : ''
               }`}
               style={{ animationDuration: '3.5s' }}
             >
-              <Disc3 className="w-4 h-4 text-[#25D366]" />
+              <Disc3 className="w-4 h-4 text-[#2AABEE]" />
             </div>
             <div className="flex items-center gap-1.5 min-w-0 text-xs font-medium text-white/90">
-              <Music className="w-3.5 h-3.5 text-[#25D366] shrink-0" />
+              <Music className="w-3.5 h-3.5 text-[#2AABEE] shrink-0" />
               <span className="truncate">{reel.musicName || t.reels.originalSound}</span>
             </div>
           </div>
@@ -632,11 +632,11 @@ const CreateReelModal: React.FC<CreateReelModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="w-full max-w-md rounded-2xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/15 dark:border-white/10 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
-        <div className="bg-[#0a2e1f] text-white px-5 py-4 flex items-center justify-between shrink-0">
+      <div className="w-full max-w-md rounded-2xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F] shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+        <div className="bg-[#17212B] text-white border-b border-[#22303F] px-5 py-4 flex items-center justify-between shrink-0">
           <div>
             <h3 className="text-base font-semibold">{t.reels.uploadModalTitle}</h3>
-            <p className="text-[11px] text-emerald-200/80">{t.reels.uploadModalSubtitle}</p>
+            <p className="text-[11px] text-[#8C9FB1]">{t.reels.uploadModalSubtitle}</p>
           </div>
           <button
             type="button"
@@ -658,7 +658,7 @@ const CreateReelModal: React.FC<CreateReelModalProps> = ({
           />
 
           {previewUrl ? (
-            <div className="relative rounded-2xl overflow-hidden bg-[#071911] aspect-[9/14] max-h-72 mx-auto flex items-center justify-center">
+            <div className="relative rounded-2xl overflow-hidden bg-[#0E1621] aspect-[9/14] max-h-72 mx-auto flex items-center justify-center">
               <video
                 src={previewUrl}
                 controls
@@ -692,11 +692,11 @@ const CreateReelModal: React.FC<CreateReelModalProps> = ({
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
-              className="w-full h-44 rounded-2xl border-2 border-dashed border-[#0a2e1f]/25 dark:border-white/20 bg-[#f4f7f5] dark:bg-[#071911] hover:bg-[#eaf2ed] dark:hover:bg-[#0b2319] flex flex-col items-center justify-center gap-2 text-[#0a2e1f] dark:text-white transition-colors cursor-pointer"
+              className="w-full h-44 rounded-2xl border-2 border-dashed border-slate-300 dark:border-[#22303F] bg-slate-100 dark:bg-[#242F3D] hover:bg-slate-200 dark:hover:bg-[#2B3949] flex flex-col items-center justify-center gap-2 text-[#0E1621] dark:text-white transition-colors cursor-pointer"
             >
-              <Film className="w-8 h-8 text-[#25D366]" />
+              <Film className="w-8 h-8 text-[#2AABEE]" />
               <span className="text-sm font-semibold">{t.reels.selectReelVideo}</span>
-              <span className="text-xs text-slate-500 dark:text-emerald-200/70">
+              <span className="text-xs text-slate-500 dark:text-[#708499]">
                 {t.reels.max60Compressed}
               </span>
             </button>
@@ -710,7 +710,7 @@ const CreateReelModal: React.FC<CreateReelModalProps> = ({
           )}
 
           <div>
-            <label className="block text-xs font-semibold text-[#0a2e1f] dark:text-emerald-100 mb-1">
+            <label className="block text-xs font-semibold text-[#0E1621] dark:text-[#8C9FB1] mb-1">
               {t.reels.captionLabel}
             </label>
             <textarea
@@ -720,13 +720,13 @@ const CreateReelModal: React.FC<CreateReelModalProps> = ({
               value={caption}
               onChange={(e) => setCaption(e.target.value)}
               placeholder={t.reels.captionPlaceholder}
-              className="w-full px-3.5 py-2 rounded-xl bg-[#f4f7f5] dark:bg-[#071911] border border-[#0a2e1f]/15 dark:border-white/15 text-base text-[#0a2e1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#25D366] resize-none"
+              className="w-full px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-[#242F3D] border border-slate-200 dark:border-[#22303F] text-base text-[#0E1621] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#2AABEE] resize-none"
             />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-[#0a2e1f] dark:text-emerald-100 mb-1">
+              <label className="block text-xs font-semibold text-[#0E1621] dark:text-[#8C9FB1] mb-1">
                 {t.reels.musicNameLabel}
               </label>
               <input
@@ -736,12 +736,12 @@ const CreateReelModal: React.FC<CreateReelModalProps> = ({
                 value={musicName}
                 onChange={(e) => setMusicName(e.target.value)}
                 placeholder={t.reels.musicPlaceholder}
-                className="w-full h-11 px-3 rounded-xl bg-[#f4f7f5] dark:bg-[#071911] border border-[#0a2e1f]/15 dark:border-white/15 text-base text-[#0a2e1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#25D366]"
+                className="w-full h-11 px-3 rounded-xl bg-slate-100 dark:bg-[#242F3D] border border-slate-200 dark:border-[#22303F] text-base text-[#0E1621] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#2AABEE]"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-[#0a2e1f] dark:text-emerald-100 mb-1">
+              <label className="block text-xs font-semibold text-[#0E1621] dark:text-[#8C9FB1] mb-1">
                 {t.reels.hashtagsLabel}
               </label>
               <input
@@ -750,20 +750,20 @@ const CreateReelModal: React.FC<CreateReelModalProps> = ({
                 value={hashtagsInput}
                 onChange={(e) => setHashtagsInput(e.target.value)}
                 placeholder={t.reels.hashtagsPlaceholder}
-                className="w-full h-11 px-3 rounded-xl bg-[#f4f7f5] dark:bg-[#071911] border border-[#0a2e1f]/15 dark:border-white/15 text-base text-[#0a2e1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#25D366]"
+                className="w-full h-11 px-3 rounded-xl bg-slate-100 dark:bg-[#242F3D] border border-slate-200 dark:border-[#22303F] text-base text-[#0E1621] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#2AABEE]"
               />
             </div>
           </div>
 
           {uploading && (
             <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-xs text-[#0a2e1f] dark:text-white font-semibold tabular-nums">
+              <div className="flex items-center justify-between text-xs text-[#0E1621] dark:text-white font-semibold tabular-nums">
                 <span>{t.reels.uploadingProgress}</span>
                 <span>{progress}%</span>
               </div>
-              <div className="w-full h-2 rounded-full bg-[#0a2e1f]/12 dark:bg-white/10 overflow-hidden">
+              <div className="w-full h-2 rounded-full bg-slate-200 dark:bg-[#242F3D] overflow-hidden">
                 <div
-                  className="h-full bg-[#25D366] transition-all duration-150"
+                  className="h-full bg-[#2AABEE] transition-all duration-150"
                   style={{ width: `${progress}%` }}
                 />
               </div>
@@ -773,7 +773,7 @@ const CreateReelModal: React.FC<CreateReelModalProps> = ({
           <button
             type="submit"
             disabled={!selectedFile || uploading}
-            className="w-full h-11 rounded-xl bg-[#25D366] hover:bg-[#1ebe5d] text-[#052014] font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+            className="w-full h-11 rounded-xl bg-[#2AABEE] hover:bg-[#229ED9] text-white font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
           >
             {uploading && <Loader2 className="w-4 h-4 animate-spin" />}
             {uploading ? t.reels.uploadingBtn : t.reels.postReelBtn}
@@ -868,7 +868,7 @@ export const ReelsFeed: React.FC<ReelsFeedProps> = ({
     : null;
 
   return (
-    <div className="flex-1 h-full relative bg-[#061811] overflow-hidden">
+    <div className="flex-1 h-full relative bg-[#0E1621] overflow-hidden">
       <header className="absolute top-0 inset-x-0 z-30 px-4 py-3 flex items-center justify-between pointer-events-none bg-gradient-to-b from-black/65 to-transparent">
         <div className="flex items-center gap-2 pointer-events-auto">
           {onOpenDrawer && (
@@ -882,7 +882,7 @@ export const ReelsFeed: React.FC<ReelsFeedProps> = ({
             </button>
           )}
           <h2 className="text-lg font-bold text-white tracking-tight">{t.reels.title}</h2>
-          <span dir="ltr" className="text-xs text-[#25D366] font-semibold tabular-nums">
+          <span dir="ltr" className="text-xs text-[#2AABEE] font-semibold tabular-nums">
             {reels.length > 0 && currentIdx >= 0 ? `${currentIdx + 1}/${reels.length}` : ''}
           </span>
         </div>
@@ -890,7 +890,7 @@ export const ReelsFeed: React.FC<ReelsFeedProps> = ({
         <button
           type="button"
           onClick={() => setShowCreateModal(true)}
-          className="pointer-events-auto h-10 px-3.5 rounded-xl bg-[#25D366] hover:bg-[#1ebe5d] text-[#052014] text-xs font-bold flex items-center gap-1.5 shadow-lg cursor-pointer"
+          className="pointer-events-auto h-10 px-3.5 rounded-xl bg-[#2AABEE] hover:bg-[#229ED9] text-white text-xs font-bold flex items-center gap-1.5 shadow-lg cursor-pointer"
         >
           <Plus className="w-4 h-4 stroke-[2.5]" />
           {t.reels.uploadReelBtn}
@@ -899,22 +899,22 @@ export const ReelsFeed: React.FC<ReelsFeedProps> = ({
 
       {reels.length === 0 ? (
         <div className="h-full w-full flex items-center justify-center p-6">
-          <div className="max-w-sm w-full rounded-2xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/15 dark:border-white/10 p-7 text-center space-y-4 shadow-xl">
-            <div className="w-14 h-14 mx-auto rounded-2xl bg-[#0a2e1f] text-[#25D366] flex items-center justify-center">
+          <div className="max-w-sm w-full rounded-2xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F] p-7 text-center space-y-4 shadow-xl">
+            <div className="w-14 h-14 mx-auto rounded-2xl bg-[#2AABEE]/15 text-[#2AABEE] flex items-center justify-center">
               <Film className="w-7 h-7" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-[#0a2e1f] dark:text-white">
+              <h3 className="text-lg font-bold text-[#0E1621] dark:text-white">
                 {t.reels.noReelsTitle}
               </h3>
-              <p className="text-xs text-slate-600 dark:text-emerald-200/75 mt-1.5 leading-relaxed">
+              <p className="text-xs text-slate-600 dark:text-[#708499] mt-1.5 leading-relaxed">
                 {t.reels.noReelsDesc}
               </p>
             </div>
             <button
               type="button"
               onClick={() => setShowCreateModal(true)}
-              className="w-full h-11 rounded-xl bg-[#25D366] hover:bg-[#1ebe5d] text-[#052014] text-sm font-bold flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full h-11 rounded-xl bg-[#2AABEE] hover:bg-[#229ED9] text-white text-sm font-bold flex items-center justify-center gap-2 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               {t.reels.uploadFirstReel}

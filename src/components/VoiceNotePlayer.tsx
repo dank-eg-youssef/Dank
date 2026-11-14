@@ -1,12 +1,16 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Pause, Play } from 'lucide-react';
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { CheckCheck, Pause, Play } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
+import { getVoiceCache } from '../utils/mediaStorage';
 
 interface VoiceNotePlayerProps {
+  messageId?: string;
   audioData: string;
   duration?: number;
   waveform?: number[];
   onDarkBubble?: boolean;
+  isListened?: boolean;
+  onPlayed?: () => void;
 }
 
 const DEFAULT_BARS = [
@@ -44,19 +48,60 @@ function dataUrlToBlobUrl(dataUrl: string): string | null {
 }
 
 export const VoiceNotePlayer: React.FC<VoiceNotePlayerProps> = ({
+  messageId,
   audioData,
   duration = 0,
   waveform,
   onDarkBubble = false,
+  isListened = false,
+  onPlayed,
 }) => {
   const { t } = useLanguage();
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  const playerId = useId();
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [shouldLoadAudio, setShouldLoadAudio] = useState(false);
-  const [blobSrc, setBlobSrc] = useState<string>('');
+  const playedNotifiedRef = useRef(false);
+
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [totalDuration, setTotalDuration] = useState(duration);
+  const [playbackRate, setPlaybackRate] = useState<1 | 2>(1);
+  const [localListened, setLocalListened] = useState(isListened);
+  const [playError, setPlayError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isListened) setLocalListened(true);
+  }, [isListened]);
+
+  useEffect(() => {
+    setTotalDuration(duration);
+  }, [duration]);
+
+  const effectiveSource = useMemo(() => {
+    const raw = audioData?.trim() || '';
+    if (raw) return raw;
+    return getVoiceCache(messageId) || '';
+  }, [audioData, messageId]);
+
+  // Synchronously resolve Blob URL (so friend voice notes play on first tap on iOS & desktop)
+  const [blobSrc, setBlobSrc] = useState<string>('');
+  useEffect(() => {
+    if (!effectiveSource) {
+      setBlobSrc('');
+      return;
+    }
+    if (!effectiveSource.startsWith('data:')) {
+      setBlobSrc(effectiveSource);
+      return;
+    }
+    const objectUrl = dataUrlToBlobUrl(effectiveSource);
+    if (objectUrl) {
+      setBlobSrc(objectUrl);
+      return () => {
+        URL.revokeObjectURL(objectUrl);
+      };
+    }
+    setBlobSrc(effectiveSource);
+  }, [effectiveSource]);
 
   const bars = useMemo(() => {
     if (waveform && waveform.length > 0) {
@@ -65,54 +110,21 @@ export const VoiceNotePlayer: React.FC<VoiceNotePlayerProps> = ({
     return DEFAULT_BARS;
   }, [waveform]);
 
+  // Global single-playback coordinator: pause other voice players when one starts
   useEffect(() => {
-    setTotalDuration(duration);
-  }, [duration]);
-
-  // Lazy-mount <audio> via IntersectionObserver (or immediately when user taps play)
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el || shouldLoadAudio) return;
-    if (typeof IntersectionObserver === 'undefined') {
-      setShouldLoadAudio(true);
-      return;
-    }
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
-          setShouldLoadAudio(true);
-          observer.disconnect();
-        }
-      },
-      { rootMargin: '180px' }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [shouldLoadAudio]);
-
-  // Convert data: URI to Blob Object URL so iPhone Safari reliably plays & seeks
-  useEffect(() => {
-    if (!shouldLoadAudio || !audioData?.trim()) {
-      setBlobSrc('');
-      return;
-    }
-    if (!audioData.startsWith('data:')) {
-      setBlobSrc(audioData);
-      return;
-    }
-    const objectUrl = dataUrlToBlobUrl(audioData);
-    if (objectUrl) {
-      setBlobSrc(objectUrl);
-      return () => {
-        URL.revokeObjectURL(objectUrl);
-      };
-    }
-    setBlobSrc(audioData);
-  }, [shouldLoadAudio, audioData]);
+    const handleOtherPlay = (ev: Event) => {
+      const detail = (ev as CustomEvent<string>).detail;
+      if (detail !== playerId && audioRef.current && !audioRef.current.paused) {
+        audioRef.current.pause();
+      }
+    };
+    window.addEventListener('dank:voice-play', handleOtherPlay);
+    return () => window.removeEventListener('dank:voice-play', handleOtherPlay);
+  }, [playerId]);
 
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio || !blobSrc) return;
+    if (!audio) return;
 
     const syncDuration = () => {
       if (Number.isFinite(audio.duration) && audio.duration > 0) {
@@ -128,7 +140,22 @@ export const VoiceNotePlayer: React.FC<VoiceNotePlayerProps> = ({
       setCurrentTime(0);
     };
     const handlePause = () => setIsPlaying(false);
-    const handlePlay = () => setIsPlaying(true);
+    const handlePlay = () => {
+      setPlayError(null);
+      setIsPlaying(true);
+      setLocalListened(true);
+      window.dispatchEvent(new CustomEvent('dank:voice-play', { detail: playerId }));
+      if (!playedNotifiedRef.current) {
+        playedNotifiedRef.current = true;
+        onPlayed?.();
+      }
+    };
+    const handleError = () => {
+      setIsPlaying(false);
+      if (effectiveSource) {
+        setPlayError(t.chat.voicePlayError);
+      }
+    };
 
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('loadedmetadata', syncDuration);
@@ -136,7 +163,7 @@ export const VoiceNotePlayer: React.FC<VoiceNotePlayerProps> = ({
     audio.addEventListener('ended', handleEnded);
     audio.addEventListener('pause', handlePause);
     audio.addEventListener('play', handlePlay);
-    audio.addEventListener('error', handlePause);
+    audio.addEventListener('error', handleError);
 
     return () => {
       audio.removeEventListener('timeupdate', handleTimeUpdate);
@@ -145,12 +172,17 @@ export const VoiceNotePlayer: React.FC<VoiceNotePlayerProps> = ({
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('pause', handlePause);
       audio.removeEventListener('play', handlePlay);
-      audio.removeEventListener('error', handlePause);
-      audio.pause();
+      audio.removeEventListener('error', handleError);
     };
-  }, [blobSrc]);
+  }, [blobSrc, effectiveSource, onPlayed, playerId, t.chat.voicePlayError]);
 
-  // Fallback interval timer for smooth progress bar animation on iOS Safari WebKit
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.playbackRate = playbackRate;
+    }
+  }, [playbackRate]);
+
+  // Smooth timer fallback on iOS Safari WebKit
   useEffect(() => {
     if (!isPlaying) return;
     const id = window.setInterval(() => {
@@ -161,52 +193,51 @@ export const VoiceNotePlayer: React.FC<VoiceNotePlayerProps> = ({
           setTotalDuration(audio.duration);
         }
       }
-    }, 100);
+    }, 90);
     return () => window.clearInterval(id);
   }, [isPlaying]);
 
   const togglePlayback = async (e: React.MouseEvent | React.TouchEvent) => {
     e.stopPropagation();
-
-    let srcToPlay = blobSrc;
-    if (!shouldLoadAudio) {
-      setShouldLoadAudio(true);
-    }
+    setPlayError(null);
 
     const audio = audioRef.current;
     if (!audio) return;
 
-    // Ensure src is assigned synchronously during iOS user gesture handler
-    if (!audio.getAttribute('src') && audioData?.trim()) {
-      if (!srcToPlay && audioData.startsWith('data:')) {
-        srcToPlay = dataUrlToBlobUrl(audioData) || audioData;
-        setBlobSrc(srcToPlay);
-      } else if (!srcToPlay) {
-        srcToPlay = audioData;
-        setBlobSrc(srcToPlay);
-      }
-      if (srcToPlay) {
-        audio.src = srcToPlay;
-      }
+    const targetSrc = blobSrc || effectiveSource;
+    if (!targetSrc) {
+      setPlayError(t.chat.voicePlayError);
+      return;
     }
 
+    if (!audio.getAttribute('src')) {
+      audio.src = targetSrc;
+      audio.load();
+    }
+
+    audio.playbackRate = playbackRate;
+
     if (audio.paused) {
+      window.dispatchEvent(new CustomEvent('dank:voice-play', { detail: playerId }));
       try {
-        setIsPlaying(true);
         await audio.play();
+        setIsPlaying(true);
       } catch {
-        // Fallback retry using raw audioData if Blob URL codec differed
-        if (audioData && audio.src !== audioData) {
+        // Fallback retry using raw effectiveSource / localStorage cache
+        const fallbackRaw = effectiveSource || getVoiceCache(messageId) || '';
+        if (fallbackRaw && audio.src !== fallbackRaw) {
           try {
-            audio.src = audioData;
+            audio.src = fallbackRaw;
+            audio.load();
             await audio.play();
             setIsPlaying(true);
             return;
           } catch {
-            // ignore
+            // fall through to inline error
           }
         }
         setIsPlaying(false);
+        setPlayError(t.chat.voicePlayError);
       }
     } else {
       audio.pause();
@@ -227,73 +258,112 @@ export const VoiceNotePlayer: React.FC<VoiceNotePlayerProps> = ({
     }
   };
 
+  const toggleSpeed = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const next: 1 | 2 = playbackRate === 1 ? 2 : 1;
+    setPlaybackRate(next);
+    if (audioRef.current) {
+      audioRef.current.playbackRate = next;
+    }
+  };
+
   const progressRatio = totalDuration > 0 ? Math.min(1, currentTime / totalDuration) : 0;
 
   return (
     <div
-      ref={containerRef}
-      className="flex items-center gap-2.5 min-w-[220px] sm:min-w-[255px] py-0.5 select-none"
+      onClick={(e) => e.stopPropagation()}
+      className="flex flex-col gap-1.5 min-w-[235px] sm:min-w-[268px] py-0.5 select-none"
     >
+      {/* Telegram Waveform + Play/Pause + Speed Row */}
+      <div className="flex items-center gap-2.5">
+        <button
+          type="button"
+          onClick={(e) => void togglePlayback(e)}
+          aria-label={isPlaying ? t.chat.pauseVoice : t.chat.playVoice}
+          style={{ touchAction: 'manipulation' }}
+          className={`w-11 h-11 min-w-[44px] min-h-[44px] rounded-full flex items-center justify-center shrink-0 transition-transform active:scale-95 cursor-pointer ${
+            onDarkBubble
+              ? 'bg-[#2AABEE] text-white hover:bg-[#229ED9]'
+              : 'bg-[#2AABEE] text-white hover:bg-[#229ED9]'
+          }`}
+        >
+          {isPlaying ? (
+            <Pause className="w-4 h-4 fill-current" />
+          ) : (
+            <Play className="w-4 h-4 fill-current ms-0.5" />
+          )}
+        </button>
+
+        <div className="flex-1 min-w-0 flex flex-col gap-1">
+          <div className="h-7 flex items-center gap-[2.5px]">
+            {bars.map((amp, idx) => {
+              const barProgress = (idx + 1) / bars.length;
+              const active = barProgress <= progressRatio;
+              return (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={(e) => handleSeekBar(e, idx)}
+                  aria-label={`Seek waveform ${idx + 1}`}
+                  style={{ height: `${Math.round(amp * 100)}%`, touchAction: 'manipulation' }}
+                  className={`flex-1 min-w-[2.5px] max-w-[4px] rounded-full transition-colors cursor-pointer ${
+                    active
+                      ? 'bg-[#2AABEE]'
+                      : onDarkBubble
+                      ? 'bg-white/30 hover:bg-white/50'
+                      : 'bg-slate-400/35 dark:bg-white/25 hover:bg-[#2AABEE]/60'
+                  }`}
+                />
+              );
+            })}
+          </div>
+
+          <div
+            className={`flex items-center justify-between gap-2 text-[10px] font-medium tabular-nums ${
+              onDarkBubble ? 'text-sky-100/85' : 'text-slate-600 dark:text-[#8C9FB1]'
+            }`}
+          >
+            <span dir="ltr">
+              {formatDuration(isPlaying ? currentTime : 0)} / {formatDuration(totalDuration)}
+            </span>
+
+            <div className="flex items-center gap-1.5">
+              {localListened && (
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-[#2AABEE]">
+                  <CheckCheck className="w-3 h-3" />
+                  {t.chat.voiceListened}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={toggleSpeed}
+                title={t.chat.voiceSpeedTooltip}
+                className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold transition-colors cursor-pointer ${
+                  onDarkBubble
+                    ? 'bg-white/15 hover:bg-white/25 text-white'
+                    : 'bg-[#2AABEE]/15 hover:bg-[#2AABEE]/25 text-[#2AABEE]'
+                }`}
+              >
+                {playbackRate}x
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Native HTML5 <audio controls> element (always visible for maximum cross-browser / iOS Safari reliability) */}
       <audio
         ref={audioRef}
         src={blobSrc || undefined}
+        controls
         playsInline
         preload="metadata"
-        className="hidden"
+        className="w-full h-8 rounded-lg opacity-90"
       />
 
-      <button
-        type="button"
-        onClick={(e) => void togglePlayback(e)}
-        aria-label={isPlaying ? t.chat.pauseVoice : t.chat.playVoice}
-        style={{ touchAction: 'manipulation' }}
-        className={`w-11 h-11 min-w-[44px] min-h-[44px] rounded-full flex items-center justify-center shrink-0 transition-transform active:scale-95 cursor-pointer ${
-          onDarkBubble
-            ? 'bg-[#25D366] text-[#041f14] hover:bg-[#1ebe5d]'
-            : 'bg-[#0a2e1f] dark:bg-[#25D366] text-white dark:text-[#041f14] hover:opacity-90'
-        }`}
-      >
-        {isPlaying ? (
-          <Pause className="w-4 h-4 fill-current" />
-        ) : (
-          <Play className="w-4 h-4 fill-current ms-0.5" />
-        )}
-      </button>
-
-      <div className="flex-1 min-w-0 flex flex-col gap-1">
-        <div className="h-7 flex items-center gap-[2.5px]">
-          {bars.map((amp, idx) => {
-            const barProgress = (idx + 1) / bars.length;
-            const active = barProgress <= progressRatio;
-            return (
-              <button
-                key={idx}
-                type="button"
-                onClick={(e) => handleSeekBar(e, idx)}
-                aria-label={`Seek waveform ${idx + 1}`}
-                style={{ height: `${Math.round(amp * 100)}%`, touchAction: 'manipulation' }}
-                className={`flex-1 min-w-[2.5px] max-w-[4px] rounded-full transition-colors cursor-pointer ${
-                  active
-                    ? onDarkBubble
-                      ? 'bg-[#25D366]'
-                      : 'bg-[#25D366]'
-                    : onDarkBubble
-                    ? 'bg-white/30 hover:bg-white/50'
-                    : 'bg-[#0a2e1f]/20 dark:bg-white/25 hover:bg-[#0a2e1f]/35'
-                }`}
-              />
-            );
-          })}
-        </div>
-        <div
-          className={`flex items-center justify-between text-[10px] font-medium tabular-nums ${
-            onDarkBubble ? 'text-emerald-100/80' : 'text-slate-600 dark:text-emerald-100/70'
-          }`}
-        >
-          <span>{isPlaying ? formatDuration(currentTime) : t.chat.voiceNoteLabel}</span>
-          <span>{formatDuration(totalDuration)}</span>
-        </div>
-      </div>
+      {playError && (
+        <p className="text-[11px] font-medium text-red-400 px-1">{playError}</p>
+      )}
     </div>
   );
 };

@@ -48,7 +48,9 @@ import {
   deleteMessage,
   deleteMessageForMe,
   editMessage,
+  getLocalBotMessages,
   markChatMessagesSeen,
+  markVoiceMessagePlayed,
   pinMessage,
   recordChannelMessageView,
   sendMessage,
@@ -68,6 +70,7 @@ import type {
 import { getCachedChatMessages, setCachedChatMessages } from '../utils/chatCache';
 import { handleFirestoreError, isOfflineError, OperationType } from '../utils/firestoreErrors';
 import { compressImageFile } from '../utils/imageCompress';
+import { uploadVoiceMessage } from '../utils/mediaStorage';
 import { decryptSecretText } from '../utils/secretCrypto';
 import { DANK_STICKERS, getStickerById } from '../utils/stickers';
 import {
@@ -151,6 +154,7 @@ interface ChatWindowProps {
   isMuted: boolean;
   onBackMobile: () => void;
   onOpenChatInfo: () => void;
+  onOpenProfile?: (user: UserPublic) => void;
   onStartCall: (peer: UserPublic, callType: 'voice' | 'video', chatId: string) => void;
   onSelectChat: (chatId: string) => void;
   onNotify: (msg: string) => void;
@@ -166,6 +170,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   isMuted,
   onBackMobile,
   onOpenChatInfo,
+  onOpenProfile,
   onStartCall,
   onSelectChat,
   onNotify,
@@ -236,10 +241,14 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const audioCtxRef = useRef<AudioContext | null>(null);
 
   // Reset per-chat state & load cache immediately on chat switch
+  const isBotChatId = chat.id === `dank_bot_${currentUser.uid}`;
+
   useEffect(() => {
     if (prevChatIdRef.current !== chat.id) {
       prevChatIdRef.current = chat.id;
-      const cached = getCachedChatMessages(chat.id);
+      const cached = isBotChatId
+        ? getLocalBotMessages(currentUser.uid)
+        : getCachedChatMessages(chat.id);
       setMessages(cached);
       setOptimisticMsgs([]);
       setLimitCount(30);
@@ -258,10 +267,28 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       shouldScrollToBottomRef.current = true;
       viewedIdsSentRef.current.clear();
     }
-  }, [chat.id]);
+  }, [chat.id, currentUser.uid, isBotChatId]);
 
-  // Subscribe to last `limitCount` messages (descending -> reversed for ascending chat view)
+  // Subscribe to last `limitCount` messages (or local-first DANK Bot messages)
   useEffect(() => {
+    if (isBotChatId) {
+      const localMsgs = getLocalBotMessages(currentUser.uid);
+      if (localMsgs.length > 0) {
+        setMessages(localMsgs);
+        setLoadingMessages(false);
+      }
+      const handleBotUpdated = () => {
+        const latest = getLocalBotMessages(currentUser.uid);
+        setMessages(latest);
+        setLoadingMessages(false);
+        setOptimisticMsgs((prev) =>
+          prev.filter((opt) => !latest.some((real) => real.id === opt.id))
+        );
+      };
+      window.addEventListener('dank:bot-updated', handleBotUpdated);
+      return () => window.removeEventListener('dank:bot-updated', handleBotUpdated);
+    }
+
     const msgQuery = query(
       collection(db, 'chats', chat.id, 'messages'),
       orderBy('createdAt', 'desc'),
@@ -292,7 +319,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     );
 
     return () => unsubMsgs();
-  }, [chat.id, limitCount]);
+  }, [chat.id, currentUser.uid, isBotChatId, limitCount]);
 
   // Subscribe to reactions, members, and typing
   useEffect(() => {
@@ -566,9 +593,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     const el = msgRefs.current[messageId];
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      el.classList.add('ring-2', 'ring-[#25D366]');
+      el.classList.add('ring-2', 'ring-[#2AABEE]');
       window.setTimeout(() => {
-        el.classList.remove('ring-2', 'ring-[#25D366]');
+        el.classList.remove('ring-2', 'ring-[#2AABEE]');
       }, 1400);
     }
   };
@@ -596,6 +623,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const createOptimisticId = () => doc(collection(db, '_ids')).id;
 
   const pushOptimisticAndSend = async (params: {
+    messageId?: string;
     type: Message['type'];
     text?: string;
     imageData?: string;
@@ -612,7 +640,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     locationLabel?: string;
     stickerId?: string;
   }) => {
-    const msgId = createOptimisticId();
+    const msgId = params.messageId || createOptimisticId();
     shouldScrollToBottomRef.current = true;
 
     const optimistic: Message = {
@@ -907,13 +935,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       audioChunksRef.current = [];
       waveformSamplesRef.current = [];
 
-      // Prioritize AAC/MP4 first so iPhone Safari & Desktop browsers play smoothly!
+      // Use audio/webm with audio/mp4 fallback (cross-browser desktop, Android & iOS Safari)
       const preferredTypes = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
         'audio/mp4;codecs=mp4a.40.2',
         'audio/mp4',
         'audio/aac',
-        'audio/webm;codecs=opus',
-        'audio/webm',
         'audio/ogg;codecs=opus',
       ];
       const mimeType = preferredTypes.find((type) => MediaRecorder.isTypeSupported(type));
@@ -962,7 +990,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         const canceled = recordCancelRef.current;
         const rawSamples = [...waveformSamplesRef.current];
         const chunks = [...audioChunksRef.current];
-        const recType = recorder.mimeType || 'audio/mp4';
+        const recType = recorder.mimeType || 'audio/webm';
 
         cleanupRecordingResources();
         setIsRecording(false);
@@ -975,24 +1003,24 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           return;
         }
 
-        const blob = new Blob(chunks, { type: recType });
-        const dataUrl = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
-          reader.onerror = () => reject(new Error(t.chat.failedSendVoice));
-          reader.readAsDataURL(blob);
-        });
-
-        if (!dataUrl || dataUrl.length > 520000) {
-          onNotify(t.chat.voiceTooLong);
-          return;
-        }
-
         setSending(true);
         try {
+          const blob = new Blob(chunks, { type: recType });
+          const voiceMsgId = createOptimisticId();
+          const uploaded = await uploadVoiceMessage(blob, chat.id, voiceMsgId);
+
+          if (
+            !uploaded.audioData ||
+            (!uploaded.audioData.startsWith('http') && uploaded.audioData.length > 740000)
+          ) {
+            onNotify(t.chat.voiceTooLong);
+            return;
+          }
+
           await pushOptimisticAndSend({
+            messageId: voiceMsgId,
             type: 'audio',
-            audioData: dataUrl,
+            audioData: uploaded.audioData,
             audioDuration: Math.round(elapsedSec),
             waveform: downsampleWaveform(rawSamples, 28),
           });
@@ -1124,44 +1152,63 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         }
       }}
     >
-      {/* Dark Green Telegram-Style Header */}
-      <header className="bg-[#0a2e1f] text-white px-2.5 sm:px-4 py-2.5 flex items-center justify-between gap-2 shrink-0 shadow-sm z-10">
+      {/* Telegram Premium Header */}
+      <header className="bg-white dark:bg-[#17212B] text-[#0E1621] dark:text-white border-b border-slate-200 dark:border-[#22303F] px-2.5 sm:px-4 py-2.5 flex items-center justify-between gap-2 shrink-0 shadow-xs z-10">
         <div className="flex items-center gap-2 min-w-0">
           <button
             type="button"
             onClick={onBackMobile}
             aria-label={t.chat.backToChats}
-            className="md:hidden w-10 h-10 rounded-xl hover:bg-white/10 flex items-center justify-center shrink-0 cursor-pointer"
+            className="md:hidden w-10 h-10 rounded-xl hover:bg-slate-100 dark:hover:bg-[#242F3D] flex items-center justify-center shrink-0 cursor-pointer"
           >
             <ArrowLeft className="w-5 h-5 rtl:rotate-180" />
           </button>
 
-          <button
-            type="button"
-            onClick={onOpenChatInfo}
-            className="flex items-center gap-2.5 min-w-0 text-start hover:opacity-90 transition-opacity cursor-pointer"
-          >
-            <Avatar
-              src={chatPhoto}
-              name={chatTitle}
-              size="md"
-              isOnline={peerOnline}
-              showOnlineDot={chat.type === 'private' && !isSavedMessages && !isDankBot}
-              chatType={chat.type}
-              specialType={
-                isSavedMessages
-                  ? 'saved'
-                  : isDankBot
-                  ? 'bot'
-                  : chat.isSecret
-                  ? 'secret'
-                  : undefined
-              }
-            />
-            <div className="min-w-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div
+              onClick={(e) => {
+                if (peerUser && onOpenProfile) {
+                  e.stopPropagation();
+                  onOpenProfile(peerUser);
+                } else {
+                  onOpenChatInfo();
+                }
+              }}
+              className="cursor-pointer shrink-0 hover:opacity-90 transition-opacity"
+            >
+              <Avatar
+                src={chatPhoto}
+                name={chatTitle}
+                size="md"
+                isOnline={peerOnline}
+                showOnlineDot={chat.type === 'private' && !isSavedMessages && !isDankBot}
+                chatType={chat.type}
+                specialType={
+                  isSavedMessages
+                    ? 'saved'
+                    : isDankBot
+                    ? 'bot'
+                    : chat.isSecret
+                    ? 'secret'
+                    : undefined
+                }
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (chat.type === 'private' && peerUser && onOpenProfile) {
+                  onOpenProfile(peerUser);
+                } else {
+                  onOpenChatInfo();
+                }
+              }}
+              className="min-w-0 text-start hover:opacity-90 transition-opacity cursor-pointer"
+            >
               <div className="flex items-center gap-1.5 min-w-0">
-                {chat.isSecret && <Lock className="w-3.5 h-3.5 text-[#25D366] shrink-0" />}
-                <h2 dir="auto" className="text-sm sm:text-base font-semibold text-white truncate">
+                {chat.isSecret && <Lock className="w-3.5 h-3.5 text-[#2AABEE] shrink-0" />}
+                <h2 dir="auto" className="text-sm sm:text-base font-semibold truncate">
                   {chatTitle}
                 </h2>
                 {chat.type === 'private' && peerUser && (
@@ -1177,14 +1224,14 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               <p
                 className={`text-xs truncate ${
                   activeTypers.length > 0 || peerOnline
-                    ? 'text-[#25D366] font-medium'
-                    : 'text-emerald-100/75'
+                    ? 'text-[#2AABEE] font-medium'
+                    : 'text-slate-500 dark:text-[#708499]'
                 }`}
               >
                 {headerSubtitle}
               </p>
-            </div>
-          </button>
+            </button>
+          </div>
         </div>
 
         <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
@@ -1201,7 +1248,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 }}
                 title={t.calls.voiceCall}
                 aria-label={t.calls.voiceCall}
-                className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl hover:bg-white/10 text-[#25D366] flex items-center justify-center transition-colors cursor-pointer"
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl hover:bg-slate-100 dark:hover:bg-[#242F3D] text-[#2AABEE] flex items-center justify-center transition-colors cursor-pointer"
               >
                 <Phone className="w-4.5 h-4.5" />
               </button>
@@ -1216,7 +1263,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 }}
                 title={t.calls.videoCall}
                 aria-label={t.calls.videoCall}
-                className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl hover:bg-white/10 text-[#25D366] flex items-center justify-center transition-colors cursor-pointer"
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl hover:bg-slate-100 dark:hover:bg-[#242F3D] text-[#2AABEE] flex items-center justify-center transition-colors cursor-pointer"
               >
                 <Video className="w-4.5 h-4.5" />
               </button>
@@ -1233,7 +1280,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             title={t.chat.searchInsideChat}
             aria-label={t.chat.searchInsideChat}
             className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center transition-colors cursor-pointer ${
-              showSearchBar ? 'bg-[#25D366] text-[#041f14]' : 'hover:bg-white/10 text-white'
+              showSearchBar
+                ? 'bg-[#2AABEE] text-white'
+                : 'hover:bg-slate-100 dark:hover:bg-[#242F3D] text-slate-600 dark:text-[#8C9FB1]'
             }`}
           >
             <Search className="w-4.5 h-4.5" />
@@ -1244,10 +1293,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             onClick={handleToggleMute}
             title={isMuted ? t.chat.unmuteChat : t.chat.muteChat}
             aria-label={isMuted ? t.chat.unmuteChat : t.chat.muteChat}
-            className="hidden sm:flex w-10 h-10 rounded-xl hover:bg-white/10 text-white items-center justify-center transition-colors cursor-pointer"
+            className="hidden sm:flex w-10 h-10 rounded-xl hover:bg-slate-100 dark:hover:bg-[#242F3D] text-slate-600 dark:text-[#8C9FB1] items-center justify-center transition-colors cursor-pointer"
           >
             {isMuted ? (
-              <BellOff className="w-4.5 h-4.5 text-[#25D366]" />
+              <BellOff className="w-4.5 h-4.5 text-[#2AABEE]" />
             ) : (
               <Bell className="w-4.5 h-4.5" />
             )}
@@ -1259,7 +1308,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               onClick={handleCopyInvite}
               title={t.chat.copyInviteLink}
               aria-label={t.chat.copyInviteLink}
-              className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl hover:bg-white/10 text-[#25D366] flex items-center justify-center transition-colors cursor-pointer"
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl hover:bg-slate-100 dark:hover:bg-[#242F3D] text-[#2AABEE] flex items-center justify-center transition-colors cursor-pointer"
             >
               <Link2 className="w-4.5 h-4.5" />
             </button>
@@ -1270,7 +1319,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             onClick={onOpenChatInfo}
             title={t.chat.chatDetails}
             aria-label={t.chat.chatDetails}
-            className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl hover:bg-white/10 text-white flex items-center justify-center transition-colors cursor-pointer"
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl hover:bg-slate-100 dark:hover:bg-[#242F3D] text-slate-600 dark:text-[#8C9FB1] flex items-center justify-center transition-colors cursor-pointer"
           >
             <Info className="w-4.5 h-4.5" />
           </button>
@@ -1279,18 +1328,18 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
       {/* Secret Chat Banner + Self-Destruct Timer */}
       {chat.isSecret && (
-        <div className="bg-[#062015] text-emerald-100 border-b border-[#25D366]/30 px-3 sm:px-4 py-1.5 flex items-center justify-between gap-2 text-[11px] shrink-0">
+        <div className="bg-[#17212B] text-sky-100 border-b border-[#2AABEE]/25 px-3 sm:px-4 py-1.5 flex items-center justify-between gap-2 text-[11px] shrink-0">
           <div className="flex items-center gap-1.5 min-w-0">
-            <Lock className="w-3.5 h-3.5 text-[#25D366] shrink-0" />
+            <Lock className="w-3.5 h-3.5 text-[#2AABEE] shrink-0" />
             <span className="truncate">{t.telegram.secretBanner}</span>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
-            <Timer className="w-3.5 h-3.5 text-[#25D366]" />
+            <Timer className="w-3.5 h-3.5 text-[#2AABEE]" />
             <select
               value={chat.selfDestructSeconds || 0}
               onChange={(e) => void updateChatSelfDestruct(chat.id, Number(e.target.value))}
               aria-label={t.telegram.selfDestructTimer}
-              className="h-7 px-2 rounded-lg bg-[#0a2e1f] border border-[#25D366]/40 text-xs text-white"
+              className="h-7 px-2 rounded-lg bg-[#242F3D] border border-[#2AABEE]/35 text-xs text-white"
             >
               {SELF_DESTRUCT_OPTIONS.map((opt) => (
                 <option key={opt.seconds} value={opt.seconds}>
@@ -1304,7 +1353,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
       {/* Search Inside Chat Bar */}
       {showSearchBar && (
-        <div className="bg-white dark:bg-[#0d2218] border-b border-[#0a2e1f]/12 dark:border-white/12 px-4 py-2 flex items-center gap-2 shrink-0">
+        <div className="bg-white dark:bg-[#17212B] border-b border-slate-200 dark:border-[#22303F] px-4 py-2 flex items-center gap-2 shrink-0">
           <Search className="w-4 h-4 text-slate-500 shrink-0" />
           <input
             type="text"
@@ -1316,10 +1365,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               setSearchMatchIdx(0);
             }}
             placeholder={t.chat.searchMessagesPlaceholder}
-            className="flex-1 h-9 bg-transparent text-base text-[#0a2e1f] dark:text-white focus:outline-none"
+            className="flex-1 h-9 bg-transparent text-base text-[#0E1621] dark:text-white focus:outline-none"
           />
           {searchQuery && (
-            <span className="text-xs font-medium text-slate-600 dark:text-emerald-100/70 tabular-nums shrink-0">
+            <span className="text-xs font-medium text-slate-600 dark:text-[#8C9FB1] tabular-nums shrink-0">
               {searchMatches.length > 0
                 ? `${searchMatchIdx + 1} / ${searchMatches.length}`
                 : t.chat.resultsZero}
@@ -1331,7 +1380,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             onClick={() =>
               setSearchMatchIdx((i) => (i - 1 + searchMatches.length) % searchMatches.length)
             }
-            className="w-8 h-8 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center text-[#0a2e1f] dark:text-white disabled:opacity-40 cursor-pointer"
+            className="w-8 h-8 rounded-lg hover:bg-black/5 dark:hover:bg-[#242F3D] flex items-center justify-center text-[#0E1621] dark:text-white disabled:opacity-40 cursor-pointer"
           >
             <ChevronUp className="w-4 h-4" />
           </button>
@@ -1339,7 +1388,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             type="button"
             disabled={searchMatches.length === 0}
             onClick={() => setSearchMatchIdx((i) => (i + 1) % searchMatches.length)}
-            className="w-8 h-8 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center text-[#0a2e1f] dark:text-white disabled:opacity-40 cursor-pointer"
+            className="w-8 h-8 rounded-lg hover:bg-black/5 dark:hover:bg-[#242F3D] flex items-center justify-center text-[#0E1621] dark:text-white disabled:opacity-40 cursor-pointer"
           >
             <ChevronDown className="w-4 h-4" />
           </button>
@@ -1349,7 +1398,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               setShowSearchBar(false);
               setSearchQuery('');
             }}
-            className="w-8 h-8 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center text-[#0a2e1f] dark:text-white cursor-pointer"
+            className="w-8 h-8 rounded-lg hover:bg-black/5 dark:hover:bg-[#242F3D] flex items-center justify-center text-[#0E1621] dark:text-white cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -1358,18 +1407,18 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
       {/* Pinned Message Banner */}
       {chat.pinnedMessageId && (
-        <div className="bg-white/95 dark:bg-[#0d2218]/95 backdrop-blur-sm border-b border-[#0a2e1f]/12 dark:border-white/10 px-4 py-2 flex items-center justify-between gap-3 shrink-0">
+        <div className="bg-white/95 dark:bg-[#17212B]/95 backdrop-blur-sm border-b border-slate-200 dark:border-[#22303F] px-4 py-2 flex items-center justify-between gap-3 shrink-0">
           <button
             type="button"
             onClick={() => scrollToMessage(chat.pinnedMessageId!)}
             className="flex items-center gap-2.5 min-w-0 text-start flex-1 cursor-pointer"
           >
-            <Pin className="w-4 h-4 text-[#25D366] shrink-0" />
+            <Pin className="w-4 h-4 text-[#2AABEE] shrink-0" />
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold text-[#0a2e1f] dark:text-[#25D366]">
+              <p className="text-[11px] font-semibold text-[#2AABEE]">
                 {t.chat.pinned} · {chat.pinnedMessageSenderName || t.common.message}
               </p>
-              <p dir="auto" className="text-xs text-slate-600 dark:text-emerald-100/80 truncate">
+              <p dir="auto" className="text-xs text-slate-600 dark:text-[#8C9FB1] truncate">
                 {chat.pinnedMessageText}
               </p>
             </div>
@@ -1379,7 +1428,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               type="button"
               onClick={() => void pinMessage(chat.id, null)}
               title={t.chat.unpinMessage}
-              className="w-8 h-8 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center text-slate-500 hover:text-[#0a2e1f] dark:hover:text-white shrink-0 cursor-pointer"
+              className="w-8 h-8 rounded-lg hover:bg-black/5 dark:hover:bg-[#242F3D] flex items-center justify-center text-slate-500 hover:text-[#0E1621] dark:hover:text-white shrink-0 cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -1404,7 +1453,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               type="button"
               disabled={loadingOlder}
               onClick={handleLoadOlder}
-              className="px-3.5 py-1.5 rounded-full bg-white/90 dark:bg-[#0d2218]/90 border border-[#0a2e1f]/12 dark:border-white/15 text-xs font-semibold text-[#0a2e1f] dark:text-[#25D366] shadow-xs cursor-pointer"
+              className="px-3.5 py-1.5 rounded-full bg-white/90 dark:bg-[#17212B]/90 border border-slate-200 dark:border-[#22303F] text-xs font-semibold text-[#2AABEE] shadow-xs cursor-pointer"
             >
               {loadingOlder ? t.telegram.loadingOlder : t.telegram.loadOlder}
             </button>
@@ -1419,8 +1468,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 <div
                   className={`h-12 w-48 sm:w-64 rounded-2xl animate-pulse ${
                     mine
-                      ? 'bg-[#0a2e1f]/40 dark:bg-[#134e35]/40'
-                      : 'bg-white/80 dark:bg-[#0d2218]/80'
+                      ? 'bg-[#2B5278]/45'
+                      : 'bg-white/80 dark:bg-[#182533]/80'
                   }`}
                 />
               </div>
@@ -1430,11 +1479,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
         {!loadingMessages && visibleMessages.length === 0 && (
           <div className="flex justify-center py-14">
-            <div className="max-w-xs text-center bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/10 dark:border-white/10 rounded-2xl p-5 shadow-sm">
-              <p className="text-sm font-semibold text-[#0a2e1f] dark:text-white">
+            <div className="max-w-xs text-center bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F] rounded-2xl p-5 shadow-sm">
+              <p className="text-sm font-semibold text-[#0E1621] dark:text-white">
                 {t.chat.noMessagesYet}
               </p>
-              <p className="mt-1 text-xs text-slate-600 dark:text-emerald-100/70">
+              <p className="mt-1 text-xs text-slate-600 dark:text-[#708499]">
                 {canPost ? t.chat.startConversationHint : t.chat.channelReadOnlyHint}
               </p>
             </div>
@@ -1466,12 +1515,17 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           const canPin = chat.type !== 'channel' || isChatAdmin;
           const sticker = msg.type === 'sticker' ? getStickerById(msg.stickerId) : undefined;
           const senderObj = usersMap[msg.senderId];
+          const isVoiceListened = Boolean(
+            msg.playedBy?.includes(currentUser.uid) ||
+              (typeof localStorage !== 'undefined' &&
+                localStorage.getItem(`dank_voice_played_${currentUser.uid}_${msg.id}`))
+          );
 
           return (
             <React.Fragment key={msg.id}>
               {showDayDivider && (
                 <div className="flex justify-center my-3">
-                  <span className="px-3 py-1 rounded-full bg-white/90 dark:bg-[#0d2218]/90 border border-[#0a2e1f]/10 dark:border-white/10 text-[11px] font-semibold text-[#0a2e1f]/80 dark:text-emerald-100/80 shadow-xs">
+                  <span className="px-3 py-1 rounded-full bg-white/90 dark:bg-[#17212B]/90 border border-slate-200 dark:border-[#22303F] text-[11px] font-semibold text-slate-600 dark:text-[#8C9FB1] shadow-xs">
                     {curDay}
                   </span>
                 </div>
@@ -1497,382 +1551,415 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 }}
                 className={`flex flex-col ${isMine ? 'items-end' : 'items-start'} group transition-all rounded-2xl`}
               >
-                <div
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setActiveActionMsgId((cur) => (cur === msg.id ? null : msg.id));
-                  }}
-                  className={`relative max-w-[85%] sm:max-w-[72%] rounded-2xl px-3.5 py-2 shadow-xs cursor-pointer transition-shadow ${
-                    msg.type === 'sticker' && sticker
-                      ? 'bg-transparent shadow-none px-1 py-0'
-                      : isMine
-                      ? 'bg-[#0a2e1f] dark:bg-[#134e35] text-white rounded-ee-sm'
-                      : 'bg-white dark:bg-[#11291f] text-[#0a2e1f] dark:text-white border border-[#0a2e1f]/10 dark:border-white/10 rounded-es-sm'
-                  } ${isSearchMatch ? 'ring-2 ring-[#25D366]' : ''}`}
-                >
-                  {/* Sender Name & Badges */}
-                  {!isMine &&
-                    (chat.type !== 'private' ||
-                      msg.senderId === DANK_BOT_UID ||
-                      senderObj?.isAdmin ||
-                      senderObj?.isVerified ||
-                      senderObj?.isVip ||
-                      senderObj?.isPlus ||
-                      (senderObj?.inviteCount ?? 0) >= 5) && (
-                      <div className="flex items-center gap-1 text-[11px] font-bold text-[#128C48] dark:text-[#25D366] mb-1">
-                        <span className="truncate">{msg.senderName}</span>
-                        <UserBadges
-                          isAdmin={senderObj?.isAdmin}
-                          isVerified={senderObj?.isVerified || msg.senderId === DANK_BOT_UID}
-                          isVip={
-                            senderObj?.isVip || (senderObj?.inviteCount ?? 0) >= 5
-                          }
-                          isPlus={senderObj?.isPlus}
-                          isBot={msg.senderId === DANK_BOT_UID || senderObj?.isBot}
-                          size="xs"
-                        />
-                      </div>
-                    )}
-
-                  {/* Forwarded From Label */}
-                  {msg.forwardedFromName && (
-                    <div
-                      className={`mb-1 flex items-center gap-1 text-[11px] font-semibold ${
-                        isMine ? 'text-[#25D366]' : 'text-[#128C48] dark:text-[#25D366]'
-                      }`}
-                    >
-                      <Forward className="w-3 h-3" />
-                      <span>
-                        {t.telegram.forwardedFrom} {msg.forwardedFromName}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Reply Quote */}
-                  {msg.replyToId && (
+                <div className={`flex items-end gap-2 max-w-full ${isMine ? 'flex-row-reverse' : ''}`}>
+                  {!isMine && chat.type === 'group' && (
                     <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        scrollToMessage(msg.replyToId!);
+                        if (senderObj && onOpenProfile) {
+                          onOpenProfile(senderObj);
+                        }
                       }}
-                      className={`w-full text-start mb-2 px-2.5 py-1.5 rounded-lg text-xs cursor-pointer border-s-2 border-[#25D366] ${
-                        isMine
-                          ? 'bg-white/10 text-emerald-50'
-                          : 'bg-[#eef5f0] dark:bg-[#081c14] text-[#0a2e1f] dark:text-emerald-100'
-                      }`}
+                      className="shrink-0 mb-0.5 cursor-pointer"
                     >
-                      <div className="font-semibold text-[11px] text-[#25D366] truncate">
-                        {msg.replyToSenderName || t.chat.replyFallback}
-                      </div>
-                      <div dir="auto" className="truncate opacity-90">
-                        {msg.replyToText || t.common.message}
-                      </div>
+                      <Avatar
+                        src={senderObj?.photoURL || msg.senderPhoto || ''}
+                        name={msg.senderName}
+                        size="sm"
+                      />
                     </button>
                   )}
 
-                  {/* Image Attachment (Lazy) */}
-                  {msg.type === 'image' && msg.imageData?.trim() && (
-                    <LazyMedia>
-                      <div className="mb-1.5 rounded-xl overflow-hidden bg-black/10">
-                        <img
-                          src={msg.imageData.trim()}
-                          alt={t.chat.photoLabel}
-                          loading="lazy"
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveActionMsgId((cur) => (cur === msg.id ? null : msg.id));
+                    }}
+                    className={`relative max-w-[85%] sm:max-w-[72%] rounded-2xl px-3.5 py-2 shadow-xs cursor-pointer transition-shadow ${
+                      msg.type === 'sticker' && sticker
+                        ? 'bg-transparent shadow-none px-1 py-0'
+                        : isMine
+                        ? 'bg-[#2B5278] text-white rounded-ee-sm'
+                        : 'bg-white dark:bg-[#182533] text-[#0E1621] dark:text-white border border-slate-200 dark:border-[#22303F] rounded-es-sm'
+                    } ${isSearchMatch ? 'ring-2 ring-[#2AABEE]' : ''}`}
+                  >
+                    {/* Sender Name & Badges */}
+                    {!isMine &&
+                      (chat.type !== 'private' ||
+                        msg.senderId === DANK_BOT_UID ||
+                        senderObj?.isAdmin ||
+                        senderObj?.isVerified ||
+                        senderObj?.isVip ||
+                        senderObj?.isPlus ||
+                        (senderObj?.inviteCount ?? 0) >= 5) && (
+                        <button
+                          type="button"
                           onClick={(e) => {
-                            e.stopPropagation();
-                            setLightboxImage(msg.imageData?.trim() || null);
+                            if (senderObj && onOpenProfile) {
+                              e.stopPropagation();
+                              onOpenProfile(senderObj);
+                            }
                           }}
-                          className="max-h-72 w-auto object-cover cursor-zoom-in"
-                        />
-                      </div>
-                    </LazyMedia>
-                  )}
+                          className="flex items-center gap-1 text-[11px] font-bold text-[#2AABEE] mb-1 hover:underline cursor-pointer"
+                        >
+                          <span className="truncate">{msg.senderName}</span>
+                          <UserBadges
+                            isAdmin={senderObj?.isAdmin}
+                            isVerified={senderObj?.isVerified || msg.senderId === DANK_BOT_UID}
+                            isVip={
+                              senderObj?.isVip || (senderObj?.inviteCount ?? 0) >= 5
+                            }
+                            isPlus={senderObj?.isPlus}
+                            isBot={msg.senderId === DANK_BOT_UID || senderObj?.isBot}
+                            size="xs"
+                          />
+                        </button>
+                      )}
 
-                  {/* Video Attachment (Lazy) */}
-                  {msg.type === 'video' && msg.videoData?.trim() && (
-                    <LazyMedia>
-                      <div className="mb-1.5 rounded-xl overflow-hidden bg-black">
-                        <video
-                          src={msg.videoData.trim()}
-                          controls
-                          playsInline
-                          preload="metadata"
-                          onClick={(e) => e.stopPropagation()}
-                          className="max-h-72 w-full rounded-xl"
-                        />
+                    {/* Forwarded From Label */}
+                    {msg.forwardedFromName && (
+                      <div
+                        className={`mb-1 flex items-center gap-1 text-[11px] font-semibold ${
+                          isMine ? 'text-[#73C7F7]' : 'text-[#2AABEE]'
+                        }`}
+                      >
+                        <Forward className="w-3 h-3" />
+                        <span>
+                          {t.telegram.forwardedFrom} {msg.forwardedFromName}
+                        </span>
                       </div>
-                    </LazyMedia>
-                  )}
+                    )}
 
-                  {/* File Attachment */}
-                  {msg.type === 'file' && msg.fileData && (
-                    <a
-                      href={msg.fileData}
-                      download={msg.fileName || 'dank-file'}
-                      onClick={(e) => e.stopPropagation()}
-                      className={`mb-1 flex items-center gap-2.5 p-2.5 rounded-xl border ${
-                        isMine
-                          ? 'bg-white/10 border-white/15 text-white'
-                          : 'bg-[#f4f8f5] dark:bg-[#081c14] border-[#0a2e1f]/10 dark:border-white/10 text-[#0a2e1f] dark:text-white'
-                      }`}
-                    >
-                      <div className="w-9 h-9 rounded-lg bg-[#25D366] text-[#041f14] flex items-center justify-center shrink-0">
-                        <FileText className="w-4 h-4" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-bold truncate">{msg.fileName || 'File'}</p>
-                        {msg.fileSize ? (
-                          <p className="text-[10px] opacity-70 tabular-nums">
-                            {(msg.fileSize / 1024).toFixed(1)} KB
-                          </p>
-                        ) : null}
-                      </div>
-                      <Download className="w-4 h-4 text-[#25D366] shrink-0" />
-                    </a>
-                  )}
+                    {/* Reply Quote */}
+                    {msg.replyToId && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          scrollToMessage(msg.replyToId!);
+                        }}
+                        className={`w-full text-start mb-2 px-2.5 py-1.5 rounded-lg text-xs cursor-pointer border-s-2 border-[#2AABEE] ${
+                          isMine
+                            ? 'bg-white/10 text-sky-50'
+                            : 'bg-slate-100 dark:bg-[#0E1621]/70 text-[#0E1621] dark:text-slate-100'
+                        }`}
+                      >
+                        <div className="font-semibold text-[11px] text-[#2AABEE] truncate">
+                          {msg.replyToSenderName || t.chat.replyFallback}
+                        </div>
+                        <div dir="auto" className="truncate opacity-90">
+                          {msg.replyToText || t.common.message}
+                        </div>
+                      </button>
+                    )}
 
-                  {/* Location Attachment */}
-                  {msg.type === 'location' &&
-                    msg.locationLat !== undefined &&
-                    msg.locationLng !== undefined && (
+                    {/* Image Attachment (Lazy) */}
+                    {msg.type === 'image' && msg.imageData?.trim() && (
+                      <LazyMedia>
+                        <div className="mb-1.5 rounded-xl overflow-hidden bg-black/10">
+                          <img
+                            src={msg.imageData.trim()}
+                            alt={t.chat.photoLabel}
+                            loading="lazy"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setLightboxImage(msg.imageData?.trim() || null);
+                            }}
+                            className="max-h-72 w-auto object-cover cursor-zoom-in"
+                          />
+                        </div>
+                      </LazyMedia>
+                    )}
+
+                    {/* Video Attachment (Lazy) */}
+                    {msg.type === 'video' && msg.videoData?.trim() && (
+                      <LazyMedia>
+                        <div className="mb-1.5 rounded-xl overflow-hidden bg-black">
+                          <video
+                            src={msg.videoData.trim()}
+                            controls
+                            playsInline
+                            preload="metadata"
+                            onClick={(e) => e.stopPropagation()}
+                            className="max-h-72 w-full rounded-xl"
+                          />
+                        </div>
+                      </LazyMedia>
+                    )}
+
+                    {/* File Attachment */}
+                    {msg.type === 'file' && msg.fileData && (
                       <a
-                        href={`https://maps.google.com/?q=${msg.locationLat},${msg.locationLng}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                        href={msg.fileData}
+                        download={msg.fileName || 'dank-file'}
                         onClick={(e) => e.stopPropagation()}
                         className={`mb-1 flex items-center gap-2.5 p-2.5 rounded-xl border ${
                           isMine
                             ? 'bg-white/10 border-white/15 text-white'
-                            : 'bg-[#f4f8f5] dark:bg-[#081c14] border-[#0a2e1f]/10 dark:border-white/10 text-[#0a2e1f] dark:text-white'
+                            : 'bg-slate-100 dark:bg-[#0E1621]/70 border-slate-200 dark:border-[#22303F] text-[#0E1621] dark:text-white'
                         }`}
                       >
-                        <div className="w-9 h-9 rounded-lg bg-[#25D366] text-[#041f14] flex items-center justify-center shrink-0">
-                          <MapPin className="w-4 h-4" />
+                        <div className="w-9 h-9 rounded-lg bg-[#2AABEE] text-white flex items-center justify-center shrink-0">
+                          <FileText className="w-4 h-4" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-bold truncate">
-                            {msg.locationLabel || t.telegram.locationLabel}
-                          </p>
-                          <p dir="ltr" className="text-[10px] opacity-75 tabular-nums truncate">
-                            {msg.locationLat.toFixed(4)}, {msg.locationLng.toFixed(4)} ·{' '}
-                            {t.telegram.openInMaps}
-                          </p>
+                          <p className="text-xs font-bold truncate">{msg.fileName || 'File'}</p>
+                          {msg.fileSize ? (
+                            <p className="text-[10px] opacity-70 tabular-nums">
+                              {(msg.fileSize / 1024).toFixed(1)} KB
+                            </p>
+                          ) : null}
                         </div>
+                        <Download className="w-4 h-4 text-[#2AABEE] shrink-0" />
                       </a>
                     )}
 
-                  {/* DANK Sticker */}
-                  {msg.type === 'sticker' && sticker && (
-                    <div
-                      className={`w-32 h-32 rounded-3xl bg-gradient-to-br ${sticker.bg} border border-[#25D366]/40 shadow-md flex flex-col items-center justify-center gap-1 select-none`}
-                    >
-                      <span className="text-5xl leading-none">{sticker.emoji}</span>
-                      <span
-                        className="text-[11px] font-extrabold tracking-widest"
-                        style={{ color: sticker.accent }}
-                      >
-                        {sticker.tagline}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Voice Note */}
-                  {msg.type === 'audio' && msg.audioData && (
-                    <div className="mb-1">
-                      <VoiceNotePlayer
-                        audioData={msg.audioData}
-                        duration={msg.audioDuration}
-                        waveform={msg.waveform}
-                        onDarkBubble={isMine}
-                      />
-                    </div>
-                  )}
-
-                  {/* Message Text */}
-                  {displayText && (
-                    <p
-                      dir="auto"
-                      className="text-sm leading-relaxed whitespace-pre-wrap break-words"
-                    >
-                      {displayText}
-                    </p>
-                  )}
-
-                  {/* Bottom Meta Row: Views (channels) + Edited + Self-Destruct + Badges + Time + Ticks */}
-                  <div
-                    className={`mt-1 flex items-center justify-end gap-1.5 select-none ${
-                      msg.type === 'sticker'
-                        ? 'px-2 py-0.5 rounded-full bg-black/55 text-white w-fit ms-auto'
-                        : ''
-                    }`}
-                  >
-                    {chat.type === 'channel' && (
-                      <span
-                        className={`inline-flex items-center gap-0.5 text-[10px] tabular-nums ${
-                          isMine ? 'text-emerald-100/80' : 'text-slate-500 dark:text-emerald-100/65'
-                        }`}
-                      >
-                        <Eye className="w-3 h-3" />
-                        {msg.viewCount || 1}
-                      </span>
-                    )}
-
-                    {msg.expiresAt && (
-                      <Timer className="w-3 h-3 text-[#25D366]" aria-label="Self-destruct" />
-                    )}
-
-                    {msg.isEdited && (
-                      <span
-                        className={`text-[10px] italic ${
-                          isMine ? 'text-emerald-100/75' : 'text-slate-400'
-                        }`}
-                      >
-                        {t.telegram.edited}
-                      </span>
-                    )}
-
-                    {isMine &&
-                      (currentUser.isAdmin ||
-                        currentUser.isVerified ||
-                        currentUser.isVip ||
-                        currentUser.isPlus ||
-                        (currentUser.inviteCount ?? 0) >= 5) && (
-                        <UserBadges
-                          isAdmin={currentUser.isAdmin}
-                          isVerified={currentUser.isVerified}
-                          isVip={currentUser.isVip || (currentUser.inviteCount ?? 0) >= 5}
-                          isPlus={currentUser.isPlus}
-                          size="xs"
-                        />
-                      )}
-
-                    <span
-                      className={`text-[10px] tabular-nums ${
-                        msg.type === 'sticker'
-                          ? 'text-white'
-                          : isMine
-                          ? 'text-emerald-100/85'
-                          : 'text-slate-500 dark:text-emerald-100/60'
-                      }`}
-                    >
-                      {formatMessageTime(msg.createdAt, language)}
-                    </span>
-
-                    {isMine && <MessageStatusTicks status={msg.status} onDarkBubble={true} />}
-                  </div>
-
-                  {/* Quick Action Floating Bar */}
-                  {activeActionMsgId === msg.id && (
-                    <div
-                      onClick={(e) => e.stopPropagation()}
-                      className={`absolute -top-12 ${
-                        isMine ? 'end-0' : 'start-0'
-                      } z-20 flex flex-wrap items-center gap-0.5 bg-[#0a2e1f] text-white px-2 py-1 rounded-xl shadow-xl border border-[#25D366]/35 max-w-[90vw]`}
-                    >
-                      {QUICK_EMOJIS.map((emoji) => (
-                        <button
-                          key={emoji}
-                          type="button"
-                          onClick={() => {
-                            setActiveActionMsgId(null);
-                            void toggleReaction({
-                              chatId: chat.id,
-                              messageId: msg.id,
-                              user: currentUser,
-                              emoji,
-                              currentUserEmoji: myReaction,
-                            });
-                          }}
-                          className={`w-7 h-7 rounded-lg flex items-center justify-center text-sm hover:bg-white/15 cursor-pointer ${
-                            myReaction === emoji ? 'bg-[#25D366]/30' : ''
+                    {/* Location Attachment */}
+                    {msg.type === 'location' &&
+                      msg.locationLat !== undefined &&
+                      msg.locationLng !== undefined && (
+                        <a
+                          href={`https://maps.google.com/?q=${msg.locationLat},${msg.locationLng}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className={`mb-1 flex items-center gap-2.5 p-2.5 rounded-xl border ${
+                            isMine
+                              ? 'bg-white/10 border-white/15 text-white'
+                              : 'bg-slate-100 dark:bg-[#0E1621]/70 border-slate-200 dark:border-[#22303F] text-[#0E1621] dark:text-white'
                           }`}
                         >
-                          {emoji}
-                        </button>
-                      ))}
-                      <div className="w-px h-5 bg-white/15 mx-1" />
-                      {canPost && (
-                        <button
-                          type="button"
-                          title={t.common.reply}
-                          onClick={() => {
-                            setReplyTo(msg);
-                            setEditingMsg(null);
-                            setActiveActionMsgId(null);
-                          }}
-                          className="w-7 h-7 rounded-lg hover:bg-white/15 flex items-center justify-center cursor-pointer"
-                        >
-                          <Reply className="w-3.5 h-3.5" />
-                        </button>
+                          <div className="w-9 h-9 rounded-lg bg-[#2AABEE] text-white flex items-center justify-center shrink-0">
+                            <MapPin className="w-4 h-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-bold truncate">
+                              {msg.locationLabel || t.telegram.locationLabel}
+                            </p>
+                            <p dir="ltr" className="text-[10px] opacity-75 tabular-nums truncate">
+                              {msg.locationLat.toFixed(4)}, {msg.locationLng.toFixed(4)} ·{' '}
+                              {t.telegram.openInMaps}
+                            </p>
+                          </div>
+                        </a>
                       )}
-                      {!chat.isSecret && (
-                        <button
-                          type="button"
-                          title={t.telegram.forward}
-                          onClick={() => {
-                            setForwardTargetMsg(msg);
-                            setActiveActionMsgId(null);
-                          }}
-                          className="w-7 h-7 rounded-lg hover:bg-white/15 flex items-center justify-center cursor-pointer"
-                        >
-                          <Forward className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                      {isMine && msg.type === 'text' && (
-                        <button
-                          type="button"
-                          title={t.telegram.edit}
-                          onClick={() => {
-                            setEditingMsg(msg);
-                            setReplyTo(null);
-                            setText(displayText);
-                            setActiveActionMsgId(null);
-                          }}
-                          className="w-7 h-7 rounded-lg hover:bg-white/15 flex items-center justify-center cursor-pointer"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                      {canPin && (
-                        <button
-                          type="button"
-                          title={t.chat.pinMessage}
-                          onClick={() => {
-                            setActiveActionMsgId(null);
-                            void pinMessage(chat.id, msg);
-                          }}
-                          className="w-7 h-7 rounded-lg hover:bg-white/15 flex items-center justify-center cursor-pointer"
-                        >
-                          <Pin className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        title={t.telegram.deleteForMe}
-                        onClick={() => {
-                          setActiveActionMsgId(null);
-                          void deleteMessageForMe(chat.id, msg.id, currentUser.uid);
-                        }}
-                        className="w-7 h-7 rounded-lg hover:bg-white/15 text-amber-300 flex items-center justify-center cursor-pointer"
+
+                    {/* DANK Sticker */}
+                    {msg.type === 'sticker' && sticker && (
+                      <div
+                        className={`w-32 h-32 rounded-3xl bg-gradient-to-br ${sticker.bg} border border-[#2AABEE]/40 shadow-md flex flex-col items-center justify-center gap-1 select-none`}
                       >
-                        <UserMinus className="w-3.5 h-3.5" />
-                      </button>
-                      {canDeleteEveryone && (
+                        <span className="text-5xl leading-none">{sticker.emoji}</span>
+                        <span
+                          className="text-[11px] font-extrabold tracking-widest"
+                          style={{ color: sticker.accent }}
+                        >
+                          {sticker.tagline}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Voice Note */}
+                    {msg.type === 'audio' && (
+                      <div className="mb-1">
+                        <VoiceNotePlayer
+                          messageId={msg.id}
+                          audioData={msg.audioData || ''}
+                          duration={msg.audioDuration}
+                          waveform={msg.waveform}
+                          onDarkBubble={isMine}
+                          isListened={isVoiceListened}
+                          onPlayed={() => void markVoiceMessagePlayed(chat.id, msg.id, currentUser.uid)}
+                        />
+                      </div>
+                    )}
+
+                    {/* Message Text */}
+                    {displayText && (
+                      <p
+                        dir="auto"
+                        className="text-sm leading-relaxed whitespace-pre-wrap break-words"
+                      >
+                        {displayText}
+                      </p>
+                    )}
+
+                    {/* Bottom Meta Row: Views (channels) + Edited + Self-Destruct + Badges + Time + Ticks */}
+                    <div
+                      className={`mt-1 flex items-center justify-end gap-1.5 select-none ${
+                        msg.type === 'sticker'
+                          ? 'px-2 py-0.5 rounded-full bg-black/55 text-white w-fit ms-auto'
+                          : ''
+                      }`}
+                    >
+                      {chat.type === 'channel' && (
+                        <span
+                          className={`inline-flex items-center gap-0.5 text-[10px] tabular-nums ${
+                            isMine ? 'text-sky-100/80' : 'text-slate-500 dark:text-[#708499]'
+                          }`}
+                        >
+                          <Eye className="w-3 h-3" />
+                          {msg.viewCount || 1}
+                        </span>
+                      )}
+
+                      {msg.expiresAt && (
+                        <Timer className="w-3 h-3 text-[#2AABEE]" aria-label="Self-destruct" />
+                      )}
+
+                      {msg.isEdited && (
+                        <span
+                          className={`text-[10px] italic ${
+                            isMine ? 'text-sky-100/75' : 'text-slate-400'
+                          }`}
+                        >
+                          {t.telegram.edited}
+                        </span>
+                      )}
+
+                      {isMine &&
+                        (currentUser.isAdmin ||
+                          currentUser.isVerified ||
+                          currentUser.isVip ||
+                          currentUser.isPlus ||
+                          (currentUser.inviteCount ?? 0) >= 5) && (
+                          <UserBadges
+                            isAdmin={currentUser.isAdmin}
+                            isVerified={currentUser.isVerified}
+                            isVip={currentUser.isVip || (currentUser.inviteCount ?? 0) >= 5}
+                            isPlus={currentUser.isPlus}
+                            size="xs"
+                          />
+                        )}
+
+                      <span
+                        className={`text-[10px] tabular-nums ${
+                          msg.type === 'sticker'
+                            ? 'text-white'
+                            : isMine
+                            ? 'text-sky-100/85'
+                            : 'text-slate-500 dark:text-[#708499]'
+                        }`}
+                      >
+                        {formatMessageTime(msg.createdAt, language)}
+                      </span>
+
+                      {isMine && <MessageStatusTicks status={msg.status} onDarkBubble={true} />}
+                    </div>
+
+                    {/* Quick Action Floating Bar */}
+                    {activeActionMsgId === msg.id && (
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        className={`absolute -top-12 ${
+                          isMine ? 'end-0' : 'start-0'
+                        } z-20 flex flex-wrap items-center gap-0.5 bg-[#17212B] text-white px-2 py-1 rounded-xl shadow-xl border border-[#2AABEE]/35 max-w-[90vw]`}
+                      >
+                        {QUICK_EMOJIS.map((emoji) => (
+                          <button
+                            key={emoji}
+                            type="button"
+                            onClick={() => {
+                              setActiveActionMsgId(null);
+                              void toggleReaction({
+                                chatId: chat.id,
+                                messageId: msg.id,
+                                user: currentUser,
+                                emoji,
+                                currentUserEmoji: myReaction,
+                              });
+                            }}
+                            className={`w-7 h-7 rounded-lg flex items-center justify-center text-sm hover:bg-white/15 cursor-pointer ${
+                              myReaction === emoji ? 'bg-[#2AABEE]/30' : ''
+                            }`}
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                        <div className="w-px h-5 bg-white/15 mx-1" />
+                        {canPost && (
+                          <button
+                            type="button"
+                            title={t.common.reply}
+                            onClick={() => {
+                              setReplyTo(msg);
+                              setEditingMsg(null);
+                              setActiveActionMsgId(null);
+                            }}
+                            className="w-7 h-7 rounded-lg hover:bg-white/15 flex items-center justify-center cursor-pointer"
+                          >
+                            <Reply className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {!chat.isSecret && (
+                          <button
+                            type="button"
+                            title={t.telegram.forward}
+                            onClick={() => {
+                              setForwardTargetMsg(msg);
+                              setActiveActionMsgId(null);
+                            }}
+                            className="w-7 h-7 rounded-lg hover:bg-white/15 flex items-center justify-center cursor-pointer"
+                          >
+                            <Forward className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {isMine && msg.type === 'text' && (
+                          <button
+                            type="button"
+                            title={t.telegram.edit}
+                            onClick={() => {
+                              setEditingMsg(msg);
+                              setReplyTo(null);
+                              setText(displayText);
+                              setActiveActionMsgId(null);
+                            }}
+                            className="w-7 h-7 rounded-lg hover:bg-white/15 flex items-center justify-center cursor-pointer"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {canPin && (
+                          <button
+                            type="button"
+                            title={t.chat.pinMessage}
+                            onClick={() => {
+                              setActiveActionMsgId(null);
+                              void pinMessage(chat.id, msg);
+                            }}
+                            className="w-7 h-7 rounded-lg hover:bg-white/15 flex items-center justify-center cursor-pointer"
+                          >
+                            <Pin className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                         <button
                           type="button"
-                          title={t.telegram.deleteForEveryone}
+                          title={t.telegram.deleteForMe}
                           onClick={() => {
                             setActiveActionMsgId(null);
-                            void deleteMessage(chat.id, msg.id);
+                            void deleteMessageForMe(chat.id, msg.id, currentUser.uid);
                           }}
-                          className="w-7 h-7 rounded-lg hover:bg-red-500/30 text-red-300 flex items-center justify-center cursor-pointer"
+                          className="w-7 h-7 rounded-lg hover:bg-white/15 text-amber-300 flex items-center justify-center cursor-pointer"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <UserMinus className="w-3.5 h-3.5" />
                         </button>
-                      )}
-                    </div>
-                  )}
+                        {canDeleteEveryone && (
+                          <button
+                            type="button"
+                            title={t.telegram.deleteForEveryone}
+                            onClick={() => {
+                              setActiveActionMsgId(null);
+                              void deleteMessage(chat.id, msg.id);
+                            }}
+                            className="w-7 h-7 rounded-lg hover:bg-red-500/30 text-red-300 flex items-center justify-center cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Reaction Chips + Channel Comments Button */}
@@ -1892,8 +1979,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                       }
                       className={`px-2 py-0.5 rounded-lg text-xs font-medium flex items-center gap-1 border transition-colors cursor-pointer ${
                         rg.mine
-                          ? 'bg-[#25D366]/20 border-[#25D366] text-[#0a2e1f] dark:text-[#25D366]'
-                          : 'bg-white dark:bg-[#0d2218] border-[#0a2e1f]/12 dark:border-white/12 text-[#0a2e1f] dark:text-white'
+                          ? 'bg-[#2AABEE]/20 border-[#2AABEE] text-[#2AABEE]'
+                          : 'bg-white dark:bg-[#17212B] border-slate-200 dark:border-[#22303F] text-[#0E1621] dark:text-white'
                       }`}
                     >
                       <span>{rg.emoji}</span>
@@ -1905,7 +1992,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     <button
                       type="button"
                       onClick={() => setCommentsDrawerMsg(msg)}
-                      className="px-2.5 py-0.5 rounded-lg text-[11px] font-semibold bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/12 dark:border-white/12 text-[#128C48] dark:text-[#25D366] inline-flex items-center gap-1 cursor-pointer hover:opacity-90"
+                      className="px-2.5 py-0.5 rounded-lg text-[11px] font-semibold bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F] text-[#2AABEE] inline-flex items-center gap-1 cursor-pointer hover:opacity-90"
                     >
                       <MessageCircle className="w-3 h-3" />
                       {t.telegram.channelComments}
@@ -1920,7 +2007,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       </div>
 
       {/* Bottom Composer */}
-      <div className="bg-white dark:bg-[#081c14] border-t border-[#0a2e1f]/10 dark:border-white/10 px-2.5 sm:px-4 py-2 shrink-0 relative">
+      <div className="bg-white dark:bg-[#17212B] border-t border-slate-200 dark:border-[#22303F] px-2.5 sm:px-4 py-2 shrink-0 relative">
         {isAdminBanned ? (
           <div className="h-11 flex items-center justify-center text-xs font-semibold text-red-600 dark:text-red-400 text-center">
             {t.chat.accountSuspendedNotice}
@@ -1943,20 +2030,20 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             {t.privacy.blockedUsers}
           </div>
         ) : !canPost ? (
-          <div className="h-11 flex items-center justify-center text-xs font-medium text-slate-600 dark:text-emerald-100/70 text-center">
+          <div className="h-11 flex items-center justify-center text-xs font-medium text-slate-600 dark:text-[#708499] text-center">
             {t.chat.channelPostNotice}
           </div>
         ) : (
           <div className="space-y-2">
             {/* Editing Banner */}
             {editingMsg && (
-              <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-[#eef5f0] dark:bg-[#0d2218] border border-[#25D366]/35">
+              <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-slate-100 dark:bg-[#242F3D] border border-[#2AABEE]/35">
                 <div className="min-w-0">
-                  <div className="text-[11px] font-semibold text-[#128C48] dark:text-[#25D366] flex items-center gap-1">
+                  <div className="text-[11px] font-semibold text-[#2AABEE] flex items-center gap-1">
                     <Edit3 className="w-3 h-3" />
                     {t.telegram.editingMessage}
                   </div>
-                  <p dir="auto" className="text-xs text-slate-600 dark:text-emerald-100/75 truncate">
+                  <p dir="auto" className="text-xs text-slate-600 dark:text-[#8C9FB1] truncate">
                     {getDisplayText(editingMsg)}
                   </p>
                 </div>
@@ -1966,7 +2053,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     setEditingMsg(null);
                     setText('');
                   }}
-                  className="w-7 h-7 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center text-[#0a2e1f] dark:text-white cursor-pointer"
+                  className="w-7 h-7 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center text-[#0E1621] dark:text-white cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -1975,13 +2062,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
             {/* Reply Preview */}
             {replyTo && !editingMsg && (
-              <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-[#eef5f0] dark:bg-[#0d2218] border border-[#0a2e1f]/10 dark:border-white/10">
+              <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-slate-100 dark:bg-[#242F3D] border border-slate-200 dark:border-[#22303F]">
                 <div className="min-w-0">
-                  <div className="text-[11px] font-semibold text-[#128C48] dark:text-[#25D366] flex items-center gap-1">
+                  <div className="text-[11px] font-semibold text-[#2AABEE] flex items-center gap-1">
                     <Reply className="w-3 h-3" />
                     {t.chat.replyingTo} {replyTo.senderName}
                   </div>
-                  <p dir="auto" className="text-xs text-slate-700 dark:text-emerald-100/75 truncate">
+                  <p dir="auto" className="text-xs text-slate-700 dark:text-[#8C9FB1] truncate">
                     {replyTo.type === 'image'
                       ? t.chat.photoLabel
                       : replyTo.type === 'audio'
@@ -1996,7 +2083,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 <button
                   type="button"
                   onClick={() => setReplyTo(null)}
-                  className="w-7 h-7 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center text-[#0a2e1f] dark:text-white cursor-pointer"
+                  className="w-7 h-7 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center text-[#0E1621] dark:text-white cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -2005,19 +2092,19 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
             {/* Pending Image Preview */}
             {pendingImage?.trim() && (
-              <div className="flex items-center gap-3 px-3 py-2 rounded-xl bg-[#eef5f0] dark:bg-[#0d2218] border border-[#0a2e1f]/10 dark:border-white/10">
+              <div className="flex items-center gap-3 px-3 py-2 rounded-xl bg-slate-100 dark:bg-[#242F3D] border border-slate-200 dark:border-[#22303F]">
                 <img
                   src={pendingImage.trim()}
                   alt={t.chat.photoLabel}
                   className="w-14 h-14 rounded-lg object-cover"
                 />
-                <div className="flex-1 text-xs font-medium text-[#0a2e1f] dark:text-white">
+                <div className="flex-1 text-xs font-medium text-[#0E1621] dark:text-white">
                   {t.chat.imageReady}
                 </div>
                 <button
                   type="button"
                   onClick={() => setPendingImage(null)}
-                  className="w-8 h-8 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center text-[#0a2e1f] dark:text-white cursor-pointer"
+                  className="w-8 h-8 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center text-[#0E1621] dark:text-white cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -2026,7 +2113,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
             {/* Recording Bar */}
             {isRecording && (
-              <div className="flex items-center justify-between gap-3 px-3.5 py-2 rounded-xl bg-[#0a2e1f] text-white border border-[#25D366]/45">
+              <div className="flex items-center justify-between gap-3 px-3.5 py-2 rounded-xl bg-[#17212B] text-white border border-[#2AABEE]/45">
                 <div className="flex items-center gap-2.5">
                   <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
                   <span className="text-xs font-semibold tabular-nums">
@@ -2039,7 +2126,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[11px] text-[#25D366] hidden sm:inline">
+                  <span className="text-[11px] text-[#2AABEE] hidden sm:inline">
                     {t.chat.releaseToSend}
                   </span>
                   <button
@@ -2057,7 +2144,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             {showStickerPopover && (
               <div
                 onClick={(e) => e.stopPropagation()}
-                className="p-3 rounded-2xl bg-[#f7faf8] dark:bg-[#0d2218] border border-[#0a2e1f]/15 dark:border-white/15 shadow-xl space-y-2.5"
+                className="p-3 rounded-2xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F] shadow-xl space-y-2.5"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1">
@@ -2066,8 +2153,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                       onClick={() => setPickerTab('emoji')}
                       className={`px-3 py-1 rounded-lg text-xs font-bold cursor-pointer ${
                         pickerTab === 'emoji'
-                          ? 'bg-[#0a2e1f] text-white'
-                          : 'text-slate-600 dark:text-emerald-100/70'
+                          ? 'bg-[#2AABEE] text-white'
+                          : 'text-slate-600 dark:text-[#8C9FB1]'
                       }`}
                     >
                       {t.telegram.emojiTab}
@@ -2077,8 +2164,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                       onClick={() => setPickerTab('stickers')}
                       className={`px-3 py-1 rounded-lg text-xs font-bold cursor-pointer ${
                         pickerTab === 'stickers'
-                          ? 'bg-[#0a2e1f] text-white'
-                          : 'text-slate-600 dark:text-emerald-100/70'
+                          ? 'bg-[#2AABEE] text-white'
+                          : 'text-slate-600 dark:text-[#8C9FB1]'
                       }`}
                     >
                       {t.telegram.stickersTab}
@@ -2087,7 +2174,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   <button
                     type="button"
                     onClick={() => setShowStickerPopover(false)}
-                    className="p-1 text-slate-400 hover:text-[#0a2e1f] dark:hover:text-white cursor-pointer"
+                    className="p-1 text-slate-400 hover:text-[#0E1621] dark:hover:text-white cursor-pointer"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -2100,7 +2187,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         key={em}
                         type="button"
                         onClick={() => handleTextChange(`${text}${em}`)}
-                        className="h-9 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-xl flex items-center justify-center cursor-pointer"
+                        className="h-9 rounded-lg hover:bg-black/5 dark:hover:bg-[#242F3D] text-xl flex items-center justify-center cursor-pointer"
                       >
                         {em}
                       </button>
@@ -2113,7 +2200,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         key={st.id}
                         type="button"
                         onClick={() => void handleSendSticker(st.id)}
-                        className={`p-2 rounded-xl bg-gradient-to-br ${st.bg} border border-[#25D366]/35 flex flex-col items-center justify-center gap-0.5 hover:scale-105 transition-transform cursor-pointer`}
+                        className={`p-2 rounded-xl bg-gradient-to-br ${st.bg} border border-[#2AABEE]/35 flex flex-col items-center justify-center gap-0.5 hover:scale-105 transition-transform cursor-pointer`}
                       >
                         <span className="text-2xl">{st.emoji}</span>
                         <span
@@ -2133,38 +2220,38 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             {showAttachMenu && (
               <div
                 onClick={(e) => e.stopPropagation()}
-                className="grid grid-cols-4 gap-2 p-2.5 rounded-2xl bg-[#f7faf8] dark:bg-[#0d2218] border border-[#0a2e1f]/15 dark:border-white/15 shadow-xl"
+                className="grid grid-cols-4 gap-2 p-2.5 rounded-2xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F] shadow-xl"
               >
                 <button
                   type="button"
                   onClick={() => imageInputRef.current?.click()}
-                  className="p-2 rounded-xl hover:bg-[#eef5f0] dark:hover:bg-white/10 flex flex-col items-center gap-1 text-xs font-semibold text-[#0a2e1f] dark:text-white cursor-pointer"
+                  className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-[#242F3D] flex flex-col items-center gap-1 text-xs font-semibold text-[#0E1621] dark:text-white cursor-pointer"
                 >
-                  <ImagePlus className="w-5 h-5 text-[#25D366]" />
+                  <ImagePlus className="w-5 h-5 text-[#2AABEE]" />
                   <span>{t.chat.photoLabel}</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => videoInputRef.current?.click()}
-                  className="p-2 rounded-xl hover:bg-[#eef5f0] dark:hover:bg-white/10 flex flex-col items-center gap-1 text-xs font-semibold text-[#0a2e1f] dark:text-white cursor-pointer"
+                  className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-[#242F3D] flex flex-col items-center gap-1 text-xs font-semibold text-[#0E1621] dark:text-white cursor-pointer"
                 >
-                  <Film className="w-5 h-5 text-[#25D366]" />
+                  <Film className="w-5 h-5 text-[#2AABEE]" />
                   <span>{t.telegram.videoLabel}</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="p-2 rounded-xl hover:bg-[#eef5f0] dark:hover:bg-white/10 flex flex-col items-center gap-1 text-xs font-semibold text-[#0a2e1f] dark:text-white cursor-pointer"
+                  className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-[#242F3D] flex flex-col items-center gap-1 text-xs font-semibold text-[#0E1621] dark:text-white cursor-pointer"
                 >
-                  <FileText className="w-5 h-5 text-[#25D366]" />
+                  <FileText className="w-5 h-5 text-[#2AABEE]" />
                   <span>{t.telegram.fileLabel}</span>
                 </button>
                 <button
                   type="button"
                   onClick={handleSendLocation}
-                  className="p-2 rounded-xl hover:bg-[#eef5f0] dark:hover:bg-white/10 flex flex-col items-center gap-1 text-xs font-semibold text-[#0a2e1f] dark:text-white cursor-pointer"
+                  className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-[#242F3D] flex flex-col items-center gap-1 text-xs font-semibold text-[#0E1621] dark:text-white cursor-pointer"
                 >
-                  <MapPin className="w-5 h-5 text-[#25D366]" />
+                  <MapPin className="w-5 h-5 text-[#2AABEE]" />
                   <span>{t.telegram.locationLabel}</span>
                 </button>
               </div>
@@ -2201,7 +2288,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 }}
                 title={t.chat.sendImage}
                 aria-label={t.chat.sendImage}
-                className="w-11 h-11 rounded-xl bg-[#eef5f0] dark:bg-[#0d2218] hover:bg-[#dcebe1] dark:hover:bg-white/10 text-[#0a2e1f] dark:text-[#25D366] flex items-center justify-center shrink-0 transition-colors cursor-pointer"
+                className="w-11 h-11 rounded-xl bg-slate-100 dark:bg-[#242F3D] hover:bg-slate-200 dark:hover:bg-[#2B3949] text-slate-600 dark:text-[#2AABEE] flex items-center justify-center shrink-0 transition-colors cursor-pointer"
               >
                 <Paperclip className="w-5 h-5" />
               </button>
@@ -2215,7 +2302,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 }}
                 title={t.telegram.stickersAndEmoji}
                 aria-label={t.telegram.stickersAndEmoji}
-                className="w-11 h-11 rounded-xl bg-[#eef5f0] dark:bg-[#0d2218] hover:bg-[#dcebe1] dark:hover:bg-white/10 text-[#0a2e1f] dark:text-[#25D366] flex items-center justify-center shrink-0 transition-colors cursor-pointer"
+                className="w-11 h-11 rounded-xl bg-slate-100 dark:bg-[#242F3D] hover:bg-slate-200 dark:hover:bg-[#2B3949] text-slate-600 dark:text-[#2AABEE] flex items-center justify-center shrink-0 transition-colors cursor-pointer"
               >
                 <Smile className="w-5 h-5" />
               </button>
@@ -2232,7 +2319,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   }
                 }}
                 placeholder={t.chat.writeMessagePlaceholder}
-                className="flex-1 min-h-[44px] max-h-32 px-3.5 py-2.5 rounded-xl bg-[#f7faf8] dark:bg-[#0d2218] border border-[#0a2e1f]/15 dark:border-white/15 text-base text-[#0a2e1f] dark:text-white placeholder:text-slate-400 dark:placeholder:text-emerald-100/45 focus:outline-none focus:ring-2 focus:ring-[#25D366] resize-none"
+                className="flex-1 min-h-[44px] max-h-32 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-[#242F3D] border border-slate-200 dark:border-[#22303F] text-base text-[#0E1621] dark:text-white placeholder:text-slate-400 dark:placeholder:text-[#708499] focus:outline-none focus:ring-2 focus:ring-[#2AABEE] resize-none"
               />
 
               {editingMsg ? (
@@ -2240,7 +2327,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   type="submit"
                   disabled={!text.trim() || sending}
                   aria-label={t.telegram.saveEdit}
-                  className="w-11 h-11 rounded-xl bg-[#25D366] hover:bg-[#1ebe5d] text-[#041f14] flex items-center justify-center shrink-0 transition-colors disabled:opacity-45 cursor-pointer"
+                  className="w-11 h-11 rounded-xl bg-[#2AABEE] hover:bg-[#229ED9] text-white flex items-center justify-center shrink-0 transition-colors disabled:opacity-45 cursor-pointer"
                 >
                   <Check className="w-5 h-5" />
                 </button>
@@ -2249,7 +2336,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   type="submit"
                   disabled={sending}
                   aria-label={t.chat.sendMessage}
-                  className="w-11 h-11 rounded-xl bg-[#25D366] hover:bg-[#1ebe5d] text-[#041f14] flex items-center justify-center shrink-0 transition-colors disabled:opacity-45 cursor-pointer"
+                  className="w-11 h-11 rounded-xl bg-[#2AABEE] hover:bg-[#229ED9] text-white flex items-center justify-center shrink-0 transition-colors disabled:opacity-45 cursor-pointer"
                 >
                   <Send className="w-5 h-5 rtl:-scale-x-100" />
                 </button>
@@ -2269,7 +2356,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 transition-all touch-none select-none cursor-pointer ${
                     isRecording
                       ? 'bg-red-500 text-white scale-105 shadow-lg ring-4 ring-red-500/30'
-                      : 'bg-[#0a2e1f] hover:bg-[#134e35] text-[#25D366]'
+                      : 'bg-[#2AABEE] hover:bg-[#229ED9] text-white'
                   }`}
                 >
                   <Mic className="w-5 h-5" />

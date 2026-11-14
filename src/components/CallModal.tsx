@@ -135,9 +135,9 @@ export const CallModal: React.FC<CallModalProps> = ({ call, currentUser, onClose
       : t.calls.ended;
 
   return (
-    <div className="fixed inset-0 z-[70] bg-[#041b11]/95 backdrop-blur-md flex flex-col items-center justify-between p-6 text-white">
-      <div className="w-full max-w-md flex items-center justify-between text-xs text-emerald-100/80">
-        <span className="inline-flex items-center gap-1.5 font-semibold text-[#25D366]">
+    <div className="fixed inset-0 z-[70] bg-[#0E1621]/95 backdrop-blur-md flex flex-col items-center justify-between p-6 text-white">
+      <div className="w-full max-w-md flex items-center justify-between text-xs text-[#C5D3E0]">
+        <span className="inline-flex items-center gap-1.5 font-semibold text-[#2AABEE]">
           {call.callType === 'video' ? (
             <Video className="w-4 h-4" />
           ) : (
@@ -151,7 +151,7 @@ export const CallModal: React.FC<CallModalProps> = ({ call, currentUser, onClose
       {/* Center Peer / Video Area */}
       <div className="flex flex-col items-center text-center gap-4 my-auto w-full max-w-sm">
         {call.callType === 'video' && cameraOn ? (
-          <div className="relative w-full aspect-[3/4] max-h-[380px] rounded-3xl overflow-hidden bg-[#0a2e1f] border border-[#25D366]/30 shadow-2xl flex items-center justify-center">
+          <div className="relative w-full aspect-[3/4] max-h-[380px] rounded-3xl overflow-hidden bg-[#17212B] border border-[#2AABEE]/30 shadow-2xl flex items-center justify-center">
             <video
               ref={localVideoRef}
               autoPlay
@@ -166,7 +166,7 @@ export const CallModal: React.FC<CallModalProps> = ({ call, currentUser, onClose
         ) : (
           <div className="relative">
             {call.status === 'ringing' && (
-              <div className="absolute -inset-4 rounded-full bg-[#25D366]/20 animate-ping" />
+              <div className="absolute -inset-4 rounded-full bg-[#2AABEE]/25 animate-ping" />
             )}
             <Avatar src={peerPhoto} name={peerName} size="xl" />
           </div>
@@ -174,7 +174,7 @@ export const CallModal: React.FC<CallModalProps> = ({ call, currentUser, onClose
 
         <div>
           <h2 className="text-2xl font-bold text-white">{peerName}</h2>
-          <p className="mt-1 text-sm font-medium text-[#25D366] tabular-nums">{statusText}</p>
+          <p className="mt-1 text-sm font-medium text-[#2AABEE] tabular-nums">{statusText}</p>
         </div>
       </div>
 
@@ -194,7 +194,7 @@ export const CallModal: React.FC<CallModalProps> = ({ call, currentUser, onClose
               type="button"
               onClick={() => void handleAccept()}
               aria-label={t.calls.accept}
-              className="w-16 h-16 rounded-full bg-[#25D366] hover:bg-[#1ebe5d] text-[#041f14] flex flex-col items-center justify-center shadow-xl cursor-pointer transition-transform active:scale-95"
+              className="w-16 h-16 rounded-full bg-emerald-500 hover:bg-emerald-400 text-white flex flex-col items-center justify-center shadow-xl cursor-pointer transition-transform active:scale-95"
             >
               <Phone className="w-6 h-6" />
             </button>
@@ -206,7 +206,7 @@ export const CallModal: React.FC<CallModalProps> = ({ call, currentUser, onClose
               onClick={() => setMuted((prev) => !prev)}
               aria-label={t.calls.muteMic}
               className={`w-12 h-12 rounded-full flex items-center justify-center cursor-pointer transition-colors ${
-                muted ? 'bg-white text-[#0a2e1f]' : 'bg-white/15 hover:bg-white/25 text-white'
+                muted ? 'bg-white text-[#0E1621]' : 'bg-white/15 hover:bg-white/25 text-white'
               }`}
             >
               {muted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
@@ -218,7 +218,7 @@ export const CallModal: React.FC<CallModalProps> = ({ call, currentUser, onClose
                 onClick={() => setCameraOn((prev) => !prev)}
                 aria-label={t.calls.cameraToggle}
                 className={`w-12 h-12 rounded-full flex items-center justify-center cursor-pointer transition-colors ${
-                  !cameraOn ? 'bg-white text-[#0a2e1f]' : 'bg-white/15 hover:bg-white/25 text-white'
+                  !cameraOn ? 'bg-white text-[#0E1621]' : 'bg-white/15 hover:bg-white/25 text-white'
                 }`}
               >
                 {cameraOn ? <Video className="w-5 h-5" /> : <VideoOff className="w-5 h-5" />}

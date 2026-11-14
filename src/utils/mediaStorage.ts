@@ -3,7 +3,9 @@ import { storage } from '../lib/firebase';
 import { compressImageFile } from './imageCompress';
 import { compressStoryVideo, type VideoMetadata } from './videoCompress';
 
-function dataUrlToBlob(dataUrl: string): Blob {
+const VOICE_CACHE_PREFIX = 'dank_voice_';
+
+export function dataUrlToBlob(dataUrl: string): Blob {
   const [header, base64] = dataUrl.split(',');
   const mimeMatch = header.match(/data:(.*?);base64/);
   const mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
@@ -13,6 +15,82 @@ function dataUrlToBlob(dataUrl: string): Blob {
     bytes[i] = binary.charCodeAt(i);
   }
   return new Blob([bytes], { type: mime });
+}
+
+export function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result);
+      } else {
+        reject(new Error('Failed to read audio blob'));
+      }
+    };
+    reader.onerror = () => reject(new Error('Failed to read audio blob'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+export function saveVoiceCache(messageId: string, dataUrl: string): void {
+  if (!messageId || !dataUrl || dataUrl.length > 720000) return;
+  try {
+    localStorage.setItem(`${VOICE_CACHE_PREFIX}${messageId}`, dataUrl);
+  } catch {
+    // Quota exceeded — trim older cached voices
+    try {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i += 1) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith(VOICE_CACHE_PREFIX)) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.slice(0, Math.max(1, Math.floor(keysToRemove.length / 2))).forEach((k) => {
+        localStorage.removeItem(k);
+      });
+      localStorage.setItem(`${VOICE_CACHE_PREFIX}${messageId}`, dataUrl);
+    } catch {
+      // ignore if storage completely full
+    }
+  }
+}
+
+export function getVoiceCache(messageId?: string): string | null {
+  if (!messageId) return null;
+  try {
+    return localStorage.getItem(`${VOICE_CACHE_PREFIX}${messageId}`);
+  } catch {
+    return null;
+  }
+}
+
+export async function uploadVoiceMessage(
+  blob: Blob,
+  chatId: string,
+  messageId: string
+): Promise<{
+  audioData: string;
+  localDataUrl: string;
+}> {
+  const localDataUrl = await blobToDataUrl(blob);
+  saveVoiceCache(messageId, localDataUrl);
+
+  const ext = blob.type.includes('mp4')
+    ? 'm4a'
+    : blob.type.includes('ogg')
+    ? 'ogg'
+    : 'webm';
+  const storageUrl = await tryUploadToFirebaseStorage(
+    `voices/${chatId}/${messageId}.${ext}`,
+    blob,
+    10_000
+  );
+
+  return {
+    audioData: storageUrl || localDataUrl,
+    localDataUrl,
+  };
 }
 
 async function tryUploadToFirebaseStorage(

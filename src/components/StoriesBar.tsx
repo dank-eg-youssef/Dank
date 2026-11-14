@@ -75,16 +75,16 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({
   }, [stories, currentUser.uid, usersMap, viewedStoryIds]);
 
   return (
-    <div className="px-3 pb-2.5 shrink-0 border-b border-[#0a2e1f]/10 dark:border-white/10">
+    <div className="px-3 pb-2.5 shrink-0 border-b border-slate-200 dark:border-[#22303F]">
       <div className="flex items-center justify-between mb-1.5 px-1">
-        <span className="text-[11px] font-semibold text-[#0a2e1f]/70 dark:text-emerald-200/75">
+        <span className="text-[11px] font-semibold text-slate-600 dark:text-[#8C9FB1]">
           {t.stories.title}
         </span>
         {myGroup && (
           <button
             type="button"
             onClick={onOpenCreateStory}
-            className="text-[11px] font-semibold text-[#146c43] dark:text-[#25D366] hover:underline cursor-pointer"
+            className="text-[11px] font-semibold text-[#2AABEE] hover:underline cursor-pointer"
           >
             {t.stories.addStoryShort}
           </button>
@@ -103,11 +103,11 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({
               title={myGroup ? t.stories.viewYourStory : t.stories.add24hStory}
               className={`rounded-full p-[2.5px] transition-transform hover:scale-105 cursor-pointer ${
                 myGroup
-                  ? 'bg-gradient-to-tr from-[#0a2e1f] via-[#25D366] to-emerald-300'
-                  : 'border-2 border-dashed border-[#0a2e1f]/30 dark:border-white/25'
+                  ? 'bg-gradient-to-tr from-[#229ED9] via-[#2AABEE] to-sky-300'
+                  : 'border-2 border-dashed border-slate-300 dark:border-[#22303F]'
               }`}
             >
-              <div className="rounded-full bg-white dark:bg-[#0b1f16] p-[1.5px]">
+              <div className="rounded-full bg-white dark:bg-[#0E1621] p-[1.5px]">
                 <Avatar src={currentUser.photoURL} name={currentUser.name} size="md" />
               </div>
             </button>
@@ -116,12 +116,12 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({
               onClick={onOpenCreateStory}
               title={t.stories.postNewStory}
               aria-label={t.stories.postNewStory}
-              className="absolute -bottom-0.5 -end-0.5 w-5 h-5 rounded-full bg-[#25D366] text-[#052014] border-2 border-white dark:border-[#0b1f16] flex items-center justify-center shadow-xs hover:bg-[#1ebe5d] cursor-pointer"
+              className="absolute -bottom-0.5 -end-0.5 w-5 h-5 rounded-full bg-[#2AABEE] text-white border-2 border-white dark:border-[#0E1621] flex items-center justify-center shadow-xs hover:bg-[#229ED9] cursor-pointer"
             >
               <Plus className="w-3 h-3 stroke-[3]" />
             </button>
           </div>
-          <span className="text-[11px] text-[#0a2e1f] dark:text-emerald-100 font-medium truncate w-full text-center">
+          <span className="text-[11px] text-[#0E1621] dark:text-slate-100 font-medium truncate w-full text-center">
             {myGroup ? t.stories.yourStory : t.stories.addStory}
           </span>
         </div>
@@ -137,15 +137,15 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({
             <div
               className={`rounded-full p-[2.5px] transition-transform group-hover:scale-105 ${
                 group.hasUnviewed
-                  ? 'bg-gradient-to-tr from-[#146c43] via-[#25D366] to-emerald-300'
-                  : 'bg-[#0a2e1f]/20 dark:bg-white/20'
+                  ? 'bg-gradient-to-tr from-[#229ED9] via-[#2AABEE] to-sky-300'
+                  : 'bg-slate-200 dark:bg-white/20'
               }`}
             >
-              <div className="rounded-full bg-white dark:bg-[#0b1f16] p-[1.5px]">
+              <div className="rounded-full bg-white dark:bg-[#0E1621] p-[1.5px]">
                 <Avatar src={group.authorPhoto} name={group.authorName} size="md" />
               </div>
             </div>
-            <span className="text-[11px] text-[#0a2e1f] dark:text-emerald-100 font-medium truncate w-full text-center">
+            <span className="text-[11px] text-[#0E1621] dark:text-slate-100 font-medium truncate w-full text-center">
               {group.authorName.split(' ')[0]}
             </span>
           </button>

@@ -1,9 +1,9 @@
 import React from 'react';
-import { LogOut, RefreshCw } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { DankLogo } from './DankLogo';
 
 interface DankSplashProps {
+  message?: string;
   errorMessage?: string | null;
   retrying?: boolean;
   onRetry?: () => void;
@@ -11,6 +11,7 @@ interface DankSplashProps {
 }
 
 export const DankSplash: React.FC<DankSplashProps> = ({
+  message,
   errorMessage,
   retrying = false,
   onRetry,
@@ -19,36 +20,33 @@ export const DankSplash: React.FC<DankSplashProps> = ({
   const { t } = useLanguage();
 
   return (
-    <div className="min-h-screen w-full bg-[#0a2e1f] flex flex-col items-center justify-center p-6 select-none">
-      <div className="flex flex-col items-center gap-4 max-w-sm w-full text-center">
-        <div className="relative">
-          <div className="absolute -inset-3 rounded-3xl bg-[#25D366]/20 blur-lg" />
-          <DankLogo size={84} className="relative shadow-2xl" />
+    <div className="min-h-screen w-full bg-[#0E1621] flex flex-col items-center justify-center p-6 select-none relative overflow-hidden">
+      <div className="absolute -top-28 -end-28 w-80 h-80 rounded-full bg-[#2AABEE]/14 blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-28 -start-28 w-80 h-80 rounded-full bg-[#2AABEE]/10 blur-3xl pointer-events-none" />
+
+      <div className="relative z-10 flex flex-col items-center">
+        <div className="w-24 h-24 rounded-3xl bg-[#17212B] border border-[#2AABEE]/35 shadow-2xl flex items-center justify-center mb-5">
+          <DankLogo size="lg" />
         </div>
 
-        <div>
-          <h1 className="text-3xl font-extrabold tracking-widest text-white">{t.appName}</h1>
-          <p className="mt-1 text-xs font-medium text-[#25D366]">{t.brand.splashTagline}</p>
-        </div>
+        <h1 className="text-4xl font-extrabold tracking-tight text-white">DANK</h1>
+        <p className="mt-1.5 text-sm font-semibold text-[#2AABEE] tracking-wide">
+          {t.brand.splashTagline}
+        </p>
 
-        {!errorMessage ? (
-          <div
-            role="status"
-            aria-label={t.common.loading}
-            className="mt-2 w-9 h-9 rounded-full border-[3px] border-[#25D366]/25 border-t-[#25D366] animate-spin"
-          />
-        ) : (
-          <div className="space-y-4 w-full mt-2">
-            <p className="text-xs text-emerald-100/80 leading-relaxed">{errorMessage}</p>
-            <div className="flex items-center justify-center gap-2.5 flex-wrap">
+        {errorMessage ? (
+          <div className="mt-7 w-full max-w-xs rounded-2xl bg-[#17212B] border border-white/10 p-4 text-center space-y-3 shadow-xl">
+            <p className="text-xs font-medium text-red-300 leading-relaxed break-words">
+              {errorMessage}
+            </p>
+            <div className="flex flex-col gap-2">
               {onRetry && (
                 <button
                   type="button"
                   disabled={retrying}
                   onClick={onRetry}
-                  className="h-11 px-4 rounded-xl bg-[#25D366] hover:bg-[#1ebe5d] disabled:opacity-60 text-[#041f14] text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition-colors"
+                  className="w-full h-10 rounded-xl bg-[#2AABEE] hover:bg-[#229ED9] disabled:opacity-60 text-white text-xs font-bold cursor-pointer transition-colors"
                 >
-                  <RefreshCw className={`w-3.5 h-3.5 ${retrying ? 'animate-spin' : ''}`} />
                   {retrying ? t.errors.retrying : t.errors.retryConnection}
                 </button>
               )}
@@ -56,16 +54,28 @@ export const DankSplash: React.FC<DankSplashProps> = ({
                 <button
                   type="button"
                   onClick={onLogout}
-                  className="h-11 px-4 rounded-xl border border-white/20 hover:bg-white/10 text-white text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer transition-colors"
+                  className="w-full h-9 rounded-xl bg-white/10 hover:bg-white/15 text-[#C5D3E0] text-xs font-semibold cursor-pointer transition-colors"
                 >
-                  <LogOut className="w-3.5 h-3.5 text-[#25D366]" />
-                  {t.profile.logout}
+                  {t.auth.signOutOrSwitch}
                 </button>
               )}
             </div>
           </div>
+        ) : (
+          <div className="mt-7 flex flex-col items-center gap-3">
+            <div
+              role="status"
+              aria-label={t.common.loading}
+              className="w-8 h-8 rounded-full border-3 border-white/15 border-t-[#2AABEE] animate-spin"
+            />
+            <p className="text-xs font-medium text-[#8C9FB1] text-center max-w-xs">
+              {message || t.errors.connectingWorkspace}
+            </p>
+          </div>
         )}
       </div>
+
+      <p className="absolute bottom-6 text-[11px] text-[#6C7E91]">{t.brand.footerCopyright}</p>
     </div>
   );
 };

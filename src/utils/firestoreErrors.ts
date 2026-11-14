@@ -72,6 +72,8 @@ export function isOfflineError(error: unknown): boolean {
     code === 'unavailable' ||
     msg.includes('client is offline') ||
     msg.includes('failed to get document because the client is offline') ||
+    msg.includes("backend didn't respond") ||
+    msg.includes('could not reach cloud firestore backend') ||
     msg.includes('code=unavailable')
   );
 }

@@ -2,15 +2,18 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   collection,
   doc,
+  limit,
   onSnapshot,
   orderBy,
   query,
+  Timestamp,
   where,
   type Unsubscribe,
 } from 'firebase/firestore';
 import { registerSW } from 'virtual:pwa-register';
 import {
   Ban,
+  Bell,
   Film,
   KeyRound,
   LayoutGrid,
@@ -36,8 +39,10 @@ import { DankPlusModal } from './components/DankPlusModal';
 import { DankSplash } from './components/DankSplash';
 import { JoinInviteModal } from './components/JoinInviteModal';
 import { NavigationDrawer } from './components/NavigationDrawer';
+import { NotificationsPage } from './components/NotificationsPage';
 import { PostsFeed } from './components/PostsFeed';
 import { ProfileModal } from './components/ProfileModal';
+import { ProfilePage } from './components/ProfilePage';
 import { ReelsFeed } from './components/ReelsFeed';
 import { SettingsPrivacyModal } from './components/SettingsPrivacyModal';
 import { Sidebar } from './components/Sidebar';
@@ -56,14 +61,24 @@ import {
   ensureSavedMessagesChat,
   ensureUserJoinedDankTeam,
   ensureUserJoinedOfficialChannel,
+  getLocalBotChat,
   initiateCall,
   joinChatById,
   markChatMessagesDelivered,
   OFFICIAL_CHANNEL_ID,
   setUserChatPref,
 } from './services/chatService';
+import {
+  clearAllNotifications,
+  getLocalNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+  mergeNotifications,
+} from './services/notificationService';
+import { getLocalFollows, saveLocalFollows } from './services/socialService';
 import type {
   AdsBanner,
+  AppNotification,
   BlockedUser,
   CallRecord,
   Chat,
@@ -81,7 +96,7 @@ import type {
 import { handleFirestoreError, isOfflineError, OperationType } from './utils/firestoreErrors';
 import { timestampToMs } from './utils/timeFormat';
 
-type MainTab = 'chats' | 'groups' | 'channels' | 'reels' | 'posts';
+type MainTab = 'chats' | 'groups' | 'channels' | 'reels' | 'profile' | 'posts';
 
 export default function App() {
   const {
@@ -141,7 +156,18 @@ export default function App() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [reels, setReels] = useState<Reel[]>([]);
   const [follows, setFollows] = useState<FollowRelation[]>([]);
+  const [localFollowEdges, setLocalFollowEdges] = useState(() => getLocalFollows());
   const [savedItems, setSavedItems] = useState<SavedItem[]>([]);
+
+  const [remoteNotifications, setRemoteNotifications] = useState<AppNotification[]>([]);
+  const [localNotifications, setLocalNotifications] = useState<AppNotification[]>([]);
+  const [showNotificationsPage, setShowNotificationsPage] = useState(false);
+  const [liveNotifPopup, setLiveNotifPopup] = useState<AppNotification | null>(null);
+  const seenLiveNotifIdsRef = useRef<Set<string>>(new Set());
+  const notifsInitializedRef = useRef(false);
+  const livePopupTimerRef = useRef<number | null>(null);
+
+  const [localBotChat, setLocalBotChat] = useState<Chat | null>(null);
 
   const [notificationPermission, setNotificationPermission] = useState<
     NotificationPermission | 'unsupported'
@@ -153,7 +179,8 @@ export default function App() {
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const [profileTargetUser, setProfileTargetUser] = useState<UserPublic | null>(null);
+  const [profileModalEditMode, setProfileModalEditMode] = useState(false);
+  const [viewedProfileUser, setViewedProfileUser] = useState<UserPublic | null>(null);
   const [createModalType, setCreateModalType] = useState<'group' | 'channel' | 'secret' | null>(
     null
   );
@@ -542,17 +569,27 @@ export default function App() {
     return () => unsub();
   }, [isVerified, firebaseUser?.uid]);
 
-  // 4g. Follows
+  // 4g. Follows (Firestore + localStorage cache)
   useEffect(() => {
+    const syncLocalFollows = () => setLocalFollowEdges(getLocalFollows());
+    window.addEventListener('dank:follows-updated', syncLocalFollows);
     if (!isVerified || !firebaseUser) {
       setFollows([]);
-      return;
+      return () => window.removeEventListener('dank:follows-updated', syncLocalFollows);
     }
 
     const unsub = onSnapshot(
       collection(db, 'follows'),
       (snap) => {
-        setFollows(snap.docs.map((d) => d.data() as FollowRelation));
+        const list = snap.docs.map((d) => d.data() as FollowRelation);
+        setFollows(list);
+        saveLocalFollows(
+          list.map((f) => ({
+            followerUid: f.followerUid,
+            targetUid: f.targetUid,
+            createdAtMs: timestampToMs(f.createdAt) || Date.now(),
+          }))
+        );
       },
       (error) => {
         if (!isOfflineError(error)) {
@@ -560,7 +597,69 @@ export default function App() {
         }
       }
     );
-    return () => unsub();
+    return () => {
+      unsub();
+      window.removeEventListener('dank:follows-updated', syncLocalFollows);
+    };
+  }, [isVerified, firebaseUser?.uid]);
+
+  // 4g2. Local-first DANK Bot chat sync
+  useEffect(() => {
+    if (!isVerified || !firebaseUser) {
+      setLocalBotChat(null);
+      return;
+    }
+    const uid = firebaseUser.uid;
+    setLocalBotChat(getLocalBotChat(uid));
+    const onBotUpdated = () => setLocalBotChat(getLocalBotChat(uid));
+    window.addEventListener('dank:bot-updated', onBotUpdated);
+    return () => window.removeEventListener('dank:bot-updated', onBotUpdated);
+  }, [isVerified, firebaseUser?.uid]);
+
+  // 4g3. App Notifications (Firestore + localStorage fallback)
+  useEffect(() => {
+    if (!isVerified || !firebaseUser) {
+      setRemoteNotifications([]);
+      setLocalNotifications([]);
+      notifsInitializedRef.current = false;
+      seenLiveNotifIdsRef.current.clear();
+      return;
+    }
+
+    const uid = firebaseUser.uid;
+    setLocalNotifications(getLocalNotifications(uid));
+
+    const handleLocalNotifs = (e: Event) => {
+      const detail = (e as CustomEvent<string>).detail;
+      if (!detail || detail === uid) {
+        setLocalNotifications(getLocalNotifications(uid));
+      }
+    };
+    window.addEventListener('dank:notifications-updated', handleLocalNotifs);
+
+    const q = query(
+      collection(db, 'notifications'),
+      where('recipientUid', '==', uid),
+      limit(80)
+    );
+
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const list = snap.docs.map((d) => d.data() as AppNotification);
+        setRemoteNotifications(list);
+      },
+      (err) => {
+        if (!isOfflineError(err)) {
+          console.warn('Notifications listener fallback to local:', err);
+        }
+      }
+    );
+
+    return () => {
+      unsub();
+      window.removeEventListener('dank:notifications-updated', handleLocalNotifs);
+    };
   }, [isVerified, firebaseUser?.uid]);
 
   // 4h. Saved items
@@ -808,15 +907,63 @@ export default function App() {
     [savedItems]
   );
 
+  const effectiveFollows = useMemo<FollowRelation[]>(() => {
+    if (follows.length > 0) return follows;
+    return localFollowEdges.map((e) => ({
+      followerUid: e.followerUid,
+      targetUid: e.targetUid,
+      createdAt: Timestamp.fromMillis(e.createdAtMs || Date.now()),
+    }));
+  }, [follows, localFollowEdges]);
+
   const followingIds = useMemo(() => {
     if (!firebaseUser) return new Set<string>();
     return new Set(
-      follows.filter((f) => f.followerUid === firebaseUser.uid).map((f) => f.targetUid)
+      effectiveFollows
+        .filter((f) => f.followerUid === firebaseUser.uid)
+        .map((f) => f.targetUid)
     );
-  }, [follows, firebaseUser?.uid]);
+  }, [effectiveFollows, firebaseUser?.uid]);
 
-  const chats = useMemo(() => Object.values(chatsById), [chatsById]);
-  const activeChat = activeChatId ? chatsById[activeChatId] || null : null;
+  const notifications = useMemo(
+    () => mergeNotifications(remoteNotifications, localNotifications),
+    [remoteNotifications, localNotifications]
+  );
+  const unreadNotifsCount = useMemo(
+    () => notifications.filter((n) => !n.read).length,
+    [notifications]
+  );
+
+  // Live toast popup when a new unread notification arrives after initial load
+  useEffect(() => {
+    if (!isVerified || !firebaseUser) return;
+    if (!notifsInitializedRef.current) {
+      notifications.forEach((n) => seenLiveNotifIdsRef.current.add(n.id));
+      notifsInitializedRef.current = true;
+      return;
+    }
+    const newestNew = notifications.find(
+      (n) => !n.read && !seenLiveNotifIdsRef.current.has(n.id)
+    );
+    notifications.forEach((n) => seenLiveNotifIdsRef.current.add(n.id));
+    if (newestNew && newestNew.actorUid !== firebaseUser.uid) {
+      setLiveNotifPopup(newestNew);
+      if (livePopupTimerRef.current) window.clearTimeout(livePopupTimerRef.current);
+      livePopupTimerRef.current = window.setTimeout(() => setLiveNotifPopup(null), 4200);
+    }
+  }, [notifications, isVerified, firebaseUser?.uid]);
+
+  const chats = useMemo(() => {
+    const list = Object.values(chatsById);
+    if (localBotChat && !chatsById[localBotChat.id]) {
+      return [localBotChat, ...list];
+    }
+    return list;
+  }, [chatsById, localBotChat]);
+
+  const activeChat = activeChatId
+    ? chatsById[activeChatId] || (localBotChat?.id === activeChatId ? localBotChat : null)
+    : null;
   const activeCall = activeCallId ? calls.find((c) => c.id === activeCallId) || null : null;
 
   const unreadChatsCount = useMemo(() => {
@@ -896,10 +1043,57 @@ export default function App() {
     }
   }, [isVerified, profile, joinedChatIds]);
 
-  const openProfileFor = useCallback((user?: UserPublic | null) => {
-    setProfileTargetUser(user || null);
-    setShowProfileModal(true);
-  }, []);
+  const openProfileFor = useCallback(
+    (user?: UserPublic | null) => {
+      setShowNotificationsPage(false);
+      if (!user || (profile && user.uid === profile.uid)) {
+        setViewedProfileUser(null);
+        setMainTab('profile');
+      } else {
+        setViewedProfileUser(user);
+      }
+    },
+    [profile?.uid]
+  );
+
+  const handleNotificationNavigation = useCallback(
+    (notif: AppNotification) => {
+      setShowNotificationsPage(false);
+      if (notif.type === 'follow') {
+        const actor = usersMap[notif.actorUid] || {
+          uid: notif.actorUid,
+          name: notif.actorName,
+          username: notif.actorName.toLowerCase().replace(/[^a-z0-9_]/g, '') || 'user',
+          photoURL: notif.actorPhoto || '',
+          isOnline: false,
+          lastSeen: null,
+          createdAt: null,
+          updatedAt: null,
+        };
+        openProfileFor(actor);
+        return;
+      }
+      if (notif.type === 'message' && notif.targetId) {
+        setViewedProfileUser(null);
+        setMainTab('chats');
+        setActiveChatId(notif.targetId);
+        return;
+      }
+      if (notif.targetId) {
+        const matchingReel = reels.find((r) => r.id === notif.targetId);
+        if (matchingReel) {
+          setViewedProfileUser(null);
+          setInitialReelId(matchingReel.id);
+          setMainTab('reels');
+          return;
+        }
+        setViewedProfileUser(null);
+        setHighlightedPostId(notif.targetId);
+        setMainTab('posts');
+      }
+    },
+    [openProfileFor, reels, usersMap]
+  );
 
   const handleStartPrivateChat = async (peer: UserPublic) => {
     if (!profile) return;
@@ -910,6 +1104,8 @@ export default function App() {
     try {
       const chatId = await createOrOpenPrivateChat(profile, peer);
       await setUserChatPref(profile.uid, chatId, { restoreVisible: true });
+      setViewedProfileUser(null);
+      setShowNotificationsPage(false);
       setMainTab('chats');
       setActiveChatId(chatId);
     } catch (err) {
@@ -921,6 +1117,7 @@ export default function App() {
     if (!profile) return;
     try {
       await joinChatById(chatId, profile.uid);
+      setViewedProfileUser(null);
       setMainTab('chats');
       setActiveChatId(chatId);
       notify(t.notifications.subscribedChannel);
@@ -933,6 +1130,7 @@ export default function App() {
     if (!profile) return;
     try {
       const chatId = await ensureSavedMessagesChat(profile);
+      setViewedProfileUser(null);
       setMainTab('chats');
       setActiveChatId(chatId);
     } catch (err) {
@@ -944,6 +1142,9 @@ export default function App() {
     if (!profile) return;
     try {
       const chatId = await ensureDankBotChat(profile);
+      setLocalBotChat(getLocalBotChat(profile.uid));
+      setViewedProfileUser(null);
+      setShowNotificationsPage(false);
       setMainTab('chats');
       setActiveChatId(chatId);
     } catch (err) {
@@ -1023,23 +1224,23 @@ export default function App() {
     };
 
     return (
-      <div className="min-h-screen bg-[#f4f7f5] dark:bg-[#061811] flex items-center justify-center p-6">
-        <div className="max-w-md w-full rounded-2xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/15 dark:border-white/10 shadow-2xl p-7 text-center space-y-5">
+      <div className="min-h-screen bg-[#eef2f6] dark:bg-[#0E1621] flex items-center justify-center p-6">
+        <div className="max-w-md w-full rounded-2xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F] shadow-2xl p-7 text-center space-y-5">
           <div className="flex justify-center">
             <DankLogo size="md" showText={false} />
           </div>
-          <div className="w-12 h-12 mx-auto rounded-2xl bg-[#25D366]/15 text-[#25D366] flex items-center justify-center">
+          <div className="w-12 h-12 mx-auto rounded-2xl bg-[#2AABEE]/15 text-[#2AABEE] flex items-center justify-center">
             <KeyRound className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-[#0a2e1f] dark:text-white">
+            <h1 className="text-xl font-bold text-[#0E1621] dark:text-white">
               {t.privacy.twoStepChallengeTitle}
             </h1>
-            <p className="mt-1.5 text-xs text-slate-600 dark:text-emerald-200/75 leading-relaxed">
+            <p className="mt-1.5 text-xs text-slate-600 dark:text-[#8C9FB1] leading-relaxed">
               {t.privacy.twoStepChallengeDesc}
             </p>
             {privateProfile?.twoStepHint && (
-              <p className="mt-2 text-xs font-semibold text-[#146c43] dark:text-[#25D366]">
+              <p className="mt-2 text-xs font-semibold text-[#2AABEE]">
                 {t.privacy.hintOptional}: {privateProfile.twoStepHint}
               </p>
             )}
@@ -1053,7 +1254,7 @@ export default function App() {
               value={twoStepInput}
               onChange={(e) => setTwoStepInput(e.target.value)}
               placeholder={t.privacy.passwordPlaceholder}
-              className="w-full h-11 px-4 rounded-xl bg-[#f4f7f5] dark:bg-[#071911] border border-[#0a2e1f]/15 dark:border-white/15 text-base text-[#0a2e1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#25D366]"
+              className="w-full h-11 px-4 rounded-xl bg-[#f4f7fb] dark:bg-[#242F3D] border border-slate-200 dark:border-white/15 text-base text-[#0E1621] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#2AABEE]"
             />
             {twoStepError && (
               <p className="text-xs text-red-600 dark:text-red-400 text-center">{twoStepError}</p>
@@ -1061,7 +1262,7 @@ export default function App() {
             <button
               type="submit"
               disabled={unlocking2FA || !twoStepInput.trim()}
-              className="w-full h-11 rounded-xl bg-[#25D366] hover:bg-[#1ebe5d] text-[#052014] text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+              className="w-full h-11 rounded-xl bg-[#2AABEE] hover:bg-[#229ED9] text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
             >
               <Lock className="w-4 h-4" />
               {t.privacy.twoStepUnlock}
@@ -1071,7 +1272,7 @@ export default function App() {
           <button
             type="button"
             onClick={() => void logout()}
-            className="text-xs font-semibold text-slate-500 dark:text-emerald-200/70 hover:underline cursor-pointer"
+            className="text-xs font-semibold text-slate-500 dark:text-[#8C9FB1] hover:underline cursor-pointer"
           >
             {t.profile.logout}
           </button>
@@ -1082,25 +1283,25 @@ export default function App() {
 
   if (profile.isBanned && !isAdmin) {
     return (
-      <div className="min-h-screen bg-[#f4f7f5] dark:bg-[#061811] flex items-center justify-center p-6">
-        <div className="max-w-md w-full rounded-2xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/15 dark:border-white/10 shadow-xl p-7 text-center space-y-4">
+      <div className="min-h-screen bg-[#eef2f6] dark:bg-[#0E1621] flex items-center justify-center p-6">
+        <div className="max-w-md w-full rounded-2xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F] shadow-xl p-7 text-center space-y-4">
           <div className="w-14 h-14 mx-auto rounded-2xl bg-red-100 dark:bg-red-950/50 text-red-600 dark:text-red-400 flex items-center justify-center">
             <Ban className="w-7 h-7" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-[#0a2e1f] dark:text-white">
+            <h1 className="text-xl font-bold text-[#0E1621] dark:text-white">
               {t.errors.accountSuspended}
             </h1>
-            <p className="mt-2 text-sm text-slate-600 dark:text-emerald-200/75 leading-relaxed">
+            <p className="mt-2 text-sm text-slate-600 dark:text-[#8C9FB1] leading-relaxed">
               {t.errors.accountSuspendedDesc}
             </p>
           </div>
           <button
             type="button"
             onClick={() => void logout()}
-            className="w-full h-11 rounded-xl bg-[#0a2e1f] hover:bg-[#103d2a] text-white text-sm font-semibold flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full h-11 rounded-xl bg-[#242F3D] hover:bg-[#2D3B4D] text-white text-sm font-semibold flex items-center justify-center gap-2 cursor-pointer"
           >
-            <LogOut className="w-4 h-4 text-[#25D366]" />
+            <LogOut className="w-4 h-4 text-[#2AABEE]" />
             {t.profile.logout}
           </button>
         </div>
@@ -1112,8 +1313,19 @@ export default function App() {
   const sidebarTabScope: 'chats' | 'groups' | 'channels' =
     mainTab === 'groups' ? 'groups' : mainTab === 'channels' ? 'channels' : 'chats';
 
+  const myFollowerUids = effectiveFollows
+    .filter((f) => f.targetUid === profile.uid)
+    .map((f) => f.followerUid);
+  const myFollowingUids = effectiveFollows
+    .filter((f) => f.followerUid === profile.uid)
+    .map((f) => f.targetUid);
+
+  const liveViewedUser = viewedProfileUser
+    ? usersMap[viewedProfileUser.uid] || viewedProfileUser
+    : null;
+
   return (
-    <div className="h-screen w-screen overflow-hidden bg-[#eef5f0] dark:bg-[#061811] flex flex-col">
+    <div className="h-screen w-screen overflow-hidden bg-[#eef2f6] dark:bg-[#0E1621] flex flex-col">
       <div className="flex-1 min-h-0 flex w-full overflow-hidden">
         {isChatViewportTab && (
           <>
@@ -1136,6 +1348,7 @@ export default function App() {
                 stories={stories}
                 viewedStoryIds={viewedStoryIds}
                 adsBanner={adsBanner}
+                unreadNotifsCount={unreadNotifsCount}
                 notificationPermission={notificationPermission}
                 activeChatId={activeChatId}
                 tabScope={sidebarTabScope}
@@ -1152,6 +1365,8 @@ export default function App() {
                 }}
                 onOpenCreateStory={() => setShowCreateStoryModal(true)}
                 onOpenStoryGroup={(group) => setActiveStoryGroup(group)}
+                onOpenNotifications={() => setShowNotificationsPage(true)}
+                onOpenProfile={(user) => openProfileFor(user)}
                 onRequestNotifications={() => void handleRequestNotifications()}
                 onNotify={notify}
               />
@@ -1173,6 +1388,7 @@ export default function App() {
                   isMuted={mutedChatIds.has(activeChat.id)}
                   onBackMobile={() => setActiveChatId(null)}
                   onOpenChatInfo={() => setShowChatInfoModal(true)}
+                  onOpenProfile={(user) => openProfileFor(user)}
                   onStartCall={(peer, callType, chatId) =>
                     void handleStartCall(peer, callType, chatId)
                   }
@@ -1181,15 +1397,15 @@ export default function App() {
                 />
               ) : (
                 <div className="flex-1 h-full dank-chat-bg flex items-center justify-center p-8">
-                  <div className="max-w-md w-full rounded-2xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/12 dark:border-white/10 p-7 shadow-sm text-center space-y-5">
+                  <div className="max-w-md w-full rounded-2xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F] p-7 shadow-sm text-center space-y-5">
                     <div className="flex items-center justify-center">
                       <DankLogo size="lg" showText={true} />
                     </div>
                     <div>
-                      <h2 className="text-xl font-bold text-[#0a2e1f] dark:text-white">
+                      <h2 className="text-xl font-bold text-[#0E1621] dark:text-white">
                         {t.welcome.title}
                       </h2>
-                      <p className="mt-1.5 text-sm text-slate-600 dark:text-emerald-200/75 leading-relaxed">
+                      <p className="mt-1.5 text-sm text-slate-600 dark:text-[#8C9FB1] leading-relaxed">
                         {t.welcome.desc}
                       </p>
                     </div>
@@ -1197,15 +1413,15 @@ export default function App() {
                       <button
                         type="button"
                         onClick={() => setCreateModalType('group')}
-                        className="h-10 px-4 rounded-xl bg-[#0a2e1f] hover:bg-[#103d2a] text-white text-xs font-semibold flex items-center gap-2 cursor-pointer"
+                        className="h-10 px-4 rounded-xl bg-[#242F3D] hover:bg-[#2D3B4D] text-white text-xs font-semibold flex items-center gap-2 cursor-pointer"
                       >
-                        <Users className="w-4 h-4 text-[#25D366]" />
+                        <Users className="w-4 h-4 text-[#2AABEE]" />
                         {t.welcome.newGroup}
                       </button>
                       <button
                         type="button"
                         onClick={() => setCreateModalType('channel')}
-                        className="h-10 px-4 rounded-xl bg-[#25D366] hover:bg-[#1ebe5d] text-[#052014] text-xs font-bold flex items-center gap-2 cursor-pointer"
+                        className="h-10 px-4 rounded-xl bg-[#2AABEE] hover:bg-[#229ED9] text-white text-xs font-bold flex items-center gap-2 cursor-pointer"
                       >
                         <Megaphone className="w-4 h-4" />
                         {t.welcome.newChannel}
@@ -1213,30 +1429,30 @@ export default function App() {
                       <button
                         type="button"
                         onClick={() => setMainTab('posts')}
-                        className="h-10 px-3.5 rounded-xl border border-[#0a2e1f]/15 dark:border-white/15 hover:bg-black/5 dark:hover:bg-white/10 text-[#0a2e1f] dark:text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                        className="h-10 px-3.5 rounded-xl border border-slate-200 dark:border-[#22303F] hover:bg-black/5 dark:hover:bg-white/10 text-[#0E1621] dark:text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
                       >
-                        <LayoutGrid className="w-4 h-4 text-[#25D366]" />
+                        <LayoutGrid className="w-4 h-4 text-[#2AABEE]" />
                         {t.tabs.posts}
                       </button>
                       <button
                         type="button"
                         onClick={toggleTheme}
                         aria-label={isDark ? t.theme.switchToLight : t.theme.switchToDark}
-                        className="w-10 h-10 rounded-xl border border-[#0a2e1f]/15 dark:border-white/15 hover:bg-black/5 dark:hover:bg-white/10 text-[#0a2e1f] dark:text-white flex items-center justify-center cursor-pointer"
+                        className="w-10 h-10 rounded-xl border border-slate-200 dark:border-[#22303F] hover:bg-black/5 dark:hover:bg-white/10 text-[#0E1621] dark:text-white flex items-center justify-center cursor-pointer"
                       >
                         {isDark ? (
                           <Sun className="w-4 h-4 text-amber-400" />
                         ) : (
-                          <Moon className="w-4 h-4 text-[#0a2e1f]" />
+                          <Moon className="w-4 h-4 text-[#0E1621]" />
                         )}
                       </button>
                       {isAdmin && (
                         <button
                           type="button"
                           onClick={() => setShowAdminModal(true)}
-                          className="h-10 px-3.5 rounded-xl border border-[#0a2e1f]/15 dark:border-white/15 hover:bg-black/5 dark:hover:bg-white/10 text-[#0a2e1f] dark:text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                          className="h-10 px-3.5 rounded-xl border border-slate-200 dark:border-[#22303F] hover:bg-black/5 dark:hover:bg-white/10 text-[#0E1621] dark:text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
                         >
-                          <Shield className="w-4 h-4 text-[#25D366]" />
+                          <Shield className="w-4 h-4 text-[#2AABEE]" />
                           {t.welcome.admin}
                         </button>
                       )}
@@ -1276,26 +1492,60 @@ export default function App() {
             onNotify={notify}
           />
         )}
+
+        {mainTab === 'profile' && (
+          <ProfilePage
+            user={profile}
+            currentUser={profile}
+            usersMap={usersMap}
+            posts={posts}
+            reels={reels}
+            followerUids={myFollowerUids}
+            followingUids={myFollowingUids}
+            isFollowing={false}
+            allFollowEdges={effectiveFollows}
+            myFollowingSet={followingIds}
+            onOpenEditProfile={() => {
+              setProfileModalEditMode(true);
+              setShowProfileModal(true);
+            }}
+            onOpenSettings={() => setShowSettingsPrivacyModal(true)}
+            onStartChat={(u) => void handleStartPrivateChat(u)}
+            onViewProfile={(u) => openProfileFor(u)}
+            onOpenPost={(post) => {
+              setHighlightedPostId(post.id);
+              setMainTab('posts');
+            }}
+            onOpenReel={(reel) => {
+              setInitialReelId(reel.id);
+              setMainTab('reels');
+            }}
+            onNotify={notify}
+          />
+        )}
       </div>
 
       {/* Persistent Telegram-style DANK 5-Tab Bottom Navigation Bar */}
       <nav
         aria-label={t.tabs.chats}
-        className="h-15 shrink-0 bg-[#0a2e1f] border-t border-white/10 grid grid-cols-5 items-center px-1 z-20"
+        className="h-15 shrink-0 bg-white dark:bg-[#17212B] border-t border-slate-200 dark:border-[#22303F] grid grid-cols-5 items-center px-1 z-20"
       >
         <button
           type="button"
-          onClick={() => setMainTab('chats')}
+          onClick={() => {
+            setViewedProfileUser(null);
+            setMainTab('chats');
+          }}
           className={`relative min-h-[44px] h-12 rounded-xl flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold transition-colors cursor-pointer ${
-            mainTab === 'chats'
-              ? 'text-[#25D366] bg-white/10'
-              : 'text-emerald-100/75 hover:text-white hover:bg-white/5'
+            mainTab === 'chats' && !viewedProfileUser
+              ? 'text-[#2AABEE] bg-[#2AABEE]/10'
+              : 'text-slate-500 dark:text-[#8C9FB1] hover:text-[#0E1621] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'
           }`}
         >
           <div className="relative">
             <MessageSquare className="w-4.5 h-4.5 shrink-0" />
             {unreadChatsCount > 0 && (
-              <span className="absolute -top-1.5 -end-2.5 min-w-[16px] h-4 px-1 rounded-full bg-[#25D366] text-[#052014] text-[10px] font-bold flex items-center justify-center tabular-nums">
+              <span className="absolute -top-1.5 -end-2.5 min-w-[16px] h-4 px-1 rounded-full bg-[#2AABEE] text-white text-[10px] font-bold flex items-center justify-center tabular-nums">
                 {unreadChatsCount > 99 ? '99+' : unreadChatsCount}
               </span>
             )}
@@ -1306,13 +1556,14 @@ export default function App() {
         <button
           type="button"
           onClick={() => {
+            setViewedProfileUser(null);
             setMainTab('groups');
             setActiveChatId(null);
           }}
           className={`min-h-[44px] h-12 rounded-xl flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold transition-colors cursor-pointer ${
-            mainTab === 'groups'
-              ? 'text-[#25D366] bg-white/10'
-              : 'text-emerald-100/75 hover:text-white hover:bg-white/5'
+            mainTab === 'groups' && !viewedProfileUser
+              ? 'text-[#2AABEE] bg-[#2AABEE]/10'
+              : 'text-slate-500 dark:text-[#8C9FB1] hover:text-[#0E1621] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'
           }`}
         >
           <Users className="w-4.5 h-4.5 shrink-0" />
@@ -1322,13 +1573,14 @@ export default function App() {
         <button
           type="button"
           onClick={() => {
+            setViewedProfileUser(null);
             setMainTab('channels');
             setActiveChatId(null);
           }}
           className={`min-h-[44px] h-12 rounded-xl flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold transition-colors cursor-pointer ${
-            mainTab === 'channels'
-              ? 'text-[#25D366] bg-white/10'
-              : 'text-emerald-100/75 hover:text-white hover:bg-white/5'
+            mainTab === 'channels' && !viewedProfileUser
+              ? 'text-[#2AABEE] bg-[#2AABEE]/10'
+              : 'text-slate-500 dark:text-[#8C9FB1] hover:text-[#0E1621] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'
           }`}
         >
           <Megaphone className="w-4.5 h-4.5 shrink-0" />
@@ -1337,11 +1589,14 @@ export default function App() {
 
         <button
           type="button"
-          onClick={() => setMainTab('reels')}
+          onClick={() => {
+            setViewedProfileUser(null);
+            setMainTab('reels');
+          }}
           className={`min-h-[44px] h-12 rounded-xl flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold transition-colors cursor-pointer ${
-            mainTab === 'reels'
-              ? 'text-[#25D366] bg-white/10'
-              : 'text-emerald-100/75 hover:text-white hover:bg-white/5'
+            mainTab === 'reels' && !viewedProfileUser
+              ? 'text-[#2AABEE] bg-[#2AABEE]/10'
+              : 'text-slate-500 dark:text-[#8C9FB1] hover:text-[#0E1621] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'
           }`}
         >
           <Film className="w-4.5 h-4.5 shrink-0" />
@@ -1350,11 +1605,14 @@ export default function App() {
 
         <button
           type="button"
-          onClick={() => openProfileFor(profile)}
+          onClick={() => {
+            setViewedProfileUser(null);
+            setMainTab('profile');
+          }}
           className={`min-h-[44px] h-12 rounded-xl flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold transition-colors cursor-pointer ${
-            showProfileModal && (!profileTargetUser || profileTargetUser.uid === profile.uid)
-              ? 'text-[#25D366] bg-white/10'
-              : 'text-emerald-100/75 hover:text-white hover:bg-white/5'
+            mainTab === 'profile' && !viewedProfileUser
+              ? 'text-[#2AABEE] bg-[#2AABEE]/10'
+              : 'text-slate-500 dark:text-[#8C9FB1] hover:text-[#0E1621] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'
           }`}
         >
           <User className="w-4.5 h-4.5 shrink-0" />
@@ -1367,15 +1625,20 @@ export default function App() {
         open={drawerOpen}
         currentUser={profile}
         isAdmin={isAdmin}
+        unreadNotifsCount={unreadNotifsCount}
         onClose={() => setDrawerOpen(false)}
         onOpenProfile={() => openProfileFor(profile)}
+        onOpenNotifications={() => setShowNotificationsPage(true)}
         onCreateGroup={() => setCreateModalType('group')}
         onCreateChannel={() => setCreateModalType('channel')}
         onCreateSecretChat={() => setCreateModalType('secret')}
         onOpenContacts={() => setContactsCallsTab('contacts')}
         onOpenCalls={() => setContactsCallsTab('calls')}
         onOpenSavedMessages={() => void handleOpenSavedMessages()}
-        onOpenPostsFeed={() => setMainTab('posts')}
+        onOpenPostsFeed={() => {
+          setViewedProfileUser(null);
+          setMainTab('posts');
+        }}
         onOpenDankTeam={() => void handleOpenDankTeam()}
         onOpenDankBot={() => void handleOpenDankBot()}
         onOpenDankPlus={() => setShowDankPlusModal(true)}
@@ -1386,12 +1649,68 @@ export default function App() {
         onLogout={() => void logout()}
       />
 
+      {/* Overlay ProfilePage for viewing other users' profiles */}
+      {liveViewedUser && (
+        <div className="fixed inset-0 z-40 flex flex-col bg-[#eef2f6] dark:bg-[#0E1621]">
+          <ProfilePage
+            user={liveViewedUser}
+            currentUser={profile}
+            usersMap={usersMap}
+            posts={posts}
+            reels={reels}
+            followerUids={effectiveFollows
+              .filter((f) => f.targetUid === liveViewedUser.uid)
+              .map((f) => f.followerUid)}
+            followingUids={effectiveFollows
+              .filter((f) => f.followerUid === liveViewedUser.uid)
+              .map((f) => f.targetUid)}
+            isFollowing={followingIds.has(liveViewedUser.uid)}
+            allFollowEdges={effectiveFollows}
+            myFollowingSet={followingIds}
+            onBack={() => setViewedProfileUser(null)}
+            onOpenEditProfile={() => {
+              setProfileModalEditMode(true);
+              setShowProfileModal(true);
+            }}
+            onOpenSettings={() => setShowSettingsPrivacyModal(true)}
+            onStartChat={(u) => void handleStartPrivateChat(u)}
+            onViewProfile={(u) => openProfileFor(u)}
+            onOpenPost={(post) => {
+              setViewedProfileUser(null);
+              setHighlightedPostId(post.id);
+              setMainTab('posts');
+            }}
+            onOpenReel={(reel) => {
+              setViewedProfileUser(null);
+              setInitialReelId(reel.id);
+              setMainTab('reels');
+            }}
+            onNotify={notify}
+          />
+        </div>
+      )}
+
+      {/* Notifications Page */}
+      {showNotificationsPage && (
+        <NotificationsPage
+          notifications={notifications}
+          usersMap={usersMap}
+          onClose={() => setShowNotificationsPage(false)}
+          onMarkRead={(id) => void markNotificationRead(profile.uid, id)}
+          onMarkAllRead={() => void markAllNotificationsRead(profile.uid, notifications)}
+          onClearAll={() => void clearAllNotifications(profile.uid, notifications)}
+          onSelectNotification={(notif) => handleNotificationNavigation(notif)}
+          onViewProfile={(u) => openProfileFor(u)}
+        />
+      )}
+
       {showProfileModal && (
         <ProfileModal
-          targetUser={profileTargetUser}
+          targetUser={profile}
           posts={posts}
           reels={reels}
-          follows={follows}
+          follows={effectiveFollows}
+          initialEditMode={profileModalEditMode}
           onOpenPost={(postId) => {
             setShowProfileModal(false);
             setHighlightedPostId(postId);
@@ -1412,7 +1731,7 @@ export default function App() {
           }}
           onClose={() => {
             setShowProfileModal(false);
-            setProfileTargetUser(null);
+            setProfileModalEditMode(false);
           }}
           onNotify={notify}
         />
@@ -1547,8 +1866,28 @@ export default function App() {
         />
       )}
 
+      {liveNotifPopup && (
+        <button
+          type="button"
+          onClick={() => {
+            const current = liveNotifPopup;
+            setLiveNotifPopup(null);
+            void markNotificationRead(profile.uid, current.id);
+            handleNotificationNavigation(current);
+          }}
+          className="fixed top-4 left-1/2 -translate-x-1/2 z-[60] max-w-sm w-[92vw] px-3.5 py-2.5 rounded-2xl bg-[#17212B]/95 backdrop-blur-md text-white shadow-2xl border border-[#2AABEE]/45 flex items-center gap-3 text-start cursor-pointer"
+        >
+          <span className="w-8 h-8 rounded-full bg-[#2AABEE]/20 text-[#2AABEE] flex items-center justify-center shrink-0">
+            <Bell className="w-4 h-4" />
+          </span>
+          <span className="flex-1 min-w-0 text-xs font-semibold truncate" dir="auto">
+            {liveNotifPopup.text}
+          </span>
+        </button>
+      )}
+
       {toast && (
-        <div className="fixed bottom-18 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl bg-[#0a2e1f] text-white text-xs font-medium shadow-xl border border-[#25D366]/45">
+        <div className="fixed bottom-18 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl bg-[#17212B] text-white text-xs font-medium shadow-xl border border-[#2AABEE]/45">
           {toast}
         </div>
       )}

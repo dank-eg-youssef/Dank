@@ -19,6 +19,7 @@ export interface UserPublic {
   name: string;
   username: string;
   photoURL?: string;
+  coverURL?: string;
   bio?: string;
   language?: AppLanguage;
   isOnline: boolean;
@@ -199,6 +200,7 @@ export interface Message {
   audioData?: string;
   audioDuration?: number;
   waveform?: number[];
+  playedBy?: string[];
   fileName?: string;
   fileSize?: number;
   fileData?: string;
@@ -364,3 +366,19 @@ export interface SavedItem {
   targetId: string;
   createdAt: Timestamp | null;
 }
+
+export type NotificationType = 'follow' | 'like' | 'comment' | 'message';
+
+export interface AppNotification {
+  id: string;
+  recipientUid: string;
+  actorUid: string;
+  actorName: string;
+  actorPhoto?: string;
+  type: NotificationType;
+  text: string;
+  targetId?: string;
+  read: boolean;
+  createdAt: Timestamp | null;
+}
+

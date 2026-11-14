@@ -10,12 +10,55 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { getTranslations } from '../i18n';
 import type { Post, Reel, UserPublic } from '../types/dank';
-import { handleFirestoreError, OperationType } from '../utils/firestoreErrors';
+import { handleFirestoreError, isOfflineError, OperationType } from '../utils/firestoreErrors';
 import { deleteManagedStorageMedia } from '../utils/mediaStorage';
+import { createAppNotification } from './notificationService';
 
 const SINGLE_DOC_MAX_CHARS = 720000;
 const CHUNK_CHARS = 500000;
+const FOLLOWS_CACHE_KEY = 'dank_follows_cache';
+
+export interface CachedFollowEdge {
+  followerUid: string;
+  targetUid: string;
+  createdAtMs: number;
+}
+
+export function getLocalFollows(): CachedFollowEdge[] {
+  try {
+    const raw = localStorage.getItem(FOLLOWS_CACHE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as CachedFollowEdge[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveLocalFollows(edges: CachedFollowEdge[]): void {
+  try {
+    localStorage.setItem(FOLLOWS_CACHE_KEY, JSON.stringify(edges.slice(-1000)));
+    window.dispatchEvent(new CustomEvent('dank:follows-updated'));
+  } catch {
+    // ignore storage errors
+  }
+}
+
+export function setLocalFollowEdge(
+  followerUid: string,
+  targetUid: string,
+  isFollowing: boolean
+): void {
+  const current = getLocalFollows().filter(
+    (e) => !(e.followerUid === followerUid && e.targetUid === targetUid)
+  );
+  if (isFollowing) {
+    current.push({ followerUid, targetUid, createdAtMs: Date.now() });
+  }
+  saveLocalFollows(current);
+}
 
 export function generateSocialId(): string {
   return doc(collection(db, '_ids')).id;
@@ -114,7 +157,9 @@ export async function deletePost(post: Post): Promise<void> {
 export async function togglePostLike(
   postId: string,
   uid: string,
-  currentlyLiked: boolean
+  currentlyLiked: boolean,
+  actor?: UserPublic,
+  postAuthorUid?: string
 ): Promise<void> {
   const likeRef = doc(db, 'posts', postId, 'likes', uid);
   const postRef = doc(db, 'posts', postId);
@@ -142,6 +187,17 @@ export async function togglePostLike(
       });
     }
     await batch.commit();
+
+    if (!exists && actor && postAuthorUid && postAuthorUid !== actor.uid) {
+      const tr = getTranslations(actor.language || 'ar');
+      void createAppNotification({
+        recipientUid: postAuthorUid,
+        actor,
+        type: 'like',
+        text: tr.notifications.likedPost(actor.name),
+        targetId: postId,
+      });
+    }
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, `posts/${postId}/likes/${uid}`);
   }
@@ -247,7 +303,9 @@ export async function deleteReel(reel: Reel): Promise<void> {
 export async function toggleReelLike(
   reelId: string,
   uid: string,
-  currentlyLiked: boolean
+  currentlyLiked: boolean,
+  actor?: UserPublic,
+  reelAuthorUid?: string
 ): Promise<void> {
   const likeRef = doc(db, 'reels', reelId, 'likes', uid);
   const reelRef = doc(db, 'reels', reelId);
@@ -275,6 +333,17 @@ export async function toggleReelLike(
       });
     }
     await batch.commit();
+
+    if (!exists && actor && reelAuthorUid && reelAuthorUid !== actor.uid) {
+      const tr = getTranslations(actor.language || 'ar');
+      void createAppNotification({
+        recipientUid: reelAuthorUid,
+        actor,
+        type: 'like',
+        text: tr.notifications.likedPost(actor.name),
+        targetId: reelId,
+      });
+    }
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, `reels/${reelId}/likes/${uid}`);
   }
@@ -283,12 +352,21 @@ export async function toggleReelLike(
 export async function addFeedComment(params: {
   collectionName: 'posts' | 'reels';
   targetId: string;
+  targetAuthorUid?: string;
   author: UserPublic;
   text: string;
   replyToId?: string;
   replyToAuthorName?: string;
 }): Promise<void> {
-  const { collectionName, targetId, author, text, replyToId, replyToAuthorName } = params;
+  const {
+    collectionName,
+    targetId,
+    targetAuthorUid,
+    author,
+    text,
+    replyToId,
+    replyToAuthorName,
+  } = params;
   const commentId = generateSocialId();
   const cleanText = text.trim().slice(0, 500);
   if (!cleanText) return;
@@ -318,6 +396,17 @@ export async function addFeedComment(params: {
       updatedAt: serverTimestamp(),
     });
     await batch.commit();
+
+    if (targetAuthorUid && targetAuthorUid !== author.uid) {
+      const tr = getTranslations(author.language || 'ar');
+      void createAppNotification({
+        recipientUid: targetAuthorUid,
+        actor: author,
+        type: 'comment',
+        text: tr.notifications.commentedPost(author.name),
+        targetId,
+      });
+    }
   } catch (error) {
     handleFirestoreError(
       error,
@@ -429,7 +518,8 @@ export async function toggleSaveItem(
 
 export async function toggleFollowUser(
   followerUid: string,
-  targetUid: string
+  targetUid: string,
+  actor?: UserPublic
 ): Promise<boolean> {
   if (followerUid === targetUid) return false;
   const followId = `${followerUid}_${targetUid}`;
@@ -438,6 +528,7 @@ export async function toggleFollowUser(
     const existing = await getDoc(refDoc);
     if (existing.exists()) {
       await deleteDoc(refDoc);
+      setLocalFollowEdge(followerUid, targetUid, false);
       return false;
     }
     await setDoc(refDoc, {
@@ -445,8 +536,37 @@ export async function toggleFollowUser(
       targetUid,
       createdAt: serverTimestamp(),
     });
+    setLocalFollowEdge(followerUid, targetUid, true);
+    if (actor) {
+      const tr = getTranslations(actor.language || 'ar');
+      void createAppNotification({
+        recipientUid: targetUid,
+        actor,
+        type: 'follow',
+        text: tr.notifications.startedFollowing(actor.name),
+        targetId: actor.uid,
+      });
+    }
     return true;
   } catch (error) {
+    if (isOfflineError(error)) {
+      const currentlyFollowing = getLocalFollows().some(
+        (e) => e.followerUid === followerUid && e.targetUid === targetUid
+      );
+      const next = !currentlyFollowing;
+      setLocalFollowEdge(followerUid, targetUid, next);
+      if (next && actor) {
+        const tr = getTranslations(actor.language || 'ar');
+        void createAppNotification({
+          recipientUid: targetUid,
+          actor,
+          type: 'follow',
+          text: tr.notifications.startedFollowing(actor.name),
+          targetId: actor.uid,
+        });
+      }
+      return next;
+    }
     handleFirestoreError(error, OperationType.WRITE, `follows/${followId}`);
   }
 }

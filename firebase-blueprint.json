@@ -26,6 +26,10 @@
           "type": "string",
           "maxLength": 250000
         },
+        "coverURL": {
+          "type": "string",
+          "maxLength": 350000
+        },
         "bio": {
           "type": "string",
           "maxLength": 240
@@ -511,12 +515,15 @@
         },
         "audioData": {
           "type": "string",
-          "maxLength": 550000
+          "maxLength": 750000
         },
         "audioDuration": {
           "type": "number"
         },
         "waveform": {
+          "type": "array"
+        },
+        "playedBy": {
           "type": "array"
         },
         "fileName": { "type": "string", "maxLength": 180 },
@@ -778,6 +785,61 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "itemType", "targetId", "createdAt"]
+    },
+    "AppNotification": {
+      "title": "AppNotification",
+      "description": "In-app notifications for follows, likes, comments, and new messages.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "recipientUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "actorUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "actorName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "actorPhoto": {
+          "type": "string",
+          "maxLength": 250000
+        },
+        "type": {
+          "type": "string",
+          "enum": ["follow", "like", "comment", "message"]
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "targetId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "read": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "recipientUid", "actorUid", "actorName", "type", "text", "read", "createdAt"]
     }
   },
   "firestore": {
@@ -912,6 +974,10 @@
     "/chats/{chatId}/messages/{messageId}/views/{viewerUid}": {
       "schema": { "type": "object" },
       "description": "Unique view receipts for broadcast channel posts."
+    },
+    "/notifications/{notifId}": {
+      "schema": { "$ref": "#/entities/AppNotification" },
+      "description": "User in-app notifications for follows, likes, comments, and DMs."
     }
   }
 }

@@ -62,11 +62,11 @@ export const ChannelCommentsDrawer: React.FC<ChannelCommentsDrawerProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-[2px] flex items-end sm:items-center justify-center sm:p-4">
-      <div className="w-full sm:max-w-md h-[78vh] sm:h-[600px] rounded-t-2xl sm:rounded-2xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/15 dark:border-white/10 shadow-2xl flex flex-col overflow-hidden">
-        <div className="px-4 py-3 bg-[#0a2e1f] text-white flex items-center justify-between">
+      <div className="w-full sm:max-w-md h-[78vh] sm:h-[600px] rounded-t-2xl sm:rounded-2xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F] shadow-2xl flex flex-col overflow-hidden">
+        <div className="px-4 py-3 bg-[#17212B] text-white flex items-center justify-between border-b border-white/10">
           <div>
             <h3 className="text-sm font-bold">{t.telegram.channelComments}</h3>
-            <p className="text-[11px] text-emerald-100/75 truncate max-w-[260px]">
+            <p className="text-[11px] text-[#8C9FB1] truncate max-w-[260px]">
               {message.text || t.common.channel}
             </p>
           </div>
@@ -80,13 +80,13 @@ export const ChannelCommentsDrawer: React.FC<ChannelCommentsDrawerProps> = ({
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
+        <div className="flex-1 overflow-y-auto p-3 space-y-2.5 bg-slate-50/50 dark:bg-[#0E1621]">
           {comments.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center px-6">
-              <p className="text-sm font-semibold text-[#0a2e1f] dark:text-white">
+              <p className="text-sm font-semibold text-[#0E1621] dark:text-white">
                 {t.comments.noCommentsYet}
               </p>
-              <p className="text-xs text-slate-500 dark:text-emerald-100/60 mt-1">
+              <p className="text-xs text-slate-500 dark:text-[#8C9FB1] mt-1">
                 {t.comments.firstThoughtHint}
               </p>
             </div>
@@ -96,12 +96,12 @@ export const ChannelCommentsDrawer: React.FC<ChannelCommentsDrawerProps> = ({
               return (
                 <div
                   key={c.id}
-                  className="p-2.5 rounded-xl bg-[#f4f8f5] dark:bg-[#071911] border border-[#0a2e1f]/8 dark:border-white/8 flex items-start gap-2.5"
+                  className="p-2.5 rounded-xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F] flex items-start gap-2.5"
                 >
                   <Avatar src={c.authorPhoto} name={c.authorName} size="xs" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-semibold text-[#0a2e1f] dark:text-white truncate">
+                      <span className="text-xs font-semibold text-[#0E1621] dark:text-white truncate">
                         {c.authorName}
                       </span>
                       <span className="text-[10px] text-slate-400">
@@ -110,7 +110,7 @@ export const ChannelCommentsDrawer: React.FC<ChannelCommentsDrawerProps> = ({
                     </div>
                     <p
                       dir="auto"
-                      className="mt-1 text-xs text-slate-700 dark:text-emerald-100/90 whitespace-pre-wrap break-words"
+                      className="mt-1 text-xs text-slate-700 dark:text-[#C5D3E0] whitespace-pre-wrap break-words"
                     >
                       {c.text}
                     </p>
@@ -133,7 +133,7 @@ export const ChannelCommentsDrawer: React.FC<ChannelCommentsDrawerProps> = ({
 
         <form
           onSubmit={handleSubmit}
-          className="p-3 border-t border-[#0a2e1f]/10 dark:border-white/10 bg-[#eef5f0] dark:bg-[#081c14] flex items-center gap-2"
+          className="p-3 border-t border-slate-200 dark:border-[#22303F] bg-white dark:bg-[#17212B] flex items-center gap-2"
         >
           <input
             type="text"
@@ -142,12 +142,12 @@ export const ChannelCommentsDrawer: React.FC<ChannelCommentsDrawerProps> = ({
             maxLength={600}
             onChange={(e) => setText(e.target.value)}
             placeholder={t.telegram.addChannelComment}
-            className="flex-1 h-10 px-3.5 rounded-xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/15 dark:border-white/15 text-base text-[#0a2e1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#25D366]"
+            className="flex-1 h-10 px-3.5 rounded-xl bg-slate-50 dark:bg-[#242F3D] border border-slate-200 dark:border-white/15 text-base text-[#0E1621] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#2AABEE]"
           />
           <button
             type="submit"
             disabled={!text.trim() || sending}
-            className="w-10 h-10 rounded-xl bg-[#25D366] hover:bg-[#1ebe5d] disabled:opacity-50 text-[#041f14] flex items-center justify-center cursor-pointer"
+            className="w-10 h-10 rounded-xl bg-[#2AABEE] hover:bg-[#229ED9] disabled:opacity-50 text-white flex items-center justify-center cursor-pointer"
           >
             <Send className="w-4 h-4 rtl:-scale-x-100" />
           </button>

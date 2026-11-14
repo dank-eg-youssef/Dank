@@ -73,8 +73,8 @@ export const JoinInviteModal: React.FC<JoinInviteModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/15 dark:border-white/10 shadow-2xl overflow-hidden">
-        <div className="bg-[#0a2e1f] text-white px-5 py-4 flex items-center justify-between">
+      <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F] shadow-2xl overflow-hidden">
+        <div className="bg-[#17212B] text-white px-5 py-4 flex items-center justify-between border-b border-white/10">
           <h3 className="text-base font-semibold">{t.joinInvite.title}</h3>
           <button
             type="button"
@@ -88,7 +88,7 @@ export const JoinInviteModal: React.FC<JoinInviteModalProps> = ({
 
         <div className="p-6 text-center space-y-4">
           {loading ? (
-            <p className="text-sm text-slate-600 dark:text-emerald-100/80 py-4">
+            <p className="text-sm text-slate-600 dark:text-[#8C9FB1] py-4">
               {t.joinInvite.loadingPreview}
             </p>
           ) : error ? (
@@ -97,7 +97,7 @@ export const JoinInviteModal: React.FC<JoinInviteModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="w-full h-11 rounded-xl bg-[#0a2e1f] text-white text-sm font-semibold cursor-pointer"
+                className="w-full h-11 rounded-xl bg-[#2B5278] hover:bg-[#32608C] text-white text-sm font-semibold cursor-pointer"
               >
                 {t.common.close}
               </button>
@@ -113,16 +113,16 @@ export const JoinInviteModal: React.FC<JoinInviteModalProps> = ({
                 />
               </div>
               <div>
-                <h4 dir="auto" className="text-lg font-bold text-[#0a2e1f] dark:text-white">
+                <h4 dir="auto" className="text-lg font-bold text-[#0E1621] dark:text-white">
                   {chat.name}
                 </h4>
-                <p className="text-xs text-slate-600 dark:text-emerald-200/75 mt-1 flex items-center justify-center gap-1.5">
-                  <Users className="w-3.5 h-3.5 text-[#25D366]" />
+                <p className="text-xs text-slate-600 dark:text-[#8C9FB1] mt-1 flex items-center justify-center gap-1.5">
+                  <Users className="w-3.5 h-3.5 text-[#2AABEE]" />
                   <span className="tabular-nums">{chat.memberCount}</span>{' '}
                   {chat.type === 'channel' ? t.common.subscribers : t.common.members}
                 </p>
                 {chat.description && (
-                  <p dir="auto" className="text-xs text-slate-600 dark:text-emerald-100/75 mt-2">
+                  <p dir="auto" className="text-xs text-slate-600 dark:text-[#A3B6C7] mt-2">
                     {chat.description}
                   </p>
                 )}
@@ -131,7 +131,7 @@ export const JoinInviteModal: React.FC<JoinInviteModalProps> = ({
                 type="button"
                 disabled={joining}
                 onClick={handleJoin}
-                className="w-full h-11 rounded-xl bg-[#25D366] hover:bg-[#1ebe5d] text-[#052014] font-bold text-sm transition-colors disabled:opacity-60 cursor-pointer"
+                className="w-full h-11 rounded-xl bg-[#2AABEE] hover:bg-[#229ED9] text-white font-bold text-sm transition-colors disabled:opacity-60 cursor-pointer"
               >
                 {joining
                   ? t.joinInvite.joining

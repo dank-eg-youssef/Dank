@@ -79,10 +79,10 @@ export const ForwardModal: React.FC<ForwardModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-[2px] flex items-center justify-center p-4">
-      <div className="w-full max-w-md rounded-2xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/15 dark:border-white/10 shadow-2xl overflow-hidden">
-        <div className="px-4 py-3 bg-[#0a2e1f] text-white flex items-center justify-between">
+      <div className="w-full max-w-md rounded-2xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F] shadow-2xl overflow-hidden">
+        <div className="px-4 py-3 bg-[#17212B] text-white flex items-center justify-between border-b border-white/10">
           <div className="flex items-center gap-2">
-            <Forward className="w-4 h-4 text-[#25D366]" />
+            <Forward className="w-4 h-4 text-[#2AABEE]" />
             <h3 className="text-sm font-bold">{t.telegram.forwardTo}</h3>
           </div>
           <button
@@ -95,7 +95,7 @@ export const ForwardModal: React.FC<ForwardModalProps> = ({
           </button>
         </div>
 
-        <div className="p-3 border-b border-[#0a2e1f]/10 dark:border-white/10">
+        <div className="p-3 border-b border-slate-200 dark:border-[#22303F]">
           <div className="relative">
             <Search className="w-4 h-4 text-slate-400 absolute start-3 top-1/2 -translate-y-1/2" />
             <input
@@ -104,19 +104,19 @@ export const ForwardModal: React.FC<ForwardModalProps> = ({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={t.common.search}
-              className="w-full h-10 ps-9 pe-3 rounded-xl bg-[#f4f8f5] dark:bg-[#071911] border border-[#0a2e1f]/10 dark:border-white/10 text-base text-[#0a2e1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#25D366]"
+              className="w-full h-10 ps-9 pe-3 rounded-xl bg-slate-50 dark:bg-[#242F3D] border border-slate-200 dark:border-white/10 text-base text-[#0E1621] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#2AABEE]"
             />
           </div>
         </div>
 
-        <div className="max-h-80 overflow-y-auto divide-y divide-[#0a2e1f]/8 dark:divide-white/8">
+        <div className="max-h-80 overflow-y-auto divide-y divide-slate-200/80 dark:divide-white/8">
           {availableChats.map(({ chat, title, photo, specialType }) => (
             <button
               key={chat.id}
               type="button"
               disabled={sendingTo !== null}
               onClick={() => void handleForward(chat)}
-              className="w-full px-4 py-2.5 flex items-center gap-3 hover:bg-[#eef5f0] dark:hover:bg-white/5 transition-colors cursor-pointer text-start"
+              className="w-full px-4 py-2.5 flex items-center gap-3 hover:bg-slate-100 dark:hover:bg-white/5 transition-colors cursor-pointer text-start"
             >
               <Avatar
                 src={photo}
@@ -125,10 +125,10 @@ export const ForwardModal: React.FC<ForwardModalProps> = ({
                 chatType={chat.type}
                 specialType={specialType}
               />
-              <span className="flex-1 text-sm font-semibold text-[#0a2e1f] dark:text-white truncate">
+              <span className="flex-1 text-sm font-semibold text-[#0E1621] dark:text-white truncate">
                 {title}
               </span>
-              <span className="text-xs font-semibold text-[#25D366]">
+              <span className="text-xs font-semibold text-[#2AABEE]">
                 {sendingTo === chat.id ? t.common.saving : t.telegram.forward}
               </span>
             </button>

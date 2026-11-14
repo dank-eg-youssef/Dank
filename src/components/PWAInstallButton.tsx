@@ -25,8 +25,8 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({ variant = 'c
         aria-label={t.pwa.installApp}
         className={
           variant === 'card'
-            ? 'w-full h-10 px-4 rounded-xl bg-[#25D366] hover:bg-[#1ebe5d] text-[#052014] text-xs font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer'
-            : 'h-8 px-2.5 rounded-lg bg-[#25D366] hover:bg-[#1ebe5d] text-[#052014] text-[11px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0'
+            ? 'w-full h-10 px-4 rounded-xl bg-[#2AABEE] hover:bg-[#229ED9] text-white text-xs font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer'
+            : 'h-8 px-2.5 rounded-lg bg-[#2AABEE] hover:bg-[#229ED9] text-white text-[11px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0'
         }
       >
         <Download className="w-3.5 h-3.5 shrink-0" />
@@ -45,8 +45,8 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({ variant = 'c
           aria-label={t.pwa.installOnIos}
           className={
             variant === 'card'
-              ? 'w-full h-10 px-4 rounded-xl bg-[#0a2e1f] hover:bg-[#103d2a] text-[#25D366] text-xs font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer'
-              : 'w-9 h-9 rounded-xl hover:bg-white/10 text-[#25D366] flex items-center justify-center transition-colors cursor-pointer shrink-0'
+              ? 'w-full h-10 px-4 rounded-xl bg-[#242F3D] hover:bg-[#2D3B4D] text-[#2AABEE] text-xs font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer'
+              : 'w-9 h-9 rounded-xl hover:bg-white/10 text-[#2AABEE] flex items-center justify-center transition-colors cursor-pointer shrink-0'
           }
         >
           <Smartphone className="w-4 h-4 shrink-0" />
@@ -60,29 +60,29 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({ variant = 'c
           >
             <div
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-sm rounded-2xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/15 dark:border-white/10 p-5 shadow-2xl space-y-4"
+              className="w-full max-w-sm rounded-2xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F] p-5 shadow-2xl space-y-4"
             >
               <div className="flex items-center justify-between gap-2">
-                <h3 className="text-base font-bold text-[#0a2e1f] dark:text-white">
+                <h3 className="text-base font-bold text-[#0E1621] dark:text-white">
                   {t.pwa.iosTitle}
                 </h3>
                 <button
                   type="button"
                   onClick={() => setShowIOSGuide(false)}
                   aria-label={t.common.close}
-                  className="w-8 h-8 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center text-[#0a2e1f] dark:text-white cursor-pointer"
+                  className="w-8 h-8 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center text-[#0E1621] dark:text-white cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
-              <ol className="space-y-2 text-xs text-slate-700 dark:text-emerald-100/80 leading-relaxed list-decimal list-inside">
+              <ol className="space-y-2 text-xs text-slate-700 dark:text-[#C5D3E0] leading-relaxed list-decimal list-inside">
                 <li>{t.pwa.iosStep1}</li>
                 <li>{t.pwa.iosStep2}</li>
               </ol>
               <button
                 type="button"
                 onClick={() => setShowIOSGuide(false)}
-                className="w-full h-10 rounded-xl bg-[#0a2e1f] hover:bg-[#103d2a] text-white text-xs font-semibold cursor-pointer"
+                className="w-full h-10 rounded-xl bg-[#2AABEE] hover:bg-[#229ED9] text-white text-xs font-semibold cursor-pointer"
               >
                 {t.common.close}
               </button>

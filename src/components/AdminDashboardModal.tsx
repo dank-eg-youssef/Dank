@@ -245,13 +245,13 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="w-full max-w-5xl rounded-2xl bg-[#f4f7f5] dark:bg-[#071911] border border-[#0a2e1f]/15 dark:border-white/10 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
-        <div className="bg-[#0a2e1f] text-white px-6 py-4 flex items-center justify-between gap-3 shrink-0">
+      <div className="w-full max-w-5xl rounded-2xl bg-[#f4f7fb] dark:bg-[#0E1621] border border-slate-200 dark:border-[#22303F] shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+        <div className="bg-[#17212B] text-white px-6 py-4 flex items-center justify-between gap-3 shrink-0 border-b border-white/10">
           <div className="flex items-center gap-2.5">
-            <Shield className="w-5 h-5 text-[#25D366]" />
+            <Shield className="w-5 h-5 text-[#2AABEE]" />
             <div>
               <h3 className="text-base font-bold">{t.admin.title}</h3>
-              <p className="text-[11px] text-emerald-200/80">{t.admin.restrictedTo}</p>
+              <p className="text-[11px] text-[#8C9FB1]">{t.admin.restrictedTo}</p>
             </div>
           </div>
 
@@ -275,14 +275,14 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
           </div>
         </div>
 
-        <div className="px-6 pt-3 pb-2 bg-white dark:bg-[#0d2218] border-b border-[#0a2e1f]/10 dark:border-white/10 flex items-center gap-2 overflow-x-auto shrink-0">
+        <div className="px-6 pt-3 pb-2 bg-white dark:bg-[#17212B] border-b border-slate-200 dark:border-[#22303F] flex items-center gap-2 overflow-x-auto shrink-0">
           <button
             type="button"
             onClick={() => setActiveTab('analytics')}
             className={`h-9 px-4 rounded-xl text-xs font-semibold flex items-center gap-2 whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
               activeTab === 'analytics'
-                ? 'bg-[#0a2e1f] text-white dark:bg-[#25D366] dark:text-[#052014]'
-                : 'text-[#0a2e1f]/75 dark:text-emerald-100/75 hover:bg-black/5 dark:hover:bg-white/10'
+                ? 'bg-[#2AABEE] text-white'
+                : 'text-slate-600 dark:text-[#8C9FB1] hover:bg-slate-100 dark:hover:bg-white/10'
             }`}
           >
             <BarChart3 className="w-4 h-4" />
@@ -294,8 +294,8 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
             onClick={() => setActiveTab('users')}
             className={`h-9 px-4 rounded-xl text-xs font-semibold flex items-center gap-2 whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
               activeTab === 'users'
-                ? 'bg-[#0a2e1f] text-white dark:bg-[#25D366] dark:text-[#052014]'
-                : 'text-[#0a2e1f]/75 dark:text-emerald-100/75 hover:bg-black/5 dark:hover:bg-white/10'
+                ? 'bg-[#2AABEE] text-white'
+                : 'text-slate-600 dark:text-[#8C9FB1] hover:bg-slate-100 dark:hover:bg-white/10'
             }`}
           >
             <Users className="w-4 h-4" />
@@ -307,8 +307,8 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
             onClick={() => setActiveTab('ads')}
             className={`h-9 px-4 rounded-xl text-xs font-semibold flex items-center gap-2 whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
               activeTab === 'ads'
-                ? 'bg-[#0a2e1f] text-white dark:bg-[#25D366] dark:text-[#052014]'
-                : 'text-[#0a2e1f]/75 dark:text-emerald-100/75 hover:bg-black/5 dark:hover:bg-white/10'
+                ? 'bg-[#2AABEE] text-white'
+                : 'text-slate-600 dark:text-[#8C9FB1] hover:bg-slate-100 dark:hover:bg-white/10'
             }`}
           >
             <Megaphone className="w-4 h-4" />
@@ -326,7 +326,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
           {loading && !stats ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {[0, 1, 2, 3].map((n) => (
-                <div key={n} className="h-28 rounded-xl bg-[#e3ece7] dark:bg-white/10 animate-pulse" />
+                <div key={n} className="h-28 rounded-xl bg-slate-200 dark:bg-[#17212B] animate-pulse" />
               ))}
             </div>
           ) : stats ? (
@@ -334,57 +334,57 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
               {activeTab === 'analytics' && (
                 <div className="space-y-6">
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="p-4 rounded-xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/12 dark:border-white/10">
-                      <div className="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-emerald-200/70">
+                    <div className="p-4 rounded-xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F]">
+                      <div className="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-[#8C9FB1]">
                         <span>{t.admin.totalUsers}</span>
-                        <Users className="w-4 h-4 text-[#25D366]" />
+                        <Users className="w-4 h-4 text-[#2AABEE]" />
                       </div>
-                      <div className="mt-2 text-2xl font-bold text-[#0a2e1f] dark:text-white tabular-nums">
+                      <div className="mt-2 text-2xl font-bold text-[#0E1621] dark:text-white tabular-nums">
                         {stats.totalUsers}
                       </div>
-                      <div className="mt-1 text-xs text-slate-600 dark:text-emerald-200/70 tabular-nums">
+                      <div className="mt-1 text-xs text-slate-600 dark:text-[#8C9FB1] tabular-nums">
                         {onlineNow} {t.admin.onlineRightNow}
                       </div>
                     </div>
 
-                    <div className="p-4 rounded-xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/12 dark:border-white/10">
-                      <div className="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-emerald-200/70">
+                    <div className="p-4 rounded-xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F]">
+                      <div className="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-[#8C9FB1]">
                         <span>{t.admin.newUsersToday}</span>
-                        <UserPlus className="w-4 h-4 text-[#25D366]" />
+                        <UserPlus className="w-4 h-4 text-[#2AABEE]" />
                       </div>
-                      <div className="mt-2 text-2xl font-bold text-[#0a2e1f] dark:text-white tabular-nums">
+                      <div className="mt-2 text-2xl font-bold text-[#0E1621] dark:text-white tabular-nums">
                         {stats.newUsersToday}
                       </div>
-                      <div className="mt-1 text-xs text-slate-600 dark:text-emerald-200/70 tabular-nums">
+                      <div className="mt-1 text-xs text-slate-600 dark:text-[#8C9FB1] tabular-nums">
                         {t.admin.joinedSinceMidnight}
                       </div>
                     </div>
 
-                    <div className="p-4 rounded-xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/12 dark:border-white/10">
-                      <div className="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-emerald-200/70">
+                    <div className="p-4 rounded-xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F]">
+                      <div className="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-[#8C9FB1]">
                         <span>{t.admin.totalMessagesToday}</span>
-                        <MessageSquare className="w-4 h-4 text-[#25D366]" />
+                        <MessageSquare className="w-4 h-4 text-[#2AABEE]" />
                       </div>
-                      <div className="mt-2 text-2xl font-bold text-[#0a2e1f] dark:text-white tabular-nums">
+                      <div className="mt-2 text-2xl font-bold text-[#0E1621] dark:text-white tabular-nums">
                         {stats.totalMessagesToday}
                       </div>
-                      <div className="mt-1 text-xs text-slate-600 dark:text-emerald-200/70 tabular-nums">
+                      <div className="mt-1 text-xs text-slate-600 dark:text-[#8C9FB1] tabular-nums">
                         {stats.totalMessages} {t.admin.totalAllTime}
                       </div>
                     </div>
 
-                    <div className="p-4 rounded-xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/12 dark:border-white/10">
-                      <div className="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-emerald-200/70">
+                    <div className="p-4 rounded-xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F]">
+                      <div className="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-[#8C9FB1]">
                         <span>{t.admin.mostActiveGroup}</span>
-                        <UsersRound className="w-4 h-4 text-[#25D366]" />
+                        <UsersRound className="w-4 h-4 text-[#2AABEE]" />
                       </div>
                       <div
                         dir="auto"
-                        className="mt-2 text-lg font-bold text-[#0a2e1f] dark:text-white truncate"
+                        className="mt-2 text-lg font-bold text-[#0E1621] dark:text-white truncate"
                       >
                         {topGroup ? topGroup.name : t.admin.noGroupsYet}
                       </div>
-                      <div className="mt-1 text-xs text-slate-600 dark:text-emerald-200/70 tabular-nums">
+                      <div className="mt-1 text-xs text-slate-600 dark:text-[#8C9FB1] tabular-nums">
                         {topGroup
                           ? `${topGroup.messageCount} ${t.admin.msgsLabel} · ${topGroup.memberCount} ${t.common.members}`
                           : `${stats.totalGroups} ${t.admin.groupsTotal}`}
@@ -392,29 +392,29 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                     </div>
                   </div>
 
-                  <div className="p-5 rounded-xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/12 dark:border-white/10 space-y-4">
+                  <div className="p-5 rounded-xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F] space-y-4">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div>
-                        <h4 className="text-sm font-bold text-[#0a2e1f] dark:text-white">
+                        <h4 className="text-sm font-bold text-[#0E1621] dark:text-white">
                           {t.admin.sevenDayTitle}
                         </h4>
-                        <p className="text-xs text-slate-500 dark:text-emerald-200/70">
+                        <p className="text-xs text-slate-500 dark:text-[#8C9FB1]">
                           {t.admin.sevenDayDesc}
                         </p>
                       </div>
-                      <div className="flex items-center gap-4 text-xs text-[#0a2e1f] dark:text-white">
+                      <div className="flex items-center gap-4 text-xs text-[#0E1621] dark:text-white">
                         <span className="flex items-center gap-1.5 font-medium">
-                          <span className="w-3 h-3 rounded-xs bg-[#0a2e1f] dark:bg-emerald-400 inline-block" />
+                          <span className="w-3 h-3 rounded-xs bg-[#2B5278] dark:bg-[#3B77B5] inline-block" />
                           {t.admin.messagesLegend}
                         </span>
                         <span className="flex items-center gap-1.5 font-medium">
-                          <span className="w-3 h-3 rounded-xs bg-[#25D366] inline-block" />
+                          <span className="w-3 h-3 rounded-xs bg-[#2AABEE] inline-block" />
                           {t.admin.newUsersLegend}
                         </span>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-7 gap-2 sm:gap-4 items-end h-44 pt-4 border-b border-[#0a2e1f]/10 dark:border-white/10 pb-2">
+                    <div className="grid grid-cols-7 gap-2 sm:gap-4 items-end h-44 pt-4 border-b border-slate-200 dark:border-[#22303F] pb-2">
                       {stats.dailyActivity.map((day) => {
                         const msgHeight =
                           day.messages > 0
@@ -431,27 +431,27 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                           >
                             <div className="w-full flex-1 flex items-end justify-center gap-1.5">
                               <div className="flex flex-col items-center justify-end h-full flex-1 max-w-[20px]">
-                                <span className="text-[10px] font-semibold text-[#0a2e1f] dark:text-emerald-300 tabular-nums mb-1">
+                                <span className="text-[10px] font-semibold text-[#2B5278] dark:text-sky-300 tabular-nums mb-1">
                                   {day.messages}
                                 </span>
                                 <div
                                   style={{ height: `${msgHeight}%` }}
-                                  className="w-full rounded-t-md bg-[#0a2e1f] dark:bg-emerald-400 transition-all"
+                                  className="w-full rounded-t-md bg-[#2B5278] dark:bg-[#3B77B5] transition-all"
                                   title={`${day.label}: ${day.messages}`}
                                 />
                               </div>
                               <div className="flex flex-col items-center justify-end h-full flex-1 max-w-[20px]">
-                                <span className="text-[10px] font-semibold text-[#146c43] dark:text-[#25D366] tabular-nums mb-1">
+                                <span className="text-[10px] font-semibold text-[#0284C7] dark:text-[#2AABEE] tabular-nums mb-1">
                                   {day.newUsers}
                                 </span>
                                 <div
                                   style={{ height: `${usrHeight}%` }}
-                                  className="w-full rounded-t-md bg-[#25D366] transition-all"
+                                  className="w-full rounded-t-md bg-[#2AABEE] transition-all"
                                   title={`${day.label}: ${day.newUsers}`}
                                 />
                               </div>
                             </div>
-                            <span className="text-[11px] font-medium text-slate-600 dark:text-emerald-200/75 whitespace-nowrap">
+                            <span className="text-[11px] font-medium text-slate-600 dark:text-[#8C9FB1] whitespace-nowrap">
                               {day.label}
                             </span>
                           </div>
@@ -461,18 +461,18 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                   </div>
 
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    <div className="p-5 rounded-xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/12 dark:border-white/10 space-y-4">
+                    <div className="p-5 rounded-xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F] space-y-4">
                       <div>
-                        <h4 className="text-sm font-bold text-[#0a2e1f] dark:text-white">
+                        <h4 className="text-sm font-bold text-[#0E1621] dark:text-white">
                           {t.admin.mostActiveUsers}
                         </h4>
-                        <p className="text-xs text-slate-500 dark:text-emerald-200/70">
+                        <p className="text-xs text-slate-500 dark:text-[#8C9FB1]">
                           {t.admin.rankedByMsgsSent}
                         </p>
                       </div>
 
                       {stats.mostActiveUsers.length === 0 ? (
-                        <p className="text-xs text-slate-500 py-6 text-center">
+                        <p className="text-xs text-slate-500 dark:text-[#8C9FB1] py-6 text-center">
                           {t.admin.noUserActivity}
                         </p>
                       ) : (
@@ -490,7 +490,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                                       {idx + 1}
                                     </span>
                                     <Avatar src={u.photoURL} name={u.name} size="xs" />
-                                    <span className="text-xs font-semibold text-[#0a2e1f] dark:text-white truncate">
+                                    <span className="text-xs font-semibold text-[#0E1621] dark:text-white truncate">
                                       {u.name}
                                     </span>
                                     <UserBadges
@@ -500,14 +500,14 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                                       size="xs"
                                     />
                                   </div>
-                                  <span className="text-xs font-bold text-[#0a2e1f] dark:text-emerald-200 tabular-nums shrink-0">
+                                  <span className="text-xs font-bold text-[#0E1621] dark:text-sky-200 tabular-nums shrink-0">
                                     {u.messageCount} {t.admin.msgsLabel}
                                   </span>
                                 </div>
-                                <div className="h-2 w-full rounded-full bg-[#eef5f0] dark:bg-white/10 overflow-hidden">
+                                <div className="h-2 w-full rounded-full bg-slate-100 dark:bg-white/10 overflow-hidden">
                                   <div
                                     style={{ width: `${u.messageCount > 0 ? pct : 0}%` }}
-                                    className="h-full rounded-full bg-gradient-to-r from-[#0a2e1f] to-[#25D366]"
+                                    className="h-full rounded-full bg-gradient-to-r from-[#2B5278] to-[#2AABEE]"
                                   />
                                 </div>
                               </div>
@@ -517,19 +517,19 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                       )}
                     </div>
 
-                    <div className="p-5 rounded-xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/12 dark:border-white/10 space-y-4">
+                    <div className="p-5 rounded-xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F] space-y-4">
                       <div>
-                        <h4 className="text-sm font-bold text-[#0a2e1f] dark:text-white">
+                        <h4 className="text-sm font-bold text-[#0E1621] dark:text-white">
                           {t.admin.mostActiveGroups}
                         </h4>
-                        <p className="text-xs text-slate-500 dark:text-emerald-200/70">
+                        <p className="text-xs text-slate-500 dark:text-[#8C9FB1]">
                           {t.admin.rankedByVolume} ({stats.totalGroups} {t.admin.groupsLabel} ·{' '}
                           {stats.totalChannels} {t.admin.channelsLabel})
                         </p>
                       </div>
 
                       {stats.mostActiveGroups.length === 0 ? (
-                        <p className="text-xs text-slate-500 py-6 text-center">
+                        <p className="text-xs text-slate-500 dark:text-[#8C9FB1] py-6 text-center">
                           {t.admin.noGroupsCreated}
                         </p>
                       ) : (
@@ -554,22 +554,22 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                                     />
                                     <span
                                       dir="auto"
-                                      className="text-xs font-semibold text-[#0a2e1f] dark:text-white truncate"
+                                      className="text-xs font-semibold text-[#0E1621] dark:text-white truncate"
                                     >
                                       {g.name}
                                     </span>
-                                    <span className="text-[11px] text-slate-500 dark:text-emerald-200/70 tabular-nums shrink-0">
+                                    <span className="text-[11px] text-slate-500 dark:text-[#8C9FB1] tabular-nums shrink-0">
                                       · {g.memberCount} {t.common.members}
                                     </span>
                                   </div>
-                                  <span className="text-xs font-bold text-[#0a2e1f] dark:text-emerald-200 tabular-nums shrink-0">
+                                  <span className="text-xs font-bold text-[#0E1621] dark:text-sky-200 tabular-nums shrink-0">
                                     {g.messageCount} {t.admin.msgsLabel}
                                   </span>
                                 </div>
-                                <div className="h-2 w-full rounded-full bg-[#eef5f0] dark:bg-white/10 overflow-hidden">
+                                <div className="h-2 w-full rounded-full bg-slate-100 dark:bg-white/10 overflow-hidden">
                                   <div
                                     style={{ width: `${g.messageCount > 0 ? pct : 0}%` }}
-                                    className="h-full rounded-full bg-[#25D366]"
+                                    className="h-full rounded-full bg-[#2AABEE]"
                                   />
                                 </div>
                               </div>
@@ -583,9 +583,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
               )}
 
               {activeTab === 'users' && (
-                <div className="rounded-xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/12 dark:border-white/10 overflow-hidden">
-                  <div className="px-4 py-3 border-b border-[#0a2e1f]/10 dark:border-white/10 bg-[#f4f7f5] dark:bg-[#071911] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div className="text-xs font-bold text-[#0a2e1f] dark:text-white">
+                <div className="rounded-xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F] overflow-hidden">
+                  <div className="px-4 py-3 border-b border-slate-200 dark:border-[#22303F] bg-slate-50 dark:bg-[#0E1621] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="text-xs font-bold text-[#0E1621] dark:text-white">
                       {t.admin.registeredUsers} ({filteredUsers.length})
                     </div>
                     <div className="relative w-full sm:w-64">
@@ -596,12 +596,12 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                         value={userSearch}
                         onChange={(e) => setUserSearch(e.target.value)}
                         placeholder={t.admin.filterUsersPlaceholder}
-                        className="w-full h-10 ps-8 pe-3 rounded-lg bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/12 dark:border-white/15 text-base text-[#0a2e1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#25D366]"
+                        className="w-full h-10 ps-8 pe-3 rounded-lg bg-white dark:bg-[#242F3D] border border-slate-200 dark:border-white/15 text-base text-[#0E1621] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#2AABEE]"
                       />
                     </div>
                   </div>
 
-                  <div className="max-h-[58vh] overflow-y-auto divide-y divide-[#0a2e1f]/8 dark:divide-white/8">
+                  <div className="max-h-[58vh] overflow-y-auto divide-y divide-slate-200/80 dark:divide-white/8">
                     {filteredUsers.map((u) => {
                       const online = isUserActuallyOnline(u.isOnline, u.lastSeen);
                       const isBusy = busyUid === u.uid;
@@ -625,7 +625,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                             />
                             <div className="min-w-0">
                               <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
-                                <p dir="auto" className="text-xs font-semibold text-[#0a2e1f] dark:text-white truncate">
+                                <p dir="auto" className="text-xs font-semibold text-[#0E1621] dark:text-white truncate">
                                   {u.name}
                                 </p>
                                 <UserBadges
@@ -636,7 +636,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                                   size="sm"
                                 />
                                 {u.isBanned && (
-                                  <span className="text-[11px] font-bold text-red-600">
+                                  <span className="text-[11px] font-bold text-red-500">
                                     · {t.admin.banned}
                                   </span>
                                 )}
@@ -652,7 +652,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                                   </span>
                                 )}
                               </div>
-                              <p className="text-[11px] text-slate-500 dark:text-emerald-200/70 truncate tabular-nums">
+                              <p className="text-[11px] text-slate-500 dark:text-[#8C9FB1] truncate tabular-nums">
                                 @{u.username} · {formatLastSeen(u.isOnline, u.lastSeen, language)} ·{' '}
                                 {u.inviteCount ?? 0} {t.admin.invitesLabel}
                               </p>
@@ -666,8 +666,8 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                               onClick={() => void handleToggleAdmin(u)}
                               className={`h-8 px-2.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer whitespace-nowrap ${
                                 u.isAdmin
-                                  ? 'bg-[#0a2e1f] text-amber-300'
-                                  : 'bg-[#e8f0ec] dark:bg-white/10 text-[#0a2e1f] dark:text-white'
+                                  ? 'bg-[#2B5278] text-amber-300'
+                                  : 'bg-slate-100 dark:bg-white/10 text-[#0E1621] dark:text-white'
                               }`}
                             >
                               {u.isAdmin ? t.admin.removeAdmin : t.admin.makeAdmin}
@@ -679,8 +679,8 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                               onClick={() => void handleToggleVerified(u)}
                               className={`h-8 px-2.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer whitespace-nowrap ${
                                 u.isVerified
-                                  ? 'bg-emerald-500/15 text-emerald-700 dark:text-[#25D366] border border-[#25D366]/40'
-                                  : 'bg-[#25D366] text-[#052014]'
+                                  ? 'bg-[#2AABEE]/15 text-[#0284C7] dark:text-[#2AABEE] border border-[#2AABEE]/40'
+                                  : 'bg-[#2AABEE] text-white'
                               }`}
                             >
                               {u.isVerified ? t.admin.unverify : t.admin.verify}
@@ -753,14 +753,14 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <form
                     onSubmit={(e) => void handleSaveAdBanner(e)}
-                    className="p-5 rounded-xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/12 dark:border-white/10 space-y-4"
+                    className="p-5 rounded-xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F] space-y-4"
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <h4 className="text-sm font-bold text-[#0a2e1f] dark:text-white">
+                        <h4 className="text-sm font-bold text-[#0E1621] dark:text-white">
                           {t.admin.globalBannerTitle}
                         </h4>
-                        <p className="text-xs text-slate-500 dark:text-emerald-200/70">
+                        <p className="text-xs text-slate-500 dark:text-[#8C9FB1]">
                           {t.admin.globalBannerDesc}
                         </p>
                       </div>
@@ -771,8 +771,8 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                         disabled={savingAd}
                         className={`h-9 px-3.5 rounded-xl text-xs font-bold transition-colors cursor-pointer whitespace-nowrap ${
                           adEnabled
-                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                            : 'bg-[#e8f0ec] dark:bg-white/10 text-[#0a2e1f] dark:text-white'
+                            ? 'bg-[#2AABEE] hover:bg-[#229ED9] text-white'
+                            : 'bg-slate-100 dark:bg-white/10 text-[#0E1621] dark:text-white'
                         }`}
                       >
                         {adEnabled ? t.admin.bannerOn : t.admin.bannerOff}
@@ -780,7 +780,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-[#0a2e1f] dark:text-emerald-100 mb-1">
+                      <label className="block text-xs font-semibold text-[#0E1621] dark:text-[#C5D3E0] mb-1">
                         {t.admin.bannerTextLabel}
                       </label>
                       <textarea
@@ -790,12 +790,12 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                         value={adText}
                         onChange={(e) => setAdText(e.target.value)}
                         placeholder={t.admin.bannerTextPlaceholder}
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-[#f4f7f5] dark:bg-[#071911] border border-[#0a2e1f]/12 dark:border-white/15 text-base text-[#0a2e1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#25D366] resize-none"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-[#242F3D] border border-slate-200 dark:border-white/15 text-base text-[#0E1621] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#2AABEE] resize-none"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-[#0a2e1f] dark:text-emerald-100 mb-1">
+                      <label className="block text-xs font-semibold text-[#0E1621] dark:text-[#C5D3E0] mb-1">
                         {t.admin.destinationLinkLabel}
                       </label>
                       <input
@@ -805,12 +805,12 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                         value={adLink}
                         onChange={(e) => setAdLink(e.target.value)}
                         placeholder="https://example.com"
-                        className="w-full h-11 px-3.5 rounded-xl bg-[#f4f7f5] dark:bg-[#071911] border border-[#0a2e1f]/12 dark:border-white/15 text-base text-[#0a2e1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#25D366] text-start"
+                        className="w-full h-11 px-3.5 rounded-xl bg-slate-50 dark:bg-[#242F3D] border border-slate-200 dark:border-white/15 text-base text-[#0E1621] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#2AABEE] text-start"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-[#0a2e1f] dark:text-emerald-100 mb-1.5">
+                      <label className="block text-xs font-semibold text-[#0E1621] dark:text-[#C5D3E0] mb-1.5">
                         {t.admin.bannerImageLabel}
                       </label>
                       <input
@@ -824,9 +824,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                         <button
                           type="button"
                           onClick={() => adFileRef.current?.click()}
-                          className="h-10 px-3.5 rounded-xl bg-[#e8f0ec] dark:bg-white/10 hover:bg-[#d8e6df] text-[#0a2e1f] dark:text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                          className="h-10 px-3.5 rounded-xl bg-slate-100 dark:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/15 text-[#0E1621] dark:text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
                         >
-                          <ImagePlus className="w-4 h-4 text-[#25D366]" />
+                          <ImagePlus className="w-4 h-4 text-[#2AABEE]" />
                           {adImageData ? t.admin.changeImage : t.admin.uploadImage}
                         </button>
                         {adImageData && (
@@ -844,25 +844,25 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                     <button
                       type="submit"
                       disabled={savingAd}
-                      className="w-full h-11 rounded-xl bg-[#25D366] hover:bg-[#1ebe5d] text-[#052014] font-bold text-sm transition-colors disabled:opacity-50 cursor-pointer"
+                      className="w-full h-11 rounded-xl bg-[#2AABEE] hover:bg-[#229ED9] text-white font-bold text-sm transition-colors disabled:opacity-50 cursor-pointer"
                     >
                       {savingAd ? t.common.saving : t.admin.saveBannerBtn}
                     </button>
                   </form>
 
-                  <div className="p-5 rounded-xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/12 dark:border-white/10 space-y-3">
+                  <div className="p-5 rounded-xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F] space-y-3">
                     <div className="flex items-center justify-between">
-                      <h4 className="text-sm font-bold text-[#0a2e1f] dark:text-white">
+                      <h4 className="text-sm font-bold text-[#0E1621] dark:text-white">
                         {t.admin.livePreview}
                       </h4>
-                      <span className="text-xs font-semibold text-slate-500 dark:text-emerald-200/70">
+                      <span className="text-xs font-semibold text-slate-500 dark:text-[#8C9FB1]">
                         {adEnabled ? t.admin.visibleToAll : t.admin.currentlyHidden}
                       </span>
                     </div>
 
-                    <div className="p-4 rounded-xl bg-[#f4f7f5] dark:bg-[#071911] border border-[#0a2e1f]/10 dark:border-white/10">
+                    <div className="p-4 rounded-xl bg-slate-100 dark:bg-[#0E1621] border border-slate-200 dark:border-[#22303F]">
                       {adText || adImageData ? (
-                        <div className="rounded-xl bg-[#0a2e1f] text-white border border-[#25D366]/35 overflow-hidden shadow-xs">
+                        <div className="rounded-xl bg-[#17212B] text-white border border-[#2AABEE]/35 overflow-hidden shadow-xs">
                           {adImageData.trim() && (
                             <img
                               src={adImageData.trim()}
@@ -873,7 +873,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                           )}
                           <div className="p-3 flex items-center justify-between gap-2">
                             <div className="min-w-0">
-                              <span className="text-[10px] font-semibold text-[#25D366]">
+                              <span className="text-[10px] font-semibold text-[#2AABEE]">
                                 {t.common.sponsored}
                               </span>
                               {adText && (
@@ -882,16 +882,16 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                                 </p>
                               )}
                               {adLink && (
-                                <p dir="ltr" className="text-[11px] text-emerald-100/80 truncate mt-0.5 text-start">
+                                <p dir="ltr" className="text-[11px] text-[#8C9FB1] truncate mt-0.5 text-start">
                                   {adLink}
                                 </p>
                               )}
                             </div>
-                            {adLink && <ExternalLink className="w-4 h-4 text-[#25D366] shrink-0" />}
+                            {adLink && <ExternalLink className="w-4 h-4 text-[#2AABEE] shrink-0" />}
                           </div>
                         </div>
                       ) : (
-                        <div className="py-10 text-center text-xs text-slate-500 dark:text-emerald-200/60">
+                        <div className="py-10 text-center text-xs text-slate-500 dark:text-[#8C9FB1]">
                           {t.admin.previewEmptyHint}
                         </div>
                       )}

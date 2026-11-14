@@ -21,10 +21,10 @@ const SIZE_CLASSES: Record<NonNullable<AvatarProps['size']>, string> = {
 };
 
 const BG_PALETTES = [
-  'bg-[#0a2e1f] text-[#25D366]',
-  'bg-[#134e35] text-white',
-  'bg-[#0f3d29] text-[#6ee7b7]',
-  'bg-[#195a3f] text-white',
+  'bg-[#2B5278] text-[#7CC7F5]',
+  'bg-[#1F3A52] text-white',
+  'bg-[#24466B] text-[#2AABEE]',
+  'bg-[#33699E] text-white',
 ];
 
 function getInitials(name: string): string {
@@ -61,13 +61,13 @@ export const Avatar: React.FC<AvatarProps> = ({
     <div className={`relative inline-flex shrink-0 ${className}`}>
       {specialType === 'saved' ? (
         <div
-          className={`${sizeCls} rounded-full bg-gradient-to-br from-[#25D366] to-[#0f7648] text-white flex items-center justify-center ring-1 ring-black/10 dark:ring-white/15`}
+          className={`${sizeCls} rounded-full bg-gradient-to-br from-[#2AABEE] to-[#1D7BB8] text-white flex items-center justify-center ring-1 ring-black/10 dark:ring-white/15`}
         >
           <Bookmark className="w-5 h-5" />
         </div>
       ) : specialType === 'bot' ? (
         <div
-          className={`${sizeCls} rounded-full bg-gradient-to-br from-[#0a2e1f] to-[#166534] text-[#25D366] flex items-center justify-center ring-1 ring-[#25D366]/40`}
+          className={`${sizeCls} rounded-full bg-gradient-to-br from-[#17212B] to-[#2B5278] text-[#2AABEE] flex items-center justify-center ring-1 ring-[#2AABEE]/45`}
         >
           <Bot className="w-5 h-5" />
         </div>
@@ -97,7 +97,7 @@ export const Avatar: React.FC<AvatarProps> = ({
       )}
 
       {specialType === 'secret' && (
-        <span className="absolute -bottom-0.5 -end-0.5 w-4 h-4 rounded-full bg-[#25D366] text-[#041f14] flex items-center justify-center ring-2 ring-white dark:ring-[#0a2e1f]">
+        <span className="absolute -bottom-0.5 -end-0.5 w-4 h-4 rounded-full bg-[#2AABEE] text-white flex items-center justify-center ring-2 ring-white dark:ring-[#17212B]">
           <Lock className="w-2.5 h-2.5 stroke-[2.6]" />
         </span>
       )}
@@ -105,7 +105,7 @@ export const Avatar: React.FC<AvatarProps> = ({
       {showOnlineDot && isOnline && !specialType && (
         <span
           aria-label="Online"
-          className="absolute bottom-0 end-0 w-3 h-3 rounded-full bg-[#25D366] ring-2 ring-white dark:ring-[#0a2e1f]"
+          className="absolute bottom-0 end-0 w-3 h-3 rounded-full bg-[#2AABEE] ring-2 ring-white dark:ring-[#17212B]"
         />
       )}
     </div>

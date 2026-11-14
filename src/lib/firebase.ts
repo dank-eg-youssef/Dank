@@ -4,20 +4,35 @@ import {
   doc,
   enableNetwork,
   getDocFromServer,
+  getFirestore,
   initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
 } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 
-export const db = initializeFirestore(
-  app,
-  {
-    experimentalForceLongPolling: true,
-  },
-  firebaseConfig.firestoreDatabaseId
-);
+function initDb() {
+  try {
+    return initializeFirestore(
+      app,
+      {
+        experimentalAutoDetectLongPolling: true,
+        experimentalLongPollingOptions: { timeoutSeconds: 20 },
+        localCache: persistentLocalCache({
+          tabManager: persistentMultipleTabManager(),
+        }),
+      },
+      firebaseConfig.firestoreDatabaseId
+    );
+  } catch {
+    return getFirestore(app, firebaseConfig.firestoreDatabaseId);
+  }
+}
+
+export const db = initDb();
 export const auth = getAuth(app);
 export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
@@ -48,17 +63,8 @@ export async function validateFirestoreConnection(): Promise<void> {
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
   } catch (error) {
-    if (!isOfflineConnectionError(error)) {
-      return;
-    }
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 1200));
-      await enableNetwork(db).catch(() => {});
-      await getDocFromServer(doc(db, 'test', 'connection'));
-    } catch (retryError) {
-      if (isOfflineConnectionError(retryError)) {
-        console.warn('Firestore backend temporarily unreachable (client offline).');
-      }
+    if (isOfflineConnectionError(error)) {
+      console.warn('Firestore backend temporarily unreachable (client offline).');
     }
   }
 }

@@ -100,7 +100,7 @@ service cloud.firestore {
     function isValidUserPublic(data, userId) {
       return data.keys().hasAll(['uid', 'name', 'username', 'isOnline', 'lastSeen', 'createdAt', 'updatedAt'])
         && data.keys().hasOnly([
-          'uid', 'name', 'username', 'photoURL', 'bio', 'language', 'isOnline', 'lastSeen',
+          'uid', 'name', 'username', 'photoURL', 'coverURL', 'bio', 'language', 'isOnline', 'lastSeen',
           'activeChatId', 'isAdmin', 'isVerified', 'isBot', 'isPlus',
           'inviteCode', 'invitedBy', 'inviteCount', 'isVip', 'isBanned', 'mutedUntil',
           'hasPhone', 'privacyPhone', 'privacyLastSeen', 'privacyLastSeenExceptions',
@@ -112,6 +112,7 @@ service cloud.firestore {
         && data.name is string && data.name.size() >= 1 && data.name.size() <= 80
         && data.username is string && data.username.size() >= 2 && data.username.size() <= 40 && data.username.matches('^[a-z0-9_]+$')
         && isValidOptString(data, 'photoURL', 250000)
+        && isValidOptString(data, 'coverURL', 350000)
         && isValidOptString(data, 'bio', 240)
         && (!('language' in data) || data.language in ['ar', 'en'])
         && isValidOptString(data, 'activeChatId', 128)
@@ -355,7 +356,7 @@ service cloud.firestore {
       return data.keys().hasAll(['id', 'chatId', 'senderId', 'senderName', 'type', 'status', 'createdAt', 'updatedAt'])
         && data.keys().hasOnly([
           'id', 'chatId', 'senderId', 'senderName', 'senderPhoto',
-          'type', 'text', 'imageData', 'audioData', 'audioDuration', 'waveform',
+          'type', 'text', 'imageData', 'audioData', 'audioDuration', 'waveform', 'playedBy',
           'fileName', 'fileSize', 'fileData', 'videoData', 'videoDuration',
           'locationLat', 'locationLng', 'locationLabel', 'stickerId',
           'forwardedFromName', 'isEdited', 'deletedFor', 'viewCount',
@@ -373,9 +374,10 @@ service cloud.firestore {
         && data.type in ['text', 'image', 'audio', 'video', 'file', 'location', 'sticker']
         && isValidOptString(data, 'text', 6000)
         && isValidOptString(data, 'imageData', 500000)
-        && isValidOptString(data, 'audioData', 550000)
+        && isValidOptString(data, 'audioData', 750000)
         && (!('audioDuration' in data) || (data.audioDuration is number && data.audioDuration >= 0 && data.audioDuration <= 300))
         && (!('waveform' in data) || (data.waveform is list && data.waveform.size() <= 40 && (data.waveform.size() == 0 || data.waveform[0] is number)))
+        && isValidIdList(data, 'playedBy', 200)
         && isValidOptString(data, 'fileName', 180)
         && (!('fileSize' in data) || (data.fileSize is number && data.fileSize >= 0 && data.fileSize <= 2000000))
         && isValidOptString(data, 'fileData', 750000)
@@ -591,6 +593,24 @@ service cloud.firestore {
         && data.createdAt is timestamp;
     }
 
+    function isValidNotification(data, notifId) {
+      return data.keys().hasAll(['id', 'recipientUid', 'actorUid', 'actorName', 'type', 'text', 'read', 'createdAt'])
+        && data.keys().hasOnly([
+          'id', 'recipientUid', 'actorUid', 'actorName', 'actorPhoto',
+          'type', 'text', 'targetId', 'read', 'createdAt'
+        ])
+        && isValidId(data.id) && data.id == notifId
+        && isValidId(data.recipientUid)
+        && isValidId(data.actorUid)
+        && data.actorName is string && data.actorName.size() >= 1 && data.actorName.size() <= 80
+        && isValidOptString(data, 'actorPhoto', 250000)
+        && data.type in ['follow', 'like', 'comment', 'message']
+        && data.text is string && data.text.size() >= 1 && data.text.size() <= 300
+        && isValidOptString(data, 'targetId', 128)
+        && data.read is bool
+        && data.createdAt is timestamp;
+    }
+
     // --- Collection Rules ---
 
     // 1. Public User Profiles (No PII)
@@ -628,7 +648,7 @@ service cloud.firestore {
             isAdmin()
             && incoming().diff(existing()).affectedKeys().hasOnly([
               'isAdmin', 'isVerified', 'isVip', 'isPlus', 'isBanned', 'mutedUntil',
-              'name', 'username', 'photoURL', 'bio', 'language',
+              'name', 'username', 'photoURL', 'coverURL', 'bio', 'language',
               'isOnline', 'lastSeen', 'activeChatId', 'inviteCode', 'updatedAt'
             ])
             && (
@@ -640,7 +660,7 @@ service cloud.firestore {
             isOwner(userId)
             && incoming().lastSeen == request.time
             && incoming().diff(existing()).affectedKeys().hasOnly([
-              'name', 'username', 'photoURL', 'bio', 'language', 'isOnline', 'lastSeen',
+              'name', 'username', 'photoURL', 'coverURL', 'bio', 'language', 'isOnline', 'lastSeen',
               'activeChatId', 'inviteCode', 'invitedBy', 'isPlus', 'hasPhone',
               'privacyPhone', 'privacyLastSeen', 'privacyLastSeenExceptions',
               'privacyProfilePhoto', 'privacyGroupAdd', 'privacyCall', 'privacyMessages',
@@ -1158,6 +1178,12 @@ service cloud.firestore {
               incoming().diff(existing()).affectedKeys().hasOnly(['deletedFor', 'updatedAt'])
               && request.auth.uid in incoming().deletedFor
             )
+            // Member marking voice note as listened/played
+            || (
+              existing().type == 'audio'
+              && incoming().diff(existing()).affectedKeys().hasOnly(['playedBy', 'updatedAt'])
+              && request.auth.uid in incoming().playedBy
+            )
             // Channel viewer incrementing post view count
             || (
               chatDoc(chatId).type == 'channel'
@@ -1584,6 +1610,41 @@ service cloud.firestore {
       allow delete: if isVerified()
         && isValidId(followId)
         && (existing().followerUid == request.auth.uid || isAdmin());
+    }
+
+    // 10. In-App Notifications
+    match /notifications/{notifId} {
+      allow get: if isVerified()
+        && isValidId(notifId)
+        && (resource == null || existing().recipientUid == request.auth.uid || isAdmin());
+
+      allow list: if isVerified()
+        && (existing().recipientUid == request.auth.uid || isAdmin());
+
+      allow create: if isVerified()
+        && isValidId(notifId)
+        && isValidNotification(incoming(), notifId)
+        && incoming().actorUid == request.auth.uid
+        && incoming().actorUid != incoming().recipientUid
+        && incoming().read == false
+        && incoming().createdAt == request.time
+        && exists(/databases/$(database)/documents/users_public/$(incoming().recipientUid));
+
+      allow update: if isVerified()
+        && isValidId(notifId)
+        && isValidNotification(incoming(), notifId)
+        && existing().recipientUid == request.auth.uid
+        && incoming().id == existing().id
+        && incoming().recipientUid == existing().recipientUid
+        && incoming().actorUid == existing().actorUid
+        && incoming().type == existing().type
+        && incoming().text == existing().text
+        && incoming().createdAt == existing().createdAt
+        && incoming().diff(existing()).affectedKeys().hasOnly(['read']);
+
+      allow delete: if isVerified()
+        && isValidId(notifId)
+        && (existing().recipientUid == request.auth.uid || isAdmin());
     }
   }
 }

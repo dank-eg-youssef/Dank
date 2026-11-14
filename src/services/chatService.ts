@@ -37,6 +37,8 @@ import type {
 import { handleFirestoreError, OperationType } from '../utils/firestoreErrors';
 import { encryptSecretText } from '../utils/secretCrypto';
 import { isUserActuallyOnline, sanitizeUsername } from '../utils/timeFormat';
+import { getTranslations } from '../i18n';
+import { createAppNotification } from './notificationService';
 
 export const OFFICIAL_CHANNEL_ID = 'dank_official';
 export const DANK_TEAM_CHANNEL_ID = 'dank_team';
@@ -400,18 +402,139 @@ export async function ensureSavedMessagesChat(user: UserPublic): Promise<string>
   }
 }
 
+const BOT_CHAT_KEY_PREFIX = 'dank_bot_chat_';
+const BOT_MSGS_KEY_PREFIX = 'dank_bot_msgs_';
+
+interface StoredBotChat {
+  id: string;
+  lastMessageText: string;
+  lastMessageSenderId: string;
+  lastMessageSenderName: string;
+  lastMessageAtMs: number;
+  createdAtMs: number;
+  updatedAtMs: number;
+}
+
+interface StoredBotMsg {
+  id: string;
+  chatId: string;
+  senderId: string;
+  senderName: string;
+  text: string;
+  createdAtMs: number;
+}
+
+function buildBotWelcomeText(user: UserPublic): string {
+  const isAr = (user.language || 'ar') === 'ar';
+  return isAr
+    ? `أهلاً بيك في DANK Bot 🤖\nمرحباً يا ${user.name}! أنا مساعدك الذكي داخل DANK.\n\nجرّب إرسال:\n• /help لعرض الأوامر\n• /vip لمعرفة شارة DANK VIP\n• /privacy لنصائح الخصوصية\n• /plus لمعرفة مزايا DANK Plus`
+    : `Hello ${user.name}! Welcome to DANK Bot! 🤖\nI'm your smart helper inside DANK.\n\nTry sending:\n• /help — Show commands\n• /vip — Learn about DANK VIP badge\n• /privacy — Privacy & Secret Chat tips\n• /plus — DANK Plus features`;
+}
+
+export function getLocalBotChat(uid: string): Chat | null {
+  try {
+    const raw = localStorage.getItem(`${BOT_CHAT_KEY_PREFIX}${uid}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as StoredBotChat;
+    if (!parsed || !parsed.id) return null;
+    return {
+      id: parsed.id,
+      type: 'private',
+      name: 'DANK Bot',
+      description: 'Interactive DANK Assistant',
+      photoURL: '',
+      isPublic: false,
+      createdBy: uid,
+      dmPeerIds: [uid, DANK_BOT_UID],
+      lastMessageText: parsed.lastMessageText || '',
+      lastMessageType: 'text',
+      lastMessageSenderId: parsed.lastMessageSenderId || DANK_BOT_UID,
+      lastMessageSenderName: parsed.lastMessageSenderName || 'DANK Bot',
+      lastMessageStatus: 'seen',
+      lastMessageAt: Timestamp.fromMillis(parsed.lastMessageAtMs || Date.now()),
+      memberCount: 1,
+      createdAt: Timestamp.fromMillis(parsed.createdAtMs || Date.now()),
+      updatedAt: Timestamp.fromMillis(parsed.updatedAtMs || Date.now()),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function getLocalBotMessages(uid: string): Message[] {
+  try {
+    const raw = localStorage.getItem(`${BOT_MSGS_KEY_PREFIX}${uid}`);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as StoredBotMsg[];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((m) => ({
+      id: m.id,
+      chatId: m.chatId,
+      senderId: m.senderId,
+      senderName: m.senderName,
+      senderPhoto: '',
+      type: 'text',
+      text: m.text,
+      imageData: '',
+      status: 'seen',
+      createdAt: Timestamp.fromMillis(m.createdAtMs || Date.now()),
+      updatedAt: Timestamp.fromMillis(m.createdAtMs || Date.now()),
+    }));
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalBotState(uid: string, chat: StoredBotChat, msgs: StoredBotMsg[]): void {
+  try {
+    localStorage.setItem(`${BOT_CHAT_KEY_PREFIX}${uid}`, JSON.stringify(chat));
+    localStorage.setItem(`${BOT_MSGS_KEY_PREFIX}${uid}`, JSON.stringify(msgs.slice(-150)));
+    window.dispatchEvent(new CustomEvent('dank:bot-updated', { detail: chat.id }));
+  } catch {
+    // ignore storage errors
+  }
+}
+
 export async function ensureDankBotChat(user: UserPublic): Promise<string> {
   const chatId = `dank_bot_${user.uid}`;
+  const welcomeText = buildBotWelcomeText(user);
+  const now = Date.now();
+
+  let existingMsgs = getLocalBotMessages(user.uid);
+  let existingChat = getLocalBotChat(user.uid);
+
+  if (!existingChat || existingMsgs.length === 0) {
+    const welcomeId = `bot_welcome_${now}`;
+    const storedChat: StoredBotChat = {
+      id: chatId,
+      lastMessageText: welcomeText.slice(0, 120),
+      lastMessageSenderId: DANK_BOT_UID,
+      lastMessageSenderName: 'DANK Bot',
+      lastMessageAtMs: now,
+      createdAtMs: now,
+      updatedAtMs: now,
+    };
+    const storedMsgs: StoredBotMsg[] = [
+      {
+        id: welcomeId,
+        chatId,
+        senderId: DANK_BOT_UID,
+        senderName: 'DANK Bot',
+        text: welcomeText,
+        createdAtMs: now,
+      },
+    ];
+    saveLocalBotState(user.uid, storedChat, storedMsgs);
+    existingMsgs = getLocalBotMessages(user.uid);
+    existingChat = getLocalBotChat(user.uid);
+  }
+
+  // Best-effort Firestore sync: NEVER throw to prevent raw error banners
   try {
     const refSnap = await getDoc(doc(db, 'user_chats', `${user.uid}_${chatId}`));
     if (refSnap.exists()) return chatId;
 
-    const isAr = (user.language || 'ar') === 'ar';
-    const welcomeText = isAr
-      ? `أهلاً بك يا ${user.name} في DANK Bot! 🤖\nأنا مساعدك الذكي داخل DANK.\n\nجرّب إرسال:\n• /help لعرض الأوامر\n• /vip لمعرفة شارة DANK VIP\n• /privacy لنصائح الخصوصية\n• /plus لمعرفة مزايا DANK Plus`
-      : `Hello ${user.name}! Welcome to DANK Bot! 🤖\nI'm your smart helper inside DANK.\n\nTry sending:\n• /help — Show commands\n• /vip — Learn about DANK VIP badge\n• /privacy — Privacy & Secret Chat tips\n• /plus — DANK Plus features`;
-
-    const welcomeMsgId = generateId();
+    const welcomeMsgId = existingMsgs[0]?.id || generateId();
     const batch = writeBatch(db);
 
     batch.set(doc(db, 'chats', chatId), {
@@ -471,10 +594,11 @@ export async function ensureDankBotChat(user: UserPublic): Promise<string> {
     });
 
     await batch.commit();
-    return chatId;
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, `chats/${chatId}`);
+  } catch (err) {
+    console.warn('DANK Bot synced locally (Firestore offline/restricted):', err);
   }
+
+  return chatId;
 }
 
 function buildBotReply(prompt: string, user: UserPublic): string {
@@ -513,7 +637,41 @@ function buildBotReply(prompt: string, user: UserPublic): string {
 
 async function sendBotAutoReply(chatId: string, user: UserPublic, promptText: string): Promise<void> {
   const replyText = buildBotReply(promptText, user);
-  const botMsgId = generateId();
+  const botMsgId = `bot_reply_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  const now = Date.now();
+
+  // Save reply locally right away so DANK Bot always works
+  const existingMsgs = getLocalBotMessages(user.uid).map((m) => ({
+    id: m.id,
+    chatId: m.chatId,
+    senderId: m.senderId,
+    senderName: m.senderName,
+    text: m.text || '',
+    createdAtMs: m.createdAt?.toMillis?.() ?? now,
+  }));
+  existingMsgs.push({
+    id: botMsgId,
+    chatId,
+    senderId: DANK_BOT_UID,
+    senderName: 'DANK Bot',
+    text: replyText,
+    createdAtMs: now,
+  });
+  const prevChat = getLocalBotChat(user.uid);
+  saveLocalBotState(
+    user.uid,
+    {
+      id: chatId,
+      lastMessageText: replyText.slice(0, 140),
+      lastMessageSenderId: DANK_BOT_UID,
+      lastMessageSenderName: 'DANK Bot',
+      lastMessageAtMs: now,
+      createdAtMs: prevChat?.createdAt?.toMillis?.() ?? now,
+      updatedAtMs: now,
+    },
+    existingMsgs
+  );
+
   try {
     const batch = writeBatch(db);
     batch.set(doc(db, 'chats', chatId, 'messages', botMsgId), {
@@ -542,8 +700,8 @@ async function sendBotAutoReply(chatId: string, user: UserPublic, promptText: st
       updatedAt: serverTimestamp(),
     });
     await batch.commit();
-  } catch (err) {
-    console.warn('DANK Bot reply skipped:', err);
+  } catch {
+    // Local reply already stored
   }
 }
 
@@ -1152,6 +1310,80 @@ export async function sendMessage(params: {
     ? 'Sticker'
     : trimmedText;
 
+  if (chat.id === `dank_bot_${sender.uid}`) {
+    const now = Date.now();
+    const existingMsgs = getLocalBotMessages(sender.uid).map((m) => ({
+      id: m.id,
+      chatId: m.chatId,
+      senderId: m.senderId,
+      senderName: m.senderName,
+      text: m.text || '',
+      createdAtMs: m.createdAt?.toMillis?.() ?? now,
+    }));
+    const userText = previewText || trimmedText || 'Message';
+    existingMsgs.push({
+      id: messageId,
+      chatId: chat.id,
+      senderId: sender.uid,
+      senderName: sender.name.slice(0, 80),
+      text: userText,
+      createdAtMs: now,
+    });
+    const prevChat = getLocalBotChat(sender.uid);
+    saveLocalBotState(
+      sender.uid,
+      {
+        id: chat.id,
+        lastMessageText: userText.slice(0, 140),
+        lastMessageSenderId: sender.uid,
+        lastMessageSenderName: sender.name.slice(0, 80),
+        lastMessageAtMs: now,
+        createdAtMs: prevChat?.createdAt?.toMillis?.() ?? now,
+        updatedAtMs: now,
+      },
+      existingMsgs
+    );
+
+    // Best-effort Firestore write for bot chat; never crash
+    try {
+      const botRef = doc(db, 'chats', chat.id);
+      const batch = writeBatch(db);
+      batch.set(doc(db, 'chats', chat.id, 'messages', messageId), {
+        id: messageId,
+        chatId: chat.id,
+        senderId: sender.uid,
+        senderName: sender.name.slice(0, 80),
+        senderPhoto: (sender.photoURL || '').slice(0, 250000),
+        type: 'text',
+        text: userText,
+        imageData: '',
+        status: 'seen',
+        replyToId: '',
+        replyToSenderName: '',
+        replyToText: '',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      batch.update(botRef, {
+        lastMessageText: userText.slice(0, 140),
+        lastMessageType: 'text',
+        lastMessageSenderId: sender.uid,
+        lastMessageSenderName: sender.name.slice(0, 80),
+        lastMessageStatus: 'seen',
+        lastMessageAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      await batch.commit();
+    } catch {
+      // Handled gracefully in local mode
+    }
+
+    window.setTimeout(() => {
+      void sendBotAutoReply(chat.id, sender, userText);
+    }, 300);
+    return messageId;
+  }
+
   try {
     const batch = writeBatch(db);
     const msgPayload: Record<string, unknown> = {
@@ -1189,9 +1421,10 @@ export async function sendMessage(params: {
     };
 
     if (type === 'audio') {
-      msgPayload.audioData = audioData.slice(0, 550000);
+      msgPayload.audioData = audioData.slice(0, 740000);
       msgPayload.audioDuration = Math.min(300, Math.max(0, audioDuration));
       msgPayload.waveform = waveform.slice(0, 40);
+      msgPayload.playedBy = [];
     }
 
     if (type === 'video') {
@@ -1259,16 +1492,52 @@ export async function sendMessage(params: {
 
     await batch.commit();
 
-    // Auto-reply if user messaged DANK Bot
-    if (chat.id === `dank_bot_${sender.uid}` && type === 'text' && trimmedText) {
-      window.setTimeout(() => {
-        void sendBotAutoReply(chat.id, sender, trimmedText);
-      }, 350);
+    // Send in-app DM notification if peer is not actively inside this chat
+    if (
+      chat.type === 'private' &&
+      chat.id !== `saved_${sender.uid}` &&
+      chat.id !== `dank_bot_${sender.uid}` &&
+      chat.dmPeerIds &&
+      chat.dmPeerIds.length === 2
+    ) {
+      const peerId = chat.dmPeerIds.find((id) => id !== sender.uid);
+      if (peerId) {
+        const tr = getTranslations(sender.language || 'ar');
+        const shortPreview = previewText.slice(0, 80) || tr.notifications.sentMessage(sender.name);
+        void createAppNotification({
+          recipientUid: peerId,
+          actor: sender,
+          type: 'message',
+          text: `${sender.name}: ${shortPreview}`,
+          targetId: chat.id,
+        });
+      }
     }
 
     return messageId;
   } catch (error) {
     handleFirestoreError(error, OperationType.CREATE, `chats/${chat.id}/messages/${messageId}`);
+  }
+}
+
+export async function markVoiceMessagePlayed(
+  chatId: string,
+  messageId: string,
+  uid: string
+): Promise<void> {
+  if (!chatId || !messageId || !uid || messageId.startsWith('opt_')) return;
+  try {
+    localStorage.setItem(`dank_voice_played_${uid}_${messageId}`, '1');
+  } catch {
+    // ignore storage errors
+  }
+  try {
+    await updateDoc(doc(db, 'chats', chatId, 'messages', messageId), {
+      playedBy: arrayUnion(uid),
+      updatedAt: serverTimestamp(),
+    });
+  } catch {
+    // Best-effort update
   }
 }
 

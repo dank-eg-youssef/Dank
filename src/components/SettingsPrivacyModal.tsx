@@ -194,12 +194,12 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-[2px] flex items-center justify-center p-4">
-      <div className="w-full max-w-2xl max-h-[92vh] rounded-2xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/15 dark:border-white/10 shadow-2xl flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-[2px] flex items-center justify-center p-4">
+      <div className="w-full max-w-2xl max-h-[92vh] rounded-2xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F] shadow-2xl flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="px-5 py-4 bg-[#0a2e1f] text-white flex items-center justify-between">
+        <div className="px-5 py-4 bg-[#17212B] text-white flex items-center justify-between border-b border-[#22303F]">
           <div className="flex items-center gap-2.5">
-            <Shield className="w-5 h-5 text-[#25D366]" />
+            <Shield className="w-5 h-5 text-[#2AABEE]" />
             <h3 className="text-base font-bold">{t.privacy.title}</h3>
           </div>
           <button
@@ -214,39 +214,39 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
 
         <div className="flex-1 overflow-y-auto p-5 space-y-6">
           {/* Privacy Assurance Banner */}
-          <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-[#071911] border border-[#25D366]/35 flex items-center gap-3">
-            <ShieldCheck className="w-5 h-5 text-[#25D366] shrink-0" />
-            <p className="text-xs font-medium text-[#0a2e1f] dark:text-emerald-100 leading-relaxed">
+          <div className="p-3.5 rounded-xl bg-sky-50 dark:bg-[#0E1621] border border-[#2AABEE]/35 flex items-center gap-3">
+            <ShieldCheck className="w-5 h-5 text-[#2AABEE] shrink-0" />
+            <p className="text-xs font-medium text-[#0E1621] dark:text-[#C5D3E0] leading-relaxed">
               {t.brand.privacyNotice}
             </p>
           </div>
 
           {/* Appearance & Language & Notifications */}
           <section className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="p-3.5 rounded-xl bg-[#f4f8f5] dark:bg-[#071911] border border-[#0a2e1f]/10 dark:border-white/10 flex items-center justify-between gap-2">
+            <div className="p-3.5 rounded-xl bg-[#f4f7fb] dark:bg-[#0E1621] border border-slate-200 dark:border-[#22303F] flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 {isDark ? (
-                  <Moon className="w-4 h-4 text-[#25D366]" />
+                  <Moon className="w-4 h-4 text-[#2AABEE]" />
                 ) : (
-                  <Sun className="w-4 h-4 text-[#0a2e1f]" />
+                  <Sun className="w-4 h-4 text-[#0E1621]" />
                 )}
-                <span className="text-xs font-bold text-[#0a2e1f] dark:text-white">
+                <span className="text-xs font-bold text-[#0E1621] dark:text-white">
                   {isDark ? t.theme.darkMode : t.theme.lightMode}
                 </span>
               </div>
               <button
                 type="button"
                 onClick={toggleTheme}
-                className="px-3 py-1.5 rounded-lg bg-[#0a2e1f] dark:bg-[#25D366] text-white dark:text-[#041f14] text-xs font-bold cursor-pointer"
+                className="px-3 py-1.5 rounded-lg bg-[#2AABEE] text-white text-xs font-bold cursor-pointer"
               >
                 {isDark ? t.theme.lightMode : t.theme.darkMode}
               </button>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-[#f4f8f5] dark:bg-[#071911] border border-[#0a2e1f]/10 dark:border-white/10 flex items-center justify-between gap-2">
+            <div className="p-3.5 rounded-xl bg-[#f4f7fb] dark:bg-[#0E1621] border border-slate-200 dark:border-[#22303F] flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <Globe className="w-4 h-4 text-[#25D366]" />
-                <span className="text-xs font-bold text-[#0a2e1f] dark:text-white">
+                <Globe className="w-4 h-4 text-[#2AABEE]" />
+                <span className="text-xs font-bold text-[#0E1621] dark:text-white">
                   {t.common.language}
                 </span>
               </div>
@@ -256,8 +256,8 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
                   onClick={() => void handleLanguage('ar')}
                   className={`px-2.5 py-1 rounded-lg text-xs font-bold cursor-pointer ${
                     language === 'ar'
-                      ? 'bg-[#25D366] text-[#041f14]'
-                      : 'bg-white dark:bg-[#0d2218] text-slate-600 dark:text-emerald-100'
+                      ? 'bg-[#2AABEE] text-white'
+                      : 'bg-white dark:bg-[#17212B] text-slate-600 dark:text-[#A3B6C7]'
                   }`}
                 >
                   {t.common.arabic}
@@ -267,8 +267,8 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
                   onClick={() => void handleLanguage('en')}
                   className={`px-2.5 py-1 rounded-lg text-xs font-bold cursor-pointer ${
                     language === 'en'
-                      ? 'bg-[#25D366] text-[#041f14]'
-                      : 'bg-white dark:bg-[#0d2218] text-slate-600 dark:text-emerald-100'
+                      ? 'bg-[#2AABEE] text-white'
+                      : 'bg-white dark:bg-[#17212B] text-slate-600 dark:text-[#A3B6C7]'
                   }`}
                 >
                   {t.common.english}
@@ -281,22 +281,22 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
             <button
               type="button"
               onClick={onRequestNotifications}
-              className="w-full h-10 px-4 rounded-xl bg-[#0a2e1f] hover:bg-[#12442f] text-white text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full h-10 px-4 rounded-xl bg-[#242F3D] hover:bg-[#2D3B4D] text-white text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer"
             >
-              <Bell className="w-4 h-4 text-[#25D366]" />
+              <Bell className="w-4 h-4 text-[#2AABEE]" />
               {t.sidebar.enableNotifications}
             </button>
           )}
 
           {/* Phone Number */}
-          <section className="p-4 rounded-xl bg-[#f4f8f5] dark:bg-[#071911] border border-[#0a2e1f]/10 dark:border-white/10 space-y-2.5">
+          <section className="p-4 rounded-xl bg-[#f4f7fb] dark:bg-[#0E1621] border border-slate-200 dark:border-[#22303F] space-y-2.5">
             <div className="flex items-center gap-2">
-              <Phone className="w-4 h-4 text-[#25D366]" />
-              <h4 className="text-sm font-bold text-[#0a2e1f] dark:text-white">
+              <Phone className="w-4 h-4 text-[#2AABEE]" />
+              <h4 className="text-sm font-bold text-[#0E1621] dark:text-white">
                 {t.privacy.phoneNumber}
               </h4>
             </div>
-            <p className="text-[11px] text-slate-500 dark:text-emerald-100/65">
+            <p className="text-[11px] text-slate-500 dark:text-[#8C9FB1]">
               {t.privacy.phoneHiddenNote}
             </p>
             <div className="flex items-center gap-2">
@@ -307,13 +307,13 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
                 maxLength={32}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder={t.privacy.phonePlaceholder}
-                className="flex-1 h-10 px-3 rounded-xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/15 dark:border-white/15 text-base text-[#0a2e1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#25D366]"
+                className="flex-1 h-10 px-3 rounded-xl bg-white dark:bg-[#242F3D] border border-slate-200 dark:border-white/15 text-base text-[#0E1621] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#2AABEE]"
               />
               <button
                 type="button"
                 disabled={savingPhone}
                 onClick={() => void handleSavePhone()}
-                className="h-10 px-4 rounded-xl bg-[#25D366] hover:bg-[#1ebe5d] text-[#041f14] text-xs font-bold cursor-pointer"
+                className="h-10 px-4 rounded-xl bg-[#2AABEE] hover:bg-[#229ED9] text-white text-xs font-bold cursor-pointer"
               >
                 {savingPhone ? t.common.saving : t.common.save}
               </button>
@@ -321,20 +321,20 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
           </section>
 
           {/* Privacy Controls */}
-          <section className="p-4 rounded-xl bg-[#f4f8f5] dark:bg-[#071911] border border-[#0a2e1f]/10 dark:border-white/10 space-y-3">
-            <h4 className="text-sm font-bold text-[#0a2e1f] dark:text-white">
+          <section className="p-4 rounded-xl bg-[#f4f7fb] dark:bg-[#0E1621] border border-slate-200 dark:border-[#22303F] space-y-3">
+            <h4 className="text-sm font-bold text-[#0E1621] dark:text-white">
               {t.privacy.privacySecurity}
             </h4>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-[11px] font-semibold text-slate-600 dark:text-emerald-100/75 mb-1">
+                <label className="block text-[11px] font-semibold text-slate-600 dark:text-[#8C9FB1] mb-1">
                   {t.privacy.whoSeesPhone}
                 </label>
                 <select
                   value={privacyPhone}
                   onChange={(e) => setPrivacyPhone(e.target.value as PrivacyVisibility)}
-                  className="w-full h-10 px-3 rounded-xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/15 dark:border-white/15 text-base text-[#0a2e1f] dark:text-white"
+                  className="w-full h-10 px-3 rounded-xl bg-white dark:bg-[#242F3D] border border-slate-200 dark:border-white/15 text-base text-[#0E1621] dark:text-white"
                 >
                   <option value="nobody">{t.privacy.nobody}</option>
                   <option value="contacts">{t.privacy.contacts}</option>
@@ -343,13 +343,13 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-slate-600 dark:text-emerald-100/75 mb-1">
+                <label className="block text-[11px] font-semibold text-slate-600 dark:text-[#8C9FB1] mb-1">
                   {t.privacy.whoSeesLastSeen}
                 </label>
                 <select
                   value={privacyLastSeen}
                   onChange={(e) => setPrivacyLastSeen(e.target.value as PrivacyVisibility)}
-                  className="w-full h-10 px-3 rounded-xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/15 dark:border-white/15 text-base text-[#0a2e1f] dark:text-white"
+                  className="w-full h-10 px-3 rounded-xl bg-white dark:bg-[#242F3D] border border-slate-200 dark:border-white/15 text-base text-[#0E1621] dark:text-white"
                 >
                   <option value="everyone">{t.privacy.everyone}</option>
                   <option value="contacts">{t.privacy.contacts}</option>
@@ -358,13 +358,13 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-slate-600 dark:text-emerald-100/75 mb-1">
+                <label className="block text-[11px] font-semibold text-slate-600 dark:text-[#8C9FB1] mb-1">
                   {t.privacy.whoSeesPhoto}
                 </label>
                 <select
                   value={privacyPhoto}
                   onChange={(e) => setPrivacyPhoto(e.target.value as PrivacyVisibility)}
-                  className="w-full h-10 px-3 rounded-xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/15 dark:border-white/15 text-base text-[#0a2e1f] dark:text-white"
+                  className="w-full h-10 px-3 rounded-xl bg-white dark:bg-[#242F3D] border border-slate-200 dark:border-white/15 text-base text-[#0E1621] dark:text-white"
                 >
                   <option value="everyone">{t.privacy.everyone}</option>
                   <option value="contacts">{t.privacy.contacts}</option>
@@ -373,13 +373,13 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-slate-600 dark:text-emerald-100/75 mb-1">
+                <label className="block text-[11px] font-semibold text-slate-600 dark:text-[#8C9FB1] mb-1">
                   {t.privacy.whoAddsGroups}
                 </label>
                 <select
                   value={privacyGroupAdd}
                   onChange={(e) => setPrivacyGroupAdd(e.target.value as 'everyone' | 'contacts')}
-                  className="w-full h-10 px-3 rounded-xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/15 dark:border-white/15 text-base text-[#0a2e1f] dark:text-white"
+                  className="w-full h-10 px-3 rounded-xl bg-white dark:bg-[#242F3D] border border-slate-200 dark:border-white/15 text-base text-[#0E1621] dark:text-white"
                 >
                   <option value="everyone">{t.privacy.everyone}</option>
                   <option value="contacts">{t.privacy.contacts}</option>
@@ -387,13 +387,13 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-slate-600 dark:text-emerald-100/75 mb-1">
+                <label className="block text-[11px] font-semibold text-slate-600 dark:text-[#8C9FB1] mb-1">
                   {t.privacy.whoCanCall}
                 </label>
                 <select
                   value={privacyCall}
                   onChange={(e) => setPrivacyCall(e.target.value as PrivacyVisibility)}
-                  className="w-full h-10 px-3 rounded-xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/15 dark:border-white/15 text-base text-[#0a2e1f] dark:text-white"
+                  className="w-full h-10 px-3 rounded-xl bg-white dark:bg-[#242F3D] border border-slate-200 dark:border-white/15 text-base text-[#0E1621] dark:text-white"
                 >
                   <option value="everyone">{t.privacy.everyone}</option>
                   <option value="contacts">{t.privacy.contacts}</option>
@@ -402,13 +402,13 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-slate-600 dark:text-emerald-100/75 mb-1">
+                <label className="block text-[11px] font-semibold text-slate-600 dark:text-[#8C9FB1] mb-1">
                   {t.privacy.whoCanMessage}
                 </label>
                 <select
                   value={privacyMessages}
                   onChange={(e) => setPrivacyMessages(e.target.value as 'everyone' | 'contacts')}
-                  className="w-full h-10 px-3 rounded-xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/15 dark:border-white/15 text-base text-[#0a2e1f] dark:text-white"
+                  className="w-full h-10 px-3 rounded-xl bg-white dark:bg-[#242F3D] border border-slate-200 dark:border-white/15 text-base text-[#0E1621] dark:text-white"
                 >
                   <option value="everyone">{t.privacy.everyone}</option>
                   <option value="contacts">{t.privacy.contacts}</option>
@@ -423,7 +423,7 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
                 value={exceptionsInput}
                 onChange={(e) => setExceptionsInput(e.target.value)}
                 placeholder={t.privacy.exceptionsPlaceholder}
-                className="w-full h-10 px-3 rounded-xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/15 dark:border-white/15 text-base text-[#0a2e1f] dark:text-white"
+                className="w-full h-10 px-3 rounded-xl bg-white dark:bg-[#242F3D] border border-slate-200 dark:border-white/15 text-base text-[#0E1621] dark:text-white"
               />
             </div>
 
@@ -431,27 +431,27 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
               type="button"
               disabled={savingPrivacy}
               onClick={() => void handleSavePrivacy()}
-              className="w-full h-10 rounded-xl bg-[#0a2e1f] hover:bg-[#12442f] text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+              className="w-full h-10 rounded-xl bg-[#2AABEE] hover:bg-[#229ED9] text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
             >
-              <Check className="w-4 h-4 text-[#25D366]" />
+              <Check className="w-4 h-4" />
               {savingPrivacy ? t.common.saving : t.profile.saveChanges}
             </button>
           </section>
 
           {/* Two-Step Verification */}
-          <section className="p-4 rounded-xl bg-[#f4f8f5] dark:bg-[#071911] border border-[#0a2e1f]/10 dark:border-white/10 space-y-3">
+          <section className="p-4 rounded-xl bg-[#f4f7fb] dark:bg-[#0E1621] border border-slate-200 dark:border-[#22303F] space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <KeyRound className="w-4 h-4 text-[#25D366]" />
-                <h4 className="text-sm font-bold text-[#0a2e1f] dark:text-white">
+                <KeyRound className="w-4 h-4 text-[#2AABEE]" />
+                <h4 className="text-sm font-bold text-[#0E1621] dark:text-white">
                   {t.privacy.twoStepTitle}
                 </h4>
               </div>
               <span
                 className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
                   privateProfile?.twoStepEnabled
-                    ? 'bg-[#25D366]/20 text-[#128C48] dark:text-[#25D366]'
-                    : 'bg-slate-200 dark:bg-white/10 text-slate-600 dark:text-emerald-100/70'
+                    ? 'bg-[#2AABEE]/20 text-[#2AABEE]'
+                    : 'bg-slate-200 dark:bg-white/10 text-slate-600 dark:text-[#8C9FB1]'
                 }`}
               >
                 {privateProfile?.twoStepEnabled
@@ -459,13 +459,13 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
                   : t.privacy.twoStepDisabled}
               </span>
             </div>
-            <p className="text-[11px] text-slate-500 dark:text-emerald-100/65">
+            <p className="text-[11px] text-slate-500 dark:text-[#8C9FB1]">
               {t.privacy.twoStepDesc}
             </p>
 
             {recoveryCode && (
-              <div className="p-3 rounded-xl bg-[#0a2e1f] text-white space-y-1.5">
-                <p className="text-[11px] font-semibold text-[#25D366]">
+              <div className="p-3 rounded-xl bg-[#17212B] border border-[#22303F] text-white space-y-1.5">
+                <p className="text-[11px] font-semibold text-[#2AABEE]">
                   {t.privacy.recoveryCodeTitle}
                 </p>
                 <div className="flex items-center justify-between gap-2">
@@ -478,7 +478,7 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
                       void navigator.clipboard.writeText(recoveryCode);
                       onNotify(t.common.copied);
                     }}
-                    className="px-2.5 py-1 rounded-lg bg-[#25D366] text-[#041f14] text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer"
+                    className="px-2.5 py-1 rounded-lg bg-[#2AABEE] text-white text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer"
                   >
                     <Copy className="w-3 h-3" />
                     {t.common.copy}
@@ -506,20 +506,20 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
                     value={twoStepPass}
                     onChange={(e) => setTwoStepPass(e.target.value)}
                     placeholder={t.privacy.passwordPlaceholder}
-                    className="h-10 px-3 rounded-xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/15 dark:border-white/15 text-base text-[#0a2e1f] dark:text-white"
+                    className="h-10 px-3 rounded-xl bg-white dark:bg-[#242F3D] border border-slate-200 dark:border-white/15 text-base text-[#0E1621] dark:text-white"
                   />
                   <input
                     type="text"
                     value={twoStepHint}
                     onChange={(e) => setTwoStepHint(e.target.value)}
                     placeholder={t.privacy.hintOptional}
-                    className="h-10 px-3 rounded-xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/15 dark:border-white/15 text-base text-[#0a2e1f] dark:text-white"
+                    className="h-10 px-3 rounded-xl bg-white dark:bg-[#242F3D] border border-slate-200 dark:border-white/15 text-base text-[#0E1621] dark:text-white"
                   />
                 </div>
                 <button
                   type="submit"
                   disabled={saving2fa || twoStepPass.trim().length < 4}
-                  className="h-10 px-4 rounded-xl bg-[#25D366] hover:bg-[#1ebe5d] disabled:opacity-50 text-[#041f14] text-xs font-bold cursor-pointer"
+                  className="h-10 px-4 rounded-xl bg-[#2AABEE] hover:bg-[#229ED9] disabled:opacity-50 text-white text-xs font-bold cursor-pointer"
                 >
                   {t.privacy.enableTwoStep}
                 </button>
@@ -528,23 +528,23 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
           </section>
 
           {/* Blocked Users */}
-          <section className="p-4 rounded-xl bg-[#f4f8f5] dark:bg-[#071911] border border-[#0a2e1f]/10 dark:border-white/10 space-y-2.5">
+          <section className="p-4 rounded-xl bg-[#f4f7fb] dark:bg-[#0E1621] border border-slate-200 dark:border-[#22303F] space-y-2.5">
             <div className="flex items-center gap-2">
               <Ban className="w-4 h-4 text-red-500" />
-              <h4 className="text-sm font-bold text-[#0a2e1f] dark:text-white">
+              <h4 className="text-sm font-bold text-[#0E1621] dark:text-white">
                 {t.privacy.blockedUsers} ({blockedUsers.length})
               </h4>
             </div>
             {blockedUsers.length === 0 ? (
-              <p className="text-xs text-slate-500 dark:text-emerald-100/60">
+              <p className="text-xs text-slate-500 dark:text-[#8C9FB1]">
                 {t.privacy.noBlockedUsers}
               </p>
             ) : (
-              <div className="divide-y divide-[#0a2e1f]/8 dark:divide-white/8">
+              <div className="divide-y divide-slate-200/70 dark:divide-[#22303F]">
                 {blockedUsers.map((b) => (
                   <div key={b.uid} className="py-2 flex items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="text-xs font-bold text-[#0a2e1f] dark:text-white truncate">
+                      <p className="text-xs font-bold text-[#0E1621] dark:text-white truncate">
                         {b.name}
                       </p>
                       <p className="text-[11px] text-slate-500 truncate">@{b.username}</p>
@@ -556,7 +556,7 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
                           onNotify(t.privacy.unblockedSuccess)
                         )
                       }
-                      className="px-2.5 py-1 rounded-lg bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/15 dark:border-white/15 text-xs font-semibold text-[#0a2e1f] dark:text-white cursor-pointer"
+                      className="px-2.5 py-1 rounded-lg bg-white dark:bg-[#17212B] border border-slate-200 dark:border-white/15 text-xs font-semibold text-[#0E1621] dark:text-white cursor-pointer"
                     >
                       {t.privacy.unblockUser}
                     </button>
@@ -567,30 +567,30 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
           </section>
 
           {/* Active Sessions */}
-          <section className="p-4 rounded-xl bg-[#f4f8f5] dark:bg-[#071911] border border-[#0a2e1f]/10 dark:border-white/10 space-y-2.5">
+          <section className="p-4 rounded-xl bg-[#f4f7fb] dark:bg-[#0E1621] border border-slate-200 dark:border-[#22303F] space-y-2.5">
             <div className="flex items-center gap-2">
-              <MonitorSmartphone className="w-4 h-4 text-[#25D366]" />
-              <h4 className="text-sm font-bold text-[#0a2e1f] dark:text-white">
+              <MonitorSmartphone className="w-4 h-4 text-[#2AABEE]" />
+              <h4 className="text-sm font-bold text-[#0E1621] dark:text-white">
                 {t.privacy.activeSessions} ({sessions.length})
               </h4>
             </div>
-            <div className="divide-y divide-[#0a2e1f]/8 dark:divide-white/8">
+            <div className="divide-y divide-slate-200/70 dark:divide-[#22303F]">
               {sessions.map((s) => {
                 const isCurrent = s.id === sessionId;
                 return (
                   <div key={s.id} className="py-2 flex items-center justify-between gap-2">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-[#0a2e1f] dark:text-white truncate">
+                        <span className="text-xs font-bold text-[#0E1621] dark:text-white truncate">
                           {s.deviceName}
                         </span>
                         {isCurrent && (
-                          <span className="px-1.5 py-0.5 rounded bg-[#25D366]/20 text-[#128C48] dark:text-[#25D366] text-[10px] font-bold">
+                          <span className="px-1.5 py-0.5 rounded bg-[#2AABEE]/20 text-[#2AABEE] text-[10px] font-bold">
                             {t.privacy.thisDevice}
                           </span>
                         )}
                       </div>
-                      <p className="text-[11px] text-slate-500 dark:text-emerald-100/60 truncate">
+                      <p className="text-[11px] text-slate-500 dark:text-[#8C9FB1] truncate">
                         {s.platform} · {formatChatTime(s.lastActiveAt)}
                       </p>
                     </div>
@@ -611,7 +611,7 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
           </section>
 
           {/* Footer Copyright */}
-          <p className="text-center text-xs font-medium text-slate-500 dark:text-emerald-100/55 pt-1">
+          <p className="text-center text-xs font-medium text-slate-500 dark:text-[#8C9FB1] pt-1">
             {t.brand.footerCopyright}
           </p>
         </div>

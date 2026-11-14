@@ -72,6 +72,7 @@ interface AuthContextValue {
     username?: string;
     bio?: string;
     photoURL?: string;
+    coverURL?: string;
     language?: AppLanguage;
   }) => Promise<void>;
   redeemReferralCode: (code: string) => Promise<void>;
@@ -91,8 +92,7 @@ async function withOfflineRetry<T>(fn: () => Promise<T>, maxAttempts = 4): Promi
       if (!isOfflineError(err) || attempt === maxAttempts) {
         throw err;
       }
-      await enableNetwork(db).catch(() => {});
-      await new Promise((resolve) => setTimeout(resolve, 450 * attempt));
+      await new Promise((resolve) => setTimeout(resolve, 600 * attempt));
     }
   }
   throw lastError;
@@ -570,6 +570,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       username?: string;
       bio?: string;
       photoURL?: string;
+      coverURL?: string;
       language?: AppLanguage;
     }) => {
       if (!firebaseUser || !firebaseUser.emailVerified) {
@@ -591,6 +592,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       if (updates.photoURL !== undefined) {
         payload.photoURL = updates.photoURL.slice(0, 250000);
+      }
+      if (updates.coverURL !== undefined) {
+        payload.coverURL = updates.coverURL.slice(0, 350000);
       }
       if (updates.language === 'ar' || updates.language === 'en') {
         payload.language = updates.language;

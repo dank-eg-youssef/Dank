@@ -20,7 +20,7 @@ export const MessageStatusTicks: React.FC<MessageStatusTicksProps> = ({
       <span title={t.chat.statusSent} className="inline-flex items-center">
         <Check
           className={`w-3.5 h-3.5 stroke-[2.25] ${
-            onDarkBubble ? 'text-emerald-100/75' : 'text-slate-400 dark:text-emerald-200/60'
+            onDarkBubble ? 'text-sky-100/75' : 'text-slate-400 dark:text-[#8C9FB1]'
           }`}
         />
       </span>
@@ -32,7 +32,7 @@ export const MessageStatusTicks: React.FC<MessageStatusTicksProps> = ({
       <span title={t.chat.statusDelivered} className="inline-flex items-center">
         <CheckCheck
           className={`w-4 h-4 stroke-[2.25] ${
-            onDarkBubble ? 'text-emerald-100/80' : 'text-slate-400 dark:text-emerald-200/65'
+            onDarkBubble ? 'text-sky-100/80' : 'text-slate-400 dark:text-[#8C9FB1]'
           }`}
         />
       </span>
@@ -41,7 +41,7 @@ export const MessageStatusTicks: React.FC<MessageStatusTicksProps> = ({
 
   return (
     <span title={t.chat.statusSeen} className="inline-flex items-center">
-      <CheckCheck className="w-4 h-4 stroke-[2.5] text-[#25D366]" />
+      <CheckCheck className="w-4 h-4 stroke-[2.5] text-[#2AABEE]" />
     </span>
   );
 };

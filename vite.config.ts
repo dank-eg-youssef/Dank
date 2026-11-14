@@ -26,8 +26,8 @@ export default defineConfig(() => {
           short_name: 'DANK',
           description:
             'DANK is a real-time messaging and social platform for private chats, groups, channels, stories, posts, and reels.',
-          theme_color: '#0a2e1f',
-          background_color: '#0a2e1f',
+          theme_color: '#0E1621',
+          background_color: '#0E1621',
           display: 'standalone',
           start_url: '/',
           scope: '/',

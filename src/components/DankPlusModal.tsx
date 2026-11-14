@@ -36,8 +36,8 @@ export const DankPlusModal: React.FC<DankPlusModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-[2px] flex items-center justify-center p-4">
-      <div className="w-full max-w-md rounded-2xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/15 dark:border-white/10 shadow-2xl overflow-hidden">
-        <div className="p-5 bg-gradient-to-br from-[#0a2e1f] via-[#0f412c] to-[#082418] text-white relative">
+      <div className="w-full max-w-md rounded-2xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F] shadow-2xl overflow-hidden">
+        <div className="p-5 bg-gradient-to-br from-[#17212B] via-[#1E354D] to-[#0E1621] text-white relative">
           <button
             type="button"
             onClick={onClose}
@@ -47,18 +47,18 @@ export const DankPlusModal: React.FC<DankPlusModalProps> = ({
             <X className="w-4 h-4" />
           </button>
 
-          <div className="w-12 h-12 rounded-2xl bg-[#25D366]/20 border border-[#25D366]/40 text-[#25D366] flex items-center justify-center mb-3">
+          <div className="w-12 h-12 rounded-2xl bg-[#2AABEE]/20 border border-[#2AABEE]/40 text-[#2AABEE] flex items-center justify-center mb-3">
             <Sparkles className="w-6 h-6" />
           </div>
           <h3 className="text-xl font-extrabold">{t.plus.title}</h3>
-          <p className="mt-1 text-xs text-emerald-100/80 leading-relaxed">{t.plus.subtitle}</p>
+          <p className="mt-1 text-xs text-[#C5D3E0] leading-relaxed">{t.plus.subtitle}</p>
         </div>
 
         <div className="p-5 space-y-4">
-          <ul className="space-y-2.5 text-sm text-[#0a2e1f] dark:text-emerald-50">
+          <ul className="space-y-2.5 text-sm text-[#0E1621] dark:text-[#E2EDF5]">
             {[t.plus.f1, t.plus.f2, t.plus.f3, t.plus.f4].map((feat) => (
               <li key={feat} className="flex items-start gap-2.5">
-                <span className="w-5 h-5 rounded-full bg-[#25D366]/20 text-[#128C48] dark:text-[#25D366] flex items-center justify-center shrink-0 mt-0.5">
+                <span className="w-5 h-5 rounded-full bg-[#2AABEE]/15 text-[#0284C7] dark:text-[#2AABEE] flex items-center justify-center shrink-0 mt-0.5">
                   <Check className="w-3.5 h-3.5 stroke-[2.5]" />
                 </span>
                 <span className="text-xs leading-relaxed">{feat}</span>
@@ -72,15 +72,15 @@ export const DankPlusModal: React.FC<DankPlusModalProps> = ({
             onClick={() => void handleToggle()}
             className={`w-full h-11 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors cursor-pointer ${
               isPlus
-                ? 'bg-[#eef5f0] dark:bg-white/10 text-[#0a2e1f] dark:text-white hover:opacity-90'
-                : 'bg-[#25D366] hover:bg-[#1ebe5d] text-[#041f14]'
+                ? 'bg-slate-100 dark:bg-[#242F3D] text-[#0E1621] dark:text-white hover:opacity-90'
+                : 'bg-[#2AABEE] hover:bg-[#229ED9] text-white'
             }`}
           >
             <Sparkles className="w-4 h-4" />
             {isPlus ? t.plus.activeBadge : t.plus.activateFree}
           </button>
 
-          <p className="text-center text-[10px] text-slate-500 dark:text-emerald-100/50">
+          <p className="text-center text-[10px] text-slate-500 dark:text-[#8C9FB1]">
             {t.brand.footerCopyright}
           </p>
         </div>

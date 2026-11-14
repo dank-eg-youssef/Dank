@@ -27,18 +27,18 @@ export class ErrorBoundary extends React.Component<
     if (this.state.hasError) {
       const tr = getTranslations(getStoredLanguage());
       return (
-        <div className="min-h-screen bg-[#f4f7f5] dark:bg-[#061811] flex items-center justify-center p-6">
-          <div className="max-w-md w-full rounded-2xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/15 dark:border-white/10 p-6 shadow-lg space-y-4">
-            <h2 className="text-lg font-bold text-[#0a2e1f] dark:text-white">
+        <div className="min-h-screen bg-[#f4f7fb] dark:bg-[#0E1621] flex items-center justify-center p-6">
+          <div className="max-w-md w-full rounded-2xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F] p-6 shadow-lg space-y-4">
+            <h2 className="text-lg font-bold text-[#0E1621] dark:text-white">
               {tr.errors.somethingWrong}
             </h2>
-            <p className="text-xs text-slate-700 dark:text-emerald-100/80 break-words">
+            <p className="text-xs text-slate-700 dark:text-[#C5D3E0] break-words">
               {this.state.message}
             </p>
             <button
               type="button"
               onClick={() => window.location.reload()}
-              className="w-full h-10 rounded-xl bg-[#25D366] hover:bg-[#1ebe5d] text-[#052014] text-sm font-bold cursor-pointer"
+              className="w-full h-10 rounded-xl bg-[#2AABEE] hover:bg-[#229ED9] text-white text-sm font-bold cursor-pointer"
             >
               {tr.errors.reloadApp}
             </button>

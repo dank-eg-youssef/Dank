@@ -70,18 +70,18 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-[2px] flex items-center justify-center p-4">
-      <div className="w-full max-w-lg max-h-[88vh] rounded-2xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/15 dark:border-white/10 shadow-2xl flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-[2px] flex items-center justify-center p-4">
+      <div className="w-full max-w-lg max-h-[88vh] rounded-2xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F] shadow-2xl flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="px-4 py-3 bg-[#0a2e1f] text-white flex items-center justify-between">
+        <div className="px-4 py-3 bg-[#17212B] text-white flex items-center justify-between border-b border-[#22303F]">
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setTab('contacts')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors ${
                 tab === 'contacts'
-                  ? 'bg-[#25D366] text-[#041f14]'
-                  : 'text-emerald-100 hover:bg-white/10'
+                  ? 'bg-[#2AABEE] text-white'
+                  : 'text-[#8C9FB1] hover:bg-white/10 hover:text-white'
               }`}
             >
               <UserCheck className="w-3.5 h-3.5" />
@@ -92,8 +92,8 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
               onClick={() => setTab('calls')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors ${
                 tab === 'calls'
-                  ? 'bg-[#25D366] text-[#041f14]'
-                  : 'text-emerald-100 hover:bg-white/10'
+                  ? 'bg-[#2AABEE] text-white'
+                  : 'text-[#8C9FB1] hover:bg-white/10 hover:text-white'
               }`}
             >
               <Phone className="w-3.5 h-3.5" />
@@ -119,12 +119,12 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
                 value={usernameInput}
                 onChange={(e) => setUsernameInput(e.target.value)}
                 placeholder={t.privacy.addContactByUsername}
-                className="flex-1 h-10 px-3.5 rounded-xl bg-[#f4f8f5] dark:bg-[#071911] border border-[#0a2e1f]/15 dark:border-white/15 text-base text-[#0a2e1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#25D366]"
+                className="flex-1 h-10 px-3.5 rounded-xl bg-[#f4f7fb] dark:bg-[#242F3D] border border-slate-200 dark:border-white/15 text-base text-[#0E1621] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#2AABEE]"
               />
               <button
                 type="submit"
                 disabled={!usernameInput.trim() || adding}
-                className="h-10 px-3.5 rounded-xl bg-[#25D366] hover:bg-[#1ebe5d] disabled:opacity-50 text-[#041f14] text-xs font-bold inline-flex items-center gap-1 cursor-pointer"
+                className="h-10 px-3.5 rounded-xl bg-[#2AABEE] hover:bg-[#229ED9] disabled:opacity-50 text-white text-xs font-bold inline-flex items-center gap-1 cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
                 {t.common.add}
@@ -132,11 +132,11 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
             </form>
 
             {contacts.length === 0 ? (
-              <div className="py-12 text-center text-xs text-slate-500 dark:text-emerald-100/60">
+              <div className="py-12 text-center text-xs text-slate-500 dark:text-[#8C9FB1]">
                 {t.privacy.noContactsYet}
               </div>
             ) : (
-              <div className="divide-y divide-[#0a2e1f]/8 dark:divide-white/8">
+              <div className="divide-y divide-slate-200/70 dark:divide-[#22303F]">
                 {contacts.map((c) => {
                   const fullPeer = usersMap[c.uid] || ({
                     uid: c.uid,
@@ -152,10 +152,10 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
                     <div key={c.uid} className="py-2.5 flex items-center gap-3">
                       <Avatar src={fullPeer.photoURL} name={fullPeer.name} size="sm" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-[#0a2e1f] dark:text-white truncate">
+                        <p className="text-sm font-semibold text-[#0E1621] dark:text-white truncate">
                           {fullPeer.name}
                         </p>
-                        <p className="text-xs text-slate-500 dark:text-emerald-100/60 truncate">
+                        <p className="text-xs text-[#2AABEE] truncate">
                           @{fullPeer.username}
                         </p>
                       </div>
@@ -167,7 +167,7 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
                             onMessageUser(fullPeer);
                           }}
                           title={t.common.message}
-                          className="w-8 h-8 rounded-lg hover:bg-[#eef5f0] dark:hover:bg-white/10 text-[#0a2e1f] dark:text-[#25D366] flex items-center justify-center cursor-pointer"
+                          className="w-8 h-8 rounded-lg hover:bg-slate-100 dark:hover:bg-[#242F3D] text-[#2AABEE] flex items-center justify-center cursor-pointer"
                         >
                           <MessageSquare className="w-4 h-4" />
                         </button>
@@ -178,7 +178,7 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
                             onCallUser(fullPeer, 'voice');
                           }}
                           title={t.calls.voiceCall}
-                          className="w-8 h-8 rounded-lg hover:bg-[#eef5f0] dark:hover:bg-white/10 text-[#0a2e1f] dark:text-[#25D366] flex items-center justify-center cursor-pointer"
+                          className="w-8 h-8 rounded-lg hover:bg-slate-100 dark:hover:bg-[#242F3D] text-[#2AABEE] flex items-center justify-center cursor-pointer"
                         >
                           <Phone className="w-4 h-4" />
                         </button>
@@ -216,11 +216,11 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
         ) : (
           <div className="flex-1 overflow-y-auto p-4">
             {calls.length === 0 ? (
-              <div className="py-12 text-center text-xs text-slate-500 dark:text-emerald-100/60">
+              <div className="py-12 text-center text-xs text-slate-500 dark:text-[#8C9FB1]">
                 {t.calls.noCallsYet}
               </div>
             ) : (
-              <div className="divide-y divide-[#0a2e1f]/8 dark:divide-white/8">
+              <div className="divide-y divide-slate-200/70 dark:divide-[#22303F]">
                 {calls.map((c) => {
                   const outgoing = c.callerId === currentUser.uid;
                   const peerUid = outgoing ? c.calleeId : c.callerId;
@@ -242,22 +242,22 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
                     <div key={c.id} className="py-2.5 flex items-center gap-3">
                       <Avatar src={peerPhoto} name={peerName} size="sm" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-[#0a2e1f] dark:text-white truncate">
+                        <p className="text-sm font-semibold text-[#0E1621] dark:text-white truncate">
                           {peerName}
                         </p>
                         <p
                           className={`text-xs flex items-center gap-1 ${
                             isMissed
                               ? 'text-red-500'
-                              : 'text-slate-500 dark:text-emerald-100/60'
+                              : 'text-slate-500 dark:text-[#8C9FB1]'
                           }`}
                         >
                           {isMissed ? (
                             <PhoneMissed className="w-3 h-3" />
                           ) : outgoing ? (
-                            <PhoneOutgoing className="w-3 h-3 text-[#25D366]" />
+                            <PhoneOutgoing className="w-3 h-3 text-[#2AABEE]" />
                           ) : (
-                            <PhoneIncoming className="w-3 h-3 text-[#25D366]" />
+                            <PhoneIncoming className="w-3 h-3 text-[#2AABEE]" />
                           )}
                           <span>
                             {c.callType === 'video' ? t.calls.videoCall : t.calls.voiceCall}
@@ -273,7 +273,7 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
                             onClose();
                             onCallUser(peerUser, 'voice');
                           }}
-                          className="w-8 h-8 rounded-lg hover:bg-[#eef5f0] dark:hover:bg-white/10 text-[#0a2e1f] dark:text-[#25D366] flex items-center justify-center cursor-pointer"
+                          className="w-8 h-8 rounded-lg hover:bg-slate-100 dark:hover:bg-[#242F3D] text-[#2AABEE] flex items-center justify-center cursor-pointer"
                         >
                           <Phone className="w-4 h-4" />
                         </button>
@@ -283,7 +283,7 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
                             onClose();
                             onCallUser(peerUser, 'video');
                           }}
-                          className="w-8 h-8 rounded-lg hover:bg-[#eef5f0] dark:hover:bg-white/10 text-[#0a2e1f] dark:text-[#25D366] flex items-center justify-center cursor-pointer"
+                          className="w-8 h-8 rounded-lg hover:bg-slate-100 dark:hover:bg-[#242F3D] text-[#2AABEE] flex items-center justify-center cursor-pointer"
                         >
                           <Video className="w-4 h-4" />
                         </button>
