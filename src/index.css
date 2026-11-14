@@ -1,13 +1,13 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 @layer base {
   :root {
-    --dank-navy: #0A1931;
-    --dank-navy-light: #13284A;
-    --dank-sky: #38BDF8;
-    --dank-beige: #E8DCC6;
-    --dank-card: #F5EFE6;
-    --dank-paper: #FAF7F2;
+    --dank-primary: #0a2e1f;
+    --dank-primary-light: #12422e;
+    --dank-accent: #25D366;
+    --dank-surface: #ffffff;
+    --dank-surface-alt: #eef5f0;
   }
 
   html,
@@ -15,12 +15,14 @@
   #root {
     height: 100%;
     font-family: 'Cairo', 'Poppins', system-ui, -apple-system, sans-serif;
+    -webkit-tap-highlight-color: transparent;
   }
 
   html[dir="rtl"],
   html[dir="rtl"] body,
   html[dir="rtl"] input,
   html[dir="rtl"] textarea,
+  html[dir="rtl"] select,
   html[dir="rtl"] button {
     font-family: 'Cairo', 'Poppins', system-ui, -apple-system, sans-serif;
   }
@@ -33,6 +35,7 @@
   html[dir="ltr"] body,
   html[dir="ltr"] input,
   html[dir="ltr"] textarea,
+  html[dir="ltr"] select,
   html[dir="ltr"] button {
     font-family: 'Poppins', 'Cairo', system-ui, -apple-system, sans-serif;
   }
@@ -40,23 +43,46 @@
   html[dir="ltr"] body {
     text-align: left;
   }
+
+  /* Prevent iOS Safari automatic zoom on input focus */
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+    touch-action: manipulation;
+  }
+
+  button,
+  a,
+  [role="button"] {
+    touch-action: manipulation;
+  }
 }
 
 .font-arabic {
-  font-family: 'Cairo', 'Poppins', system-ui, sans-serif;
+  font-family: 'Cairo', 'Poppins', system-ui, -apple-system, sans-serif;
 }
 
 .font-english {
-  font-family: 'Poppins', 'Cairo', system-ui, sans-serif;
+  font-family: 'Poppins', 'Cairo', system-ui, -apple-system, sans-serif;
 }
 
 .dank-chat-bg {
-  background-color: #E8DCC6;
+  background-color: #e4efe8;
   background-image:
-    radial-gradient(rgba(10, 25, 49, 0.055) 1px, transparent 1px),
-    radial-gradient(rgba(56, 189, 248, 0.06) 1px, transparent 1px);
-  background-size: 28px 28px;
-  background-position: 0 0, 14px 14px;
+    radial-gradient(rgba(10, 46, 31, 0.055) 1px, transparent 1px),
+    radial-gradient(rgba(37, 211, 102, 0.08) 1px, transparent 1px);
+  background-size: 26px 26px;
+  background-position: 0 0, 13px 13px;
+}
+
+.dark .dank-chat-bg {
+  background-color: #061811;
+  background-image:
+    radial-gradient(rgba(37, 211, 102, 0.08) 1px, transparent 1px),
+    radial-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 26px 26px;
+  background-position: 0 0, 13px 13px;
 }
 
 .tabular-nums {
@@ -65,8 +91,8 @@
 
 /* Subtle custom scrollbar matching DANK palette */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
@@ -74,10 +100,14 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(10, 25, 49, 0.18);
+  background: rgba(10, 46, 31, 0.22);
   border-radius: 9999px;
 }
 
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(37, 211, 102, 0.25);
+}
+
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(10, 25, 49, 0.32);
+  background: rgba(37, 211, 102, 0.45);
 }

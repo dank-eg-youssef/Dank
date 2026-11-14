@@ -21,10 +21,17 @@ import {
 } from 'firebase/firestore';
 import { auth, db, googleProvider } from '../lib/firebase';
 import {
+  ensureDankBotChat,
+  ensureDankTeamChannelForAdmin,
   ensureOfficialChannelForAdmin,
+  ensureSavedMessagesChat,
   ensureUserInviteCode,
+  ensureUserJoinedDankTeam,
   ensureUserJoinedOfficialChannel,
+  getOrCreateLocalSessionId,
   redeemInviteCode,
+  registerActiveSession,
+  verifyTwoStepInput,
 } from '../services/chatService';
 import { getStoredLanguage, getTranslations } from '../i18n';
 import type { AppLanguage, UserPrivate, UserPublic } from '../types/dank';
@@ -39,6 +46,10 @@ interface AuthContextValue {
   firebaseUser: User | null;
   profile: UserPublic | null;
   privateProfile: UserPrivate | null;
+  sessionId: string;
+  sessionRevoked: boolean;
+  twoStepLocked: boolean;
+  unlockTwoStep: (input: string) => Promise<boolean>;
   loading: boolean;
   authReady: boolean;
   isVerified: boolean;
@@ -94,6 +105,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
   const [authReady, setAuthReady] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const [sessionId] = useState<string>(() => getOrCreateLocalSessionId());
+  const [sessionRevoked, setSessionRevoked] = useState(false);
+  const [twoStepUnlockedMap, setTwoStepUnlockedMap] = useState<Record<string, boolean>>({});
 
   const activeChatRef = useRef<string>('');
   const uidRef = useRef<string | null>(null);
@@ -105,145 +119,225 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       firebaseUser.email?.toLowerCase() === ADMIN_EMAIL
   );
 
-  const ensureUserProfileDocs = useCallback(async (user: User) => {
-    if (!user.emailVerified) return;
-
-    setProfileError(null);
-    const pubRef = doc(db, 'users_public', user.uid);
-    const privRef = doc(db, 'users_private', user.uid);
-
-    let pendingName = '';
-    let pendingUsername = '';
-    let pendingInviteCode = '';
-    let hasPendingSession = false;
-    try {
-      const raw = sessionStorage.getItem(PENDING_PROFILE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as {
-          name?: string;
-          username?: string;
-          inviteCode?: string;
-        };
-        pendingName = parsed.name || '';
-        pendingUsername = parsed.username || '';
-        pendingInviteCode = parsed.inviteCode || '';
-        hasPendingSession = true;
+  const isUnlockedForUid = useCallback(
+    (uid: string) => {
+      if (twoStepUnlockedMap[uid]) return true;
+      try {
+        return sessionStorage.getItem(`dank_2fa_ok_${uid}`) === '1';
+      } catch {
+        return false;
       }
-    } catch {
-      // ignore storage read error
-    }
+    },
+    [twoStepUnlockedMap]
+  );
 
-    let stage: OperationType = OperationType.GET;
-    try {
-      const [pubSnap, privSnap] = await withOfflineRetry(() =>
-        Promise.all([getDoc(pubRef), getDoc(privRef)])
+  const twoStepLocked = Boolean(
+    isVerified &&
+      firebaseUser &&
+      privateProfile?.twoStepEnabled &&
+      !isUnlockedForUid(firebaseUser.uid)
+  );
+
+  const unlockTwoStep = useCallback(
+    async (input: string) => {
+      if (!firebaseUser || !privateProfile) return false;
+      const ok = await verifyTwoStepInput(
+        input,
+        privateProfile.twoStepPasswordHash,
+        privateProfile.twoStepCodeHash
       );
-
-      stage = OperationType.WRITE;
-      const batch = writeBatch(db);
-      let hasWrites = false;
-
-      if (!pubSnap.exists()) {
-        const chosenLang = getStoredLanguage();
-        const fallbackName =
-          pendingName ||
-          user.displayName?.trim() ||
-          user.email?.split('@')[0] ||
-          'DANK Member';
-        const fallbackUsername = sanitizeUsername(
-          pendingUsername ||
-            user.displayName ||
-            user.email?.split('@')[0] ||
-            user.uid.slice(0, 8)
-        );
-        batch.set(pubRef, {
-          uid: user.uid,
-          name: fallbackName.slice(0, 80),
-          username: fallbackUsername,
-          photoURL: user.photoURL || '',
-          bio: getTranslations(chosenLang).errors.defaultBio,
-          language: chosenLang,
-          isOnline: true,
-          lastSeen: serverTimestamp(),
-          activeChatId: activeChatRef.current || '',
-          isAdmin: user.email?.toLowerCase() === ADMIN_EMAIL,
-          isVerified: false,
-          inviteCount: 0,
-          isVip: false,
-          isBanned: false,
-          mutedUntil: null,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
-        hasWrites = true;
-      } else {
-        const existingPub = pubSnap.data() as Partial<UserPublic>;
-        const updatePayload: Record<string, unknown> = {
-          isOnline: true,
-          lastSeen: serverTimestamp(),
-          activeChatId: activeChatRef.current || '',
-          updatedAt: serverTimestamp(),
-        };
-        if (
-          user.email?.toLowerCase() === ADMIN_EMAIL &&
-          existingPub.isAdmin === undefined
-        ) {
-          updatePayload.isAdmin = true;
-        }
-        batch.update(pubRef, updatePayload);
-        hasWrites = true;
-      }
-
-      if (!privSnap.exists()) {
-        batch.set(privRef, {
-          uid: user.uid,
-          email: user.email || '',
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
-        hasWrites = true;
-      }
-
-      if (hasWrites) {
-        await withOfflineRetry(() => batch.commit());
-      }
-
-      if (hasPendingSession) {
+      if (ok) {
+        setTwoStepUnlockedMap((prev) => ({ ...prev, [firebaseUser.uid]: true }));
         try {
-          sessionStorage.removeItem(PENDING_PROFILE_KEY);
+          sessionStorage.setItem(`dank_2fa_ok_${firebaseUser.uid}`, '1');
         } catch {
-          // ignore storage remove error
+          // ignore
         }
       }
+      return ok;
+    },
+    [firebaseUser, privateProfile]
+  );
 
-      // Ensure user has a DANK-XXXX invite code
-      await withOfflineRetry(() => ensureUserInviteCode(user.uid));
+  const ensureUserProfileDocs = useCallback(
+    async (user: User) => {
+      if (!user.emailVerified) return;
 
-      // Redeem signup invite code if present
-      if (pendingInviteCode) {
-        try {
-          await redeemInviteCode(user.uid, pendingInviteCode);
-        } catch (err) {
-          console.warn('Could not redeem signup invite code:', err);
+      setProfileError(null);
+      const pubRef = doc(db, 'users_public', user.uid);
+      const privRef = doc(db, 'users_private', user.uid);
+
+      let pendingName = '';
+      let pendingUsername = '';
+      let pendingInviteCode = '';
+      let hasPendingSession = false;
+      try {
+        const raw = sessionStorage.getItem(PENDING_PROFILE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw) as {
+            name?: string;
+            username?: string;
+            inviteCode?: string;
+          };
+          pendingName = parsed.name || '';
+          pendingUsername = parsed.username || '';
+          pendingInviteCode = parsed.inviteCode || '';
+          hasPendingSession = true;
         }
+      } catch {
+        // ignore storage read error
       }
 
-      // Ensure "DANK Official" channel exists (if main admin) and join every user to it
-      if (user.email?.toLowerCase() === ADMIN_EMAIL) {
-        await ensureOfficialChannelForAdmin(user.uid);
-      }
-      await ensureUserJoinedOfficialChannel(user.uid);
-    } catch (error) {
-      if (isOfflineError(error)) {
-        console.warn('Profile sync paused while Firestore client is offline:', error);
-        setProfileError(
-          'Unable to reach DANK servers right now. Please check your connection and retry.'
+      let stage: OperationType = OperationType.GET;
+      try {
+        const [pubSnap, privSnap] = await withOfflineRetry(() =>
+          Promise.all([getDoc(pubRef), getDoc(privRef)])
         );
-        return;
+
+        stage = OperationType.WRITE;
+        const batch = writeBatch(db);
+        let hasWrites = false;
+        let createdPublicDoc: UserPublic | null = null;
+
+        if (!pubSnap.exists()) {
+          const chosenLang = getStoredLanguage();
+          const fallbackName =
+            pendingName ||
+            user.displayName?.trim() ||
+            user.email?.split('@')[0] ||
+            'DANK Member';
+          const fallbackUsername = sanitizeUsername(
+            pendingUsername ||
+              user.displayName ||
+              user.email?.split('@')[0] ||
+              user.uid.slice(0, 8)
+          );
+          const payload: Record<string, unknown> = {
+            uid: user.uid,
+            name: fallbackName.slice(0, 80),
+            username: fallbackUsername,
+            photoURL: user.photoURL || '',
+            bio: getTranslations(chosenLang).errors.defaultBio,
+            language: chosenLang,
+            isOnline: true,
+            lastSeen: serverTimestamp(),
+            activeChatId: activeChatRef.current || '',
+            isAdmin: user.email?.toLowerCase() === ADMIN_EMAIL,
+            isVerified: false,
+            isBot: false,
+            isPlus: false,
+            inviteCount: 0,
+            isVip: false,
+            isBanned: false,
+            mutedUntil: null,
+            hasPhone: false,
+            privacyPhone: 'nobody',
+            privacyLastSeen: 'everyone',
+            privacyLastSeenExceptions: [],
+            privacyProfilePhoto: 'everyone',
+            privacyGroupAdd: 'everyone',
+            privacyCall: 'everyone',
+            privacyMessages: 'everyone',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          };
+          batch.set(pubRef, payload);
+          createdPublicDoc = {
+            uid: user.uid,
+            name: fallbackName.slice(0, 80),
+            username: fallbackUsername,
+            photoURL: user.photoURL || '',
+            language: chosenLang,
+            isOnline: true,
+            lastSeen: null,
+            createdAt: null,
+            updatedAt: null,
+          };
+          hasWrites = true;
+        } else {
+          const existingPub = pubSnap.data() as Partial<UserPublic>;
+          const updatePayload: Record<string, unknown> = {
+            isOnline: true,
+            lastSeen: serverTimestamp(),
+            activeChatId: activeChatRef.current || '',
+            updatedAt: serverTimestamp(),
+          };
+          if (
+            user.email?.toLowerCase() === ADMIN_EMAIL &&
+            existingPub.isAdmin === undefined
+          ) {
+            updatePayload.isAdmin = true;
+          }
+          batch.update(pubRef, updatePayload);
+          createdPublicDoc = existingPub as UserPublic;
+          hasWrites = true;
+        }
+
+        if (!privSnap.exists()) {
+          batch.set(privRef, {
+            uid: user.uid,
+            email: user.email || '',
+            phone: '',
+            twoStepEnabled: false,
+            twoStepPasswordHash: '',
+            twoStepCodeHash: '',
+            twoStepHint: '',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+          hasWrites = true;
+        }
+
+        if (hasWrites) {
+          await withOfflineRetry(() => batch.commit());
+        }
+
+        if (hasPendingSession) {
+          try {
+            sessionStorage.removeItem(PENDING_PROFILE_KEY);
+          } catch {
+            // ignore storage remove error
+          }
+        }
+
+        // Ensure user has a DANK-XXXX invite code & register active device session
+        await withOfflineRetry(() => ensureUserInviteCode(user.uid));
+        void registerActiveSession(user.uid, sessionId);
+
+        if (pendingInviteCode) {
+          try {
+            await redeemInviteCode(user.uid, pendingInviteCode);
+          } catch (err) {
+            console.warn('Could not redeem signup invite code:', err);
+          }
+        }
+
+        // Ensure official channels & personal utilities (Saved Messages & DANK Bot)
+        if (user.email?.toLowerCase() === ADMIN_EMAIL) {
+          await ensureOfficialChannelForAdmin(user.uid);
+          await ensureDankTeamChannelForAdmin(user.uid);
+        }
+        await Promise.all([
+          ensureUserJoinedOfficialChannel(user.uid),
+          ensureUserJoinedDankTeam(user.uid),
+          createdPublicDoc ? ensureSavedMessagesChat(createdPublicDoc) : Promise.resolve(''),
+          createdPublicDoc ? ensureDankBotChat(createdPublicDoc) : Promise.resolve(''),
+        ]).catch(() => {
+          // Non-fatal background bootstrap
+        });
+      } catch (error) {
+        if (isOfflineError(error)) {
+          console.warn('Profile sync paused while Firestore client is offline:', error);
+          setProfileError(
+            'Unable to reach DANK servers right now. Please check your connection and retry.'
+          );
+          return;
+        }
+        handleFirestoreError(error, stage, `users_public/${user.uid}`);
       }
-      handleFirestoreError(error, stage, `users_public/${user.uid}`);
-    }
-  }, []);
+    },
+    [sessionId]
+  );
 
   const retryProfileSync = useCallback(async () => {
     const activeUser = auth.currentUser || firebaseUser;
@@ -262,6 +356,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setProfile(null);
         setPrivateProfile(null);
         setProfileError(null);
+        setSessionRevoked(false);
         setAuthReady(true);
         setLoading(false);
         return;
@@ -286,6 +381,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => unsubscribe();
   }, [ensureUserProfileDocs]);
 
+  // Listen to public & private user profiles + current session revocation
   useEffect(() => {
     if (!firebaseUser || !firebaseUser.emailVerified) {
       setProfile(null);
@@ -303,10 +399,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       },
       (error) => {
-        if (isOfflineError(error)) {
-          console.warn('Public profile listener waiting for network:', error);
-          return;
-        }
+        if (isOfflineError(error)) return;
         handleFirestoreError(error, OperationType.GET, `users_public/${uid}`);
       }
     );
@@ -319,19 +412,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       },
       (error) => {
-        if (isOfflineError(error)) {
-          console.warn('Private profile listener waiting for network:', error);
-          return;
-        }
+        if (isOfflineError(error)) return;
         handleFirestoreError(error, OperationType.GET, `users_private/${uid}`);
+      }
+    );
+
+    const unsubSession = onSnapshot(
+      doc(db, 'users_private', uid, 'sessions', sessionId),
+      (snap) => {
+        if (snap.exists() && (snap.data() as { revoked?: boolean }).revoked === true) {
+          setSessionRevoked(true);
+          void signOut(auth);
+        }
+      },
+      () => {
+        // ignore transient session listener issues
       }
     );
 
     return () => {
       unsubPub();
       unsubPriv();
+      unsubSession();
     };
-  }, [firebaseUser, firebaseUser?.emailVerified]);
+  }, [firebaseUser, firebaseUser?.emailVerified, sessionId]);
 
   // Automatically retry profile sync when browser comes back online
   useEffect(() => {
@@ -343,6 +447,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => window.removeEventListener('online', handleOnline);
   }, [firebaseUser, profile, retryProfileSync]);
 
+  // Presence & active session heartbeat
   useEffect(() => {
     if (!firebaseUser || !firebaseUser.emailVerified) return;
     const uid = firebaseUser.uid;
@@ -357,7 +462,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           updatedAt: serverTimestamp(),
         });
       } catch {
-        // Ignore transient offline errors during unload/heartbeat
+        // Ignore transient offline errors
       }
     };
 
@@ -366,6 +471,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         void setPresence(false);
       } else {
         void setPresence(true);
+        void registerActiveSession(uid, sessionId);
       }
     };
 
@@ -376,6 +482,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const intervalId = window.setInterval(() => {
       if (document.visibilityState === 'visible') {
         void setPresence(true);
+        void registerActiveSession(uid, sessionId);
       }
     }, 30_000);
 
@@ -389,15 +496,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       window.removeEventListener('pagehide', handleUnload);
       window.removeEventListener('beforeunload', handleUnload);
     };
-  }, [firebaseUser, firebaseUser?.emailVerified]);
+  }, [firebaseUser, firebaseUser?.emailVerified, sessionId]);
 
-  const signInWithEmail = useCallback(async (email: string, password: string) => {
-    const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
-    setFirebaseUser(cred.user);
-    if (cred.user.emailVerified) {
-      await ensureUserProfileDocs(cred.user);
-    }
-  }, [ensureUserProfileDocs]);
+  const signInWithEmail = useCallback(
+    async (email: string, password: string) => {
+      setSessionRevoked(false);
+      const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
+      setFirebaseUser(cred.user);
+      if (cred.user.emailVerified) {
+        await ensureUserProfileDocs(cred.user);
+      }
+    },
+    [ensureUserProfileDocs]
+  );
 
   const signUpWithEmail = useCallback(
     async (
@@ -407,6 +518,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       username: string,
       inviteCode?: string
     ) => {
+      setSessionRevoked(false);
       const cleanName = name.trim().slice(0, 80);
       const cleanUsername = sanitizeUsername(username);
       const cleanCode = inviteCode?.trim().toUpperCase() || '';
@@ -427,6 +539,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 
   const signInWithGoogle = useCallback(async () => {
+    setSessionRevoked(false);
     const cred = await signInWithPopup(auth, googleProvider);
     setFirebaseUser(cred.user);
     if (cred.user.emailVerified) {
@@ -526,6 +639,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = useCallback(async () => {
     const uid = uidRef.current;
     activeChatRef.current = '';
+    if (uid) {
+      try {
+        sessionStorage.removeItem(`dank_2fa_ok_${uid}`);
+      } catch {
+        // ignore
+      }
+    }
     if (uid && auth.currentUser?.emailVerified) {
       try {
         await setDoc(
@@ -554,6 +674,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       firebaseUser,
       profile,
       privateProfile,
+      sessionId,
+      sessionRevoked,
+      twoStepLocked,
+      unlockTwoStep,
       loading,
       authReady,
       isVerified,
@@ -574,6 +698,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       firebaseUser,
       profile,
       privateProfile,
+      sessionId,
+      sessionRevoked,
+      twoStepLocked,
+      unlockTwoStep,
       loading,
       authReady,
       isVerified,

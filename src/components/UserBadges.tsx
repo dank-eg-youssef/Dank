@@ -1,10 +1,12 @@
 import React, { useId } from 'react';
-import { Crown } from 'lucide-react';
+import { Bot, Crown, Sparkles } from 'lucide-react';
 
 interface UserBadgesProps {
   isAdmin?: boolean;
   isVerified?: boolean;
   isVip?: boolean;
+  isPlus?: boolean;
+  isBot?: boolean;
   size?: 'xs' | 'sm' | 'md';
   className?: string;
 }
@@ -13,12 +15,14 @@ export const UserBadges: React.FC<UserBadgesProps> = ({
   isAdmin = false,
   isVerified = false,
   isVip = false,
+  isPlus = false,
+  isBot = false,
   size = 'sm',
   className = '',
 }) => {
   const gradId = useId();
 
-  if (!isAdmin && !isVerified && !isVip) return null;
+  if (!isAdmin && !isVerified && !isVip && !isPlus && !isBot) return null;
 
   const iconSize =
     size === 'xs' ? 'w-3.5 h-3.5' : size === 'md' ? 'w-5 h-5' : 'w-4 h-4';
@@ -58,11 +62,11 @@ export const UserBadges: React.FC<UserBadgesProps> = ({
           className="inline-flex items-center justify-center"
         >
           <svg viewBox="0 0 24 24" fill="none" className={iconSize}>
-            <circle cx="12" cy="12" r="10" fill="#1D9BF0" />
+            <circle cx="12" cy="12" r="10" fill="#25D366" />
             <path
               d="M8.5 12.4l2.3 2.3 4.8-5.1"
-              stroke="#FFFFFF"
-              strokeWidth="2.3"
+              stroke="#041f14"
+              strokeWidth="2.4"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
@@ -70,14 +74,36 @@ export const UserBadges: React.FC<UserBadgesProps> = ({
         </span>
       )}
 
+      {isPlus && (
+        <span
+          title="DANK Plus"
+          aria-label="DANK Plus"
+          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-[#25D366]/20 border border-[#25D366]/45 text-[#128C48] dark:text-[#25D366] font-bold leading-none text-[9px] tracking-wide"
+        >
+          <Sparkles className="w-2.5 h-2.5" />
+          <span>PLUS</span>
+        </span>
+      )}
+
       {isVip && (
         <span
           title="DANK VIP (5+ Invites)"
           aria-label="DANK VIP"
-          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-[#0A1931] font-bold leading-none shadow-xs text-[9px] tracking-wide"
+          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-[#0a2e1f] font-bold leading-none shadow-xs text-[9px] tracking-wide"
         >
           <Crown className="w-2.5 h-2.5 stroke-[2.5]" />
           <span>DANK VIP</span>
+        </span>
+      )}
+
+      {isBot && (
+        <span
+          title="DANK Bot"
+          aria-label="DANK Bot"
+          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-[#0a2e1f] text-[#25D366] border border-[#25D366]/35 font-bold leading-none text-[9px] tracking-wide"
+        >
+          <Bot className="w-2.5 h-2.5" />
+          <span>BOT</span>
         </span>
       )}
     </span>

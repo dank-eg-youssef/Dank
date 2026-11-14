@@ -1,4 +1,5 @@
 import {
+  arrayUnion,
   collection,
   collectionGroup,
   deleteDoc,
@@ -22,18 +23,41 @@ import type {
   AdminActiveUserStat,
   AdminDailyStat,
   AdminStatsData,
+  AppLanguage,
   Chat,
   ChatType,
   Message,
   MessageStatus,
+  MessageType,
+  PrivacyVisibility,
   Story,
+  UserChatPref,
   UserPublic,
 } from '../types/dank';
 import { handleFirestoreError, OperationType } from '../utils/firestoreErrors';
-import { isUserActuallyOnline } from '../utils/timeFormat';
+import { encryptSecretText } from '../utils/secretCrypto';
+import { isUserActuallyOnline, sanitizeUsername } from '../utils/timeFormat';
 
 export const OFFICIAL_CHANNEL_ID = 'dank_official';
+export const DANK_TEAM_CHANNEL_ID = 'dank_team';
+export const DANK_BOT_UID = 'dank_bot';
 export const ADS_BANNER_DOC_ID = 'ads_banner';
+
+export const DANK_BOT_USER: UserPublic = {
+  uid: DANK_BOT_UID,
+  name: 'DANK Bot',
+  username: 'dank_bot',
+  photoURL: '',
+  bio: 'Official interactive assistant & smart helper on DANK.',
+  language: 'ar',
+  isOnline: true,
+  lastSeen: null,
+  isAdmin: false,
+  isVerified: true,
+  isBot: true,
+  createdAt: null,
+  updatedAt: null,
+};
 
 export function getEffective24hCount(chat: Chat): number {
   const count = chat.messages24hCount ?? 0;
@@ -54,6 +78,27 @@ function makeCodeSuffix(length = 4): string {
     out += chars[Math.floor(Math.random() * chars.length)];
   }
   return out;
+}
+
+export async function hashSecretSHA256(value: string): Promise<string> {
+  const clean = value.trim();
+  if (!clean) return '';
+  if (typeof crypto !== 'undefined' && crypto.subtle) {
+    const bytes = new TextEncoder().encode(`dank-2fa::${clean}`);
+    const digest = await crypto.subtle.digest('SHA-256', bytes);
+    return Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+  // Fallback deterministic hash if subtle is unavailable in insecure context
+  let h1 = 0xdeadbeef;
+  let h2 = 0x41c6ce57;
+  for (let i = 0; i < clean.length; i += 1) {
+    const ch = clean.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  return `${(h1 >>> 0).toString(16)}${(h2 >>> 0).toString(16)}`;
 }
 
 export async function ensureUserInviteCode(uid: string): Promise<string> {
@@ -216,6 +261,292 @@ export async function ensureUserJoinedOfficialChannel(uid: string): Promise<void
   }
 }
 
+export async function ensureDankTeamChannelForAdmin(adminUid: string): Promise<void> {
+  try {
+    const chatRef = doc(db, 'chats', DANK_TEAM_CHANNEL_ID);
+    const snap = await getDoc(chatRef);
+    if (snap.exists()) return;
+
+    const batch = writeBatch(db);
+    batch.set(chatRef, {
+      id: DANK_TEAM_CHANNEL_ID,
+      type: 'channel',
+      name: 'DANK Team',
+      description: 'Official DANK Team announcements, tips & privacy updates.',
+      photoURL: '',
+      isPublic: true,
+      createdBy: adminUid,
+      dmPeerIds: [],
+      lastMessageText: 'Welcome to DANK Team! Stay connected safely.',
+      lastMessageType: 'text',
+      lastMessageSenderId: adminUid,
+      lastMessageSenderName: 'DANK Team',
+      lastMessageStatus: 'seen',
+      lastMessageAt: serverTimestamp(),
+      pinnedMessageId: '',
+      pinnedMessageText: '',
+      pinnedMessageSenderName: '',
+      memberCount: 1,
+      messages24hCount: 0,
+      messages24hWindowStart: serverTimestamp(),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    batch.set(doc(db, 'chats', DANK_TEAM_CHANNEL_ID, 'members', adminUid), {
+      uid: adminUid,
+      chatId: DANK_TEAM_CHANNEL_ID,
+      role: 'admin',
+      joinedAt: serverTimestamp(),
+      lastReadAt: serverTimestamp(),
+    });
+
+    batch.set(doc(db, 'user_chats', `${adminUid}_${DANK_TEAM_CHANNEL_ID}`), {
+      uid: adminUid,
+      chatId: DANK_TEAM_CHANNEL_ID,
+      chatType: 'channel',
+      joinedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    const welcomeMsgId = generateId();
+    batch.set(doc(db, 'chats', DANK_TEAM_CHANNEL_ID, 'messages', welcomeMsgId), {
+      id: welcomeMsgId,
+      chatId: DANK_TEAM_CHANNEL_ID,
+      senderId: adminUid,
+      senderName: 'DANK Team',
+      senderPhoto: '',
+      type: 'text',
+      text: 'مرحباً بك في قناة فريق DANK الرسمية! هنا ستصلك أحدث المميزات والتحديثات الأمنية.\n\nWelcome to DANK Team! Receive official product updates and tips here.',
+      imageData: '',
+      viewCount: 1,
+      status: 'seen',
+      replyToId: '',
+      replyToSenderName: '',
+      replyToText: '',
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    await batch.commit();
+  } catch (error) {
+    console.warn('Could not auto-create DANK Team channel:', error);
+  }
+}
+
+export async function ensureUserJoinedDankTeam(uid: string): Promise<void> {
+  try {
+    const refDoc = await getDoc(doc(db, 'user_chats', `${uid}_${DANK_TEAM_CHANNEL_ID}`));
+    if (refDoc.exists()) return;
+
+    const snap = await getDoc(doc(db, 'chats', DANK_TEAM_CHANNEL_ID));
+    if (!snap.exists()) return;
+
+    await joinChatById(DANK_TEAM_CHANNEL_ID, uid);
+  } catch {
+    // Non-fatal
+  }
+}
+
+export async function ensureSavedMessagesChat(user: UserPublic): Promise<string> {
+  const chatId = `saved_${user.uid}`;
+  try {
+    const refSnap = await getDoc(doc(db, 'user_chats', `${user.uid}_${chatId}`));
+    if (refSnap.exists()) return chatId;
+
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'chats', chatId), {
+      id: chatId,
+      type: 'private',
+      name: 'Saved Messages',
+      description: 'Personal cloud storage for messages, media & notes.',
+      photoURL: '',
+      isPublic: false,
+      createdBy: user.uid,
+      dmPeerIds: [user.uid, user.uid],
+      lastMessageText: '',
+      lastMessageType: '',
+      lastMessageSenderId: '',
+      lastMessageSenderName: '',
+      lastMessageStatus: '',
+      pinnedMessageId: '',
+      pinnedMessageText: '',
+      pinnedMessageSenderName: '',
+      memberCount: 1,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    batch.set(doc(db, 'chats', chatId, 'members', user.uid), {
+      uid: user.uid,
+      chatId,
+      role: 'admin',
+      joinedAt: serverTimestamp(),
+      lastReadAt: serverTimestamp(),
+    });
+
+    batch.set(doc(db, 'user_chats', `${user.uid}_${chatId}`), {
+      uid: user.uid,
+      chatId,
+      chatType: 'private',
+      joinedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    await batch.commit();
+    return chatId;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `chats/${chatId}`);
+  }
+}
+
+export async function ensureDankBotChat(user: UserPublic): Promise<string> {
+  const chatId = `dank_bot_${user.uid}`;
+  try {
+    const refSnap = await getDoc(doc(db, 'user_chats', `${user.uid}_${chatId}`));
+    if (refSnap.exists()) return chatId;
+
+    const isAr = (user.language || 'ar') === 'ar';
+    const welcomeText = isAr
+      ? `أهلاً بك يا ${user.name} في DANK Bot! 🤖\nأنا مساعدك الذكي داخل DANK.\n\nجرّب إرسال:\n• /help لعرض الأوامر\n• /vip لمعرفة شارة DANK VIP\n• /privacy لنصائح الخصوصية\n• /plus لمعرفة مزايا DANK Plus`
+      : `Hello ${user.name}! Welcome to DANK Bot! 🤖\nI'm your smart helper inside DANK.\n\nTry sending:\n• /help — Show commands\n• /vip — Learn about DANK VIP badge\n• /privacy — Privacy & Secret Chat tips\n• /plus — DANK Plus features`;
+
+    const welcomeMsgId = generateId();
+    const batch = writeBatch(db);
+
+    batch.set(doc(db, 'chats', chatId), {
+      id: chatId,
+      type: 'private',
+      name: 'DANK Bot',
+      description: 'Interactive DANK Assistant',
+      photoURL: '',
+      isPublic: false,
+      createdBy: user.uid,
+      dmPeerIds: [user.uid, DANK_BOT_UID],
+      lastMessageText: welcomeText.slice(0, 120),
+      lastMessageType: 'text',
+      lastMessageSenderId: DANK_BOT_UID,
+      lastMessageSenderName: 'DANK Bot',
+      lastMessageStatus: 'seen',
+      lastMessageAt: serverTimestamp(),
+      pinnedMessageId: '',
+      pinnedMessageText: '',
+      pinnedMessageSenderName: '',
+      memberCount: 1,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    batch.set(doc(db, 'chats', chatId, 'members', user.uid), {
+      uid: user.uid,
+      chatId,
+      role: 'admin',
+      joinedAt: serverTimestamp(),
+      lastReadAt: serverTimestamp(),
+    });
+
+    batch.set(doc(db, 'user_chats', `${user.uid}_${chatId}`), {
+      uid: user.uid,
+      chatId,
+      chatType: 'private',
+      joinedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    batch.set(doc(db, 'chats', chatId, 'messages', welcomeMsgId), {
+      id: welcomeMsgId,
+      chatId,
+      senderId: DANK_BOT_UID,
+      senderName: 'DANK Bot',
+      senderPhoto: '',
+      type: 'text',
+      text: welcomeText,
+      imageData: '',
+      status: 'seen',
+      replyToId: '',
+      replyToSenderName: '',
+      replyToText: '',
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    await batch.commit();
+    return chatId;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `chats/${chatId}`);
+  }
+}
+
+function buildBotReply(prompt: string, user: UserPublic): string {
+  const lower = prompt.trim().toLowerCase();
+  const isAr = (user.language || 'ar') === 'ar';
+  const invites = user.inviteCount || 0;
+
+  if (lower.startsWith('/vip') || lower.includes('vip')) {
+    return isAr
+      ? `👑 شارة DANK VIP الذهبية:\nكود الدعوة الخاص بك هو: ${user.inviteCode || 'متاح في ملفك'}\nعدد دعواتك الحالية: ${invites}/5.\nعند دعوة 5 أصدقاء ستحصل على شارة DANK VIP تلقائياً!`
+      : `👑 DANK VIP Badge:\nYour invite code: ${user.inviteCode || 'Available in Profile'}\nConfirmed invites: ${invites}/5.\nInvite 5 friends to automatically unlock the gold DANK VIP badge!`;
+  }
+
+  if (lower.startsWith('/privacy') || lower.includes('خصوص') || lower.includes('secret')) {
+    return isAr
+      ? `🔒 الخصوصية والأمان في DANK:\n• رقم هاتفك مخفي عن الغرباء افتراضياً.\n• يمكنك تفعيل التحقق بخطوتين (2FA) من الإعدادات والخصوصية.\n• استخدم "محادثة سرية" للتشفير والمؤقت الذاتي للتدمير!`
+      : `🔒 DANK Privacy & Security:\n• Your phone number is hidden from strangers by default.\n• Enable Two-Step Verification (2FA) in Settings & Privacy.\n• Start a Secret Chat for E2E encryption & self-destruct timers!`;
+  }
+
+  if (lower.startsWith('/plus') || lower.includes('plus')) {
+    return isAr
+      ? `⭐ DANK Plus:\n• شارة DANK Plus المميزة بجانب اسمك.\n• تثبيت محادثات إضافية ومعالجة أسرع للوسائط.\n• افتح القائمة الجانبية واضغط على DANK Plus للتفعيل!`
+      : `⭐ DANK Plus:\n• Exclusive DANK Plus emerald star badge next to your name.\n• Extended pinned chats & priority media processing.\n• Open the side menu and tap DANK Plus to activate!`;
+  }
+
+  if (lower.startsWith('/start') || lower.startsWith('/help') || lower.includes('مساعد') || lower.includes('help')) {
+    return isAr
+      ? `🤖 أوامر DANK Bot:\n• /vip — كود الدعوة وتقدم VIP\n• /privacy — إعدادات الخصوصية والمحادثات السرية\n• /plus — مزايا DANK Plus\n• اسألني أي شيء عن مجموعات وقنوات ومكالمات DANK!`
+      : `🤖 DANK Bot Commands:\n• /vip — Invite code & VIP progress\n• /privacy — Privacy settings & Secret Chats\n• /plus — DANK Plus benefits\n• Ask me anything about DANK groups, channels, or calls!`;
+  }
+
+  return isAr
+    ? `تم استلام رسالتك "${prompt.slice(0, 60)}" ✅\nأنا DANK Bot في خدمتك! اكتب /help لعرض جميع الأوامر السريعة.`
+    : `Got your message "${prompt.slice(0, 60)}" ✅\nI'm DANK Bot! Send /help to see quick commands.`;
+}
+
+async function sendBotAutoReply(chatId: string, user: UserPublic, promptText: string): Promise<void> {
+  const replyText = buildBotReply(promptText, user);
+  const botMsgId = generateId();
+  try {
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'chats', chatId, 'messages', botMsgId), {
+      id: botMsgId,
+      chatId,
+      senderId: DANK_BOT_UID,
+      senderName: 'DANK Bot',
+      senderPhoto: '',
+      type: 'text',
+      text: replyText,
+      imageData: '',
+      status: 'seen',
+      replyToId: '',
+      replyToSenderName: '',
+      replyToText: '',
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    batch.update(doc(db, 'chats', chatId), {
+      lastMessageText: replyText.slice(0, 140),
+      lastMessageType: 'text',
+      lastMessageSenderId: DANK_BOT_UID,
+      lastMessageSenderName: 'DANK Bot',
+      lastMessageStatus: 'seen',
+      lastMessageAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    await batch.commit();
+  } catch (err) {
+    console.warn('DANK Bot reply skipped:', err);
+  }
+}
+
 const STORY_SINGLE_DOC_MAX_CHARS = 720000;
 const STORY_CHUNK_CHARS = 500000;
 
@@ -261,7 +592,6 @@ export async function createStory(params: {
     await setDoc(doc(db, 'stories', storyId), storyPayload);
 
     if (isChunked) {
-      // Write chunks in batches after parent doc exists so security rule storyDoc(storyId) passes
       const batch = writeBatch(db);
       chunks.forEach((chunkData, index) => {
         batch.set(doc(db, 'stories', storyId, 'chunks', String(index)), {
@@ -339,6 +669,13 @@ export async function createOrOpenPrivateChat(
   currentUser: UserPublic,
   peerUser: UserPublic
 ): Promise<string> {
+  if (peerUser.uid === DANK_BOT_UID) {
+    return ensureDankBotChat(currentUser);
+  }
+  if (peerUser.uid === currentUser.uid) {
+    return ensureSavedMessagesChat(currentUser);
+  }
+
   const [u1, u2] = [currentUser.uid, peerUser.uid].sort();
   const chatId = `dm_${u1}_${u2}`;
   const refKey = `${currentUser.uid}_${chatId}`;
@@ -411,6 +748,91 @@ export async function createOrOpenPrivateChat(
   }
 }
 
+export async function createSecretChat(
+  currentUser: UserPublic,
+  peerUser: UserPublic,
+  selfDestructSeconds = 0
+): Promise<string> {
+  const [u1, u2] = [currentUser.uid, peerUser.uid].sort();
+  const chatId = `secret_${u1}_${u2}_${makeCodeSuffix(5)}`;
+
+  try {
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'chats', chatId), {
+      id: chatId,
+      type: 'private',
+      name: '',
+      description: '',
+      photoURL: '',
+      isPublic: false,
+      isSecret: true,
+      selfDestructSeconds: Math.max(0, Math.min(604800, Math.round(selfDestructSeconds))),
+      createdBy: currentUser.uid,
+      dmPeerIds: [u1, u2],
+      lastMessageText: '🔒 Secret Chat started',
+      lastMessageType: 'text',
+      lastMessageSenderId: currentUser.uid,
+      lastMessageSenderName: currentUser.name.slice(0, 80),
+      lastMessageStatus: 'sent',
+      lastMessageAt: serverTimestamp(),
+      pinnedMessageId: '',
+      pinnedMessageText: '',
+      pinnedMessageSenderName: '',
+      memberCount: 2,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    batch.set(doc(db, 'chats', chatId, 'members', currentUser.uid), {
+      uid: currentUser.uid,
+      chatId,
+      role: 'admin',
+      joinedAt: serverTimestamp(),
+      lastReadAt: serverTimestamp(),
+    });
+
+    batch.set(doc(db, 'chats', chatId, 'members', peerUser.uid), {
+      uid: peerUser.uid,
+      chatId,
+      role: 'member',
+      joinedAt: serverTimestamp(),
+      lastReadAt: serverTimestamp(),
+    });
+
+    batch.set(doc(db, 'user_chats', `${currentUser.uid}_${chatId}`), {
+      uid: currentUser.uid,
+      chatId,
+      chatType: 'private',
+      joinedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    batch.set(doc(db, 'user_chats', `${peerUser.uid}_${chatId}`), {
+      uid: peerUser.uid,
+      chatId,
+      chatType: 'private',
+      joinedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    await batch.commit();
+    return chatId;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, `chats/${chatId}`);
+  }
+}
+
+export async function updateChatSelfDestruct(chatId: string, seconds: number): Promise<void> {
+  try {
+    await updateDoc(doc(db, 'chats', chatId), {
+      selfDestructSeconds: Math.max(0, Math.min(604800, Math.round(seconds))),
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `chats/${chatId}`);
+  }
+}
+
 export async function createGroupOrChannel(params: {
   type: 'group' | 'channel';
   name: string;
@@ -438,6 +860,7 @@ export async function createGroupOrChannel(params: {
       description: params.description.trim().slice(0, 300),
       photoURL: params.photoURL.slice(0, 250000),
       isPublic: resolvedIsPublic,
+      bannedMemberIds: [],
       createdBy: params.creator.uid,
       dmPeerIds: [],
       lastMessageText: '',
@@ -505,6 +928,9 @@ export async function joinChatById(chatId: string, uid: string): Promise<Chat> {
     if (chat.type === 'private') {
       throw new Error('Private 1-to-1 chats cannot be joined via invite link.');
     }
+    if (chat.bannedMemberIds?.includes(uid)) {
+      throw new Error('You have been banned from this group.');
+    }
 
     const memberSnap = await getDoc(doc(db, 'chats', chatId, 'members', uid));
     if (!memberSnap.exists()) {
@@ -531,6 +957,9 @@ export async function joinChatById(chatId: string, uid: string): Promise<Chat> {
     }
     return chat;
   } catch (error) {
+    if (error instanceof Error && !error.message.includes('Missing or insufficient')) {
+      throw error;
+    }
     handleFirestoreError(error, OperationType.WRITE, `chats/${chatId}/members/${uid}`);
   }
 }
@@ -569,33 +998,83 @@ export async function addMemberToGroup(
   }
 }
 
+export async function addGroupMemberByUsername(
+  chatId: string,
+  chatType: ChatType,
+  rawUsername: string
+): Promise<UserPublic> {
+  const clean = sanitizeUsername(rawUsername);
+  const snap = await getDocs(
+    query(collection(db, 'users_public'), where('username', '==', clean), limit(1))
+  );
+  if (snap.empty) {
+    throw new Error('USER_NOT_FOUND');
+  }
+  const targetUser = snap.docs[0].data() as UserPublic;
+  await addMemberToGroup(chatId, chatType, targetUser.uid);
+  return targetUser;
+}
+
 export async function removeMemberFromChat(chatId: string, targetUid: string): Promise<void> {
   try {
+    const memberSnap = await getDoc(doc(db, 'chats', chatId, 'members', targetUid));
     const batch = writeBatch(db);
     batch.delete(doc(db, 'chats', chatId, 'members', targetUid));
     batch.delete(doc(db, 'user_chats', `${targetUid}_${chatId}`));
-    batch.update(doc(db, 'chats', chatId), {
-      memberCount: increment(-1),
-      updatedAt: serverTimestamp(),
-    });
+    if (memberSnap.exists()) {
+      batch.update(doc(db, 'chats', chatId), {
+        memberCount: increment(-1),
+        updatedAt: serverTimestamp(),
+      });
+    }
     await batch.commit();
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, `chats/${chatId}/members/${targetUid}`);
   }
 }
 
+export async function banMemberFromGroup(chatId: string, targetUid: string): Promise<void> {
+  try {
+    const memberSnap = await getDoc(doc(db, 'chats', chatId, 'members', targetUid));
+    const batch = writeBatch(db);
+    if (memberSnap.exists()) {
+      batch.delete(doc(db, 'chats', chatId, 'members', targetUid));
+    }
+    batch.delete(doc(db, 'user_chats', `${targetUid}_${chatId}`));
+    batch.update(doc(db, 'chats', chatId), {
+      bannedMemberIds: arrayUnion(targetUid),
+      ...(memberSnap.exists() ? { memberCount: increment(-1) } : {}),
+      updatedAt: serverTimestamp(),
+    });
+    await batch.commit();
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `chats/${chatId}`);
+  }
+}
+
 export async function sendMessage(params: {
+  messageId?: string;
   chat: Chat;
   sender: UserPublic;
-  type: 'text' | 'image' | 'audio';
+  type: MessageType;
   text?: string;
   imageData?: string;
   audioData?: string;
   audioDuration?: number;
   waveform?: number[];
+  fileName?: string;
+  fileSize?: number;
+  fileData?: string;
+  videoData?: string;
+  videoDuration?: number;
+  locationLat?: number;
+  locationLng?: number;
+  locationLabel?: string;
+  stickerId?: string;
+  forwardedFromName?: string;
   replyTo?: Message | null;
   usersMap: Record<string, UserPublic>;
-}): Promise<void> {
+}): Promise<string> {
   const {
     chat,
     sender,
@@ -605,14 +1084,26 @@ export async function sendMessage(params: {
     audioData = '',
     audioDuration = 0,
     waveform = [],
+    fileName = '',
+    fileSize = 0,
+    fileData = '',
+    videoData = '',
+    videoDuration = 0,
+    locationLat,
+    locationLng,
+    locationLabel = '',
+    stickerId = '',
+    forwardedFromName = '',
     replyTo,
     usersMap,
   } = params;
-  const messageId = generateId();
+
+  const messageId = params.messageId || generateId();
 
   let initialStatus: MessageStatus = 'sent';
-
-  if (chat.type === 'private' && chat.dmPeerIds && chat.dmPeerIds.length === 2) {
+  if (chat.id === `saved_${sender.uid}` || chat.id === `dank_bot_${sender.uid}`) {
+    initialStatus = 'seen';
+  } else if (chat.type === 'private' && chat.dmPeerIds && chat.dmPeerIds.length === 2) {
     const peerId = chat.dmPeerIds.find((id) => id !== sender.uid);
     const peer = peerId ? usersMap[peerId] : undefined;
     if (peer && isUserActuallyOnline(peer.isOnline, peer.lastSeen)) {
@@ -630,18 +1121,36 @@ export async function sendMessage(params: {
   }
 
   const trimmedText = text.trim().slice(0, 4000);
+  let storedText = trimmedText;
+  let isEncrypted = false;
+
+  if (chat.isSecret && trimmedText && chat.dmPeerIds && chat.dmPeerIds.length === 2) {
+    const encrypted = await encryptSecretText(trimmedText, chat.id, chat.dmPeerIds);
+    storedText = encrypted.cipherText.slice(0, 5900);
+    isEncrypted = encrypted.isEncrypted;
+  }
+
   const mins = Math.floor(audioDuration / 60);
   const secs = Math.floor(audioDuration % 60);
   const durStr = `${mins}:${secs.toString().padStart(2, '0')}`;
 
-  const previewText =
-    type === 'image'
-      ? trimmedText
-        ? `Photo: ${trimmedText}`
-        : 'Photo'
-      : type === 'audio'
-      ? `Voice note (${durStr})`
-      : trimmedText;
+  const previewText = chat.isSecret && isEncrypted
+    ? '🔒 Encrypted message'
+    : type === 'image'
+    ? trimmedText
+      ? `📷 ${trimmedText}`
+      : '📷 Photo'
+    : type === 'audio'
+    ? `🎤 Voice note (${durStr})`
+    : type === 'video'
+    ? `🎬 Video`
+    : type === 'file'
+    ? `📎 ${fileName || 'File'}`
+    : type === 'location'
+    ? `📍 ${locationLabel || 'Location'}`
+    : type === 'sticker'
+    ? 'Sticker'
+    : trimmedText;
 
   try {
     const batch = writeBatch(db);
@@ -649,19 +1158,29 @@ export async function sendMessage(params: {
       id: messageId,
       chatId: chat.id,
       senderId: sender.uid,
-      senderName: sender.name,
-      senderPhoto: sender.photoURL || '',
+      senderName: sender.name.slice(0, 80),
+      senderPhoto: (sender.photoURL || '').slice(0, 250000),
       type,
-      text: trimmedText,
-      imageData: type === 'image' ? imageData : '',
+      text: storedText,
+      imageData: type === 'image' ? imageData.slice(0, 500000) : '',
       status: initialStatus,
       replyToId: replyTo ? replyTo.id : '',
-      replyToSenderName: replyTo ? replyTo.senderName : '',
+      replyToSenderName: replyTo ? replyTo.senderName.slice(0, 80) : '',
       replyToText: replyTo
         ? (replyTo.type === 'image'
             ? 'Photo'
             : replyTo.type === 'audio'
             ? 'Voice note'
+            : replyTo.type === 'video'
+            ? 'Video'
+            : replyTo.type === 'file'
+            ? replyTo.fileName || 'File'
+            : replyTo.type === 'location'
+            ? 'Location'
+            : replyTo.type === 'sticker'
+            ? 'Sticker'
+            : replyTo.isEncrypted
+            ? '🔒 Encrypted message'
             : replyTo.text || ''
           ).slice(0, 200)
         : '',
@@ -670,9 +1189,46 @@ export async function sendMessage(params: {
     };
 
     if (type === 'audio') {
-      msgPayload.audioData = audioData;
+      msgPayload.audioData = audioData.slice(0, 550000);
       msgPayload.audioDuration = Math.min(300, Math.max(0, audioDuration));
       msgPayload.waveform = waveform.slice(0, 40);
+    }
+
+    if (type === 'video') {
+      msgPayload.videoData = videoData.slice(0, 750000);
+      msgPayload.videoDuration = Math.min(180, Math.max(0, videoDuration));
+    }
+
+    if (type === 'file') {
+      msgPayload.fileName = fileName.slice(0, 180);
+      msgPayload.fileSize = Math.min(2000000, Math.max(0, fileSize));
+      msgPayload.fileData = fileData.slice(0, 750000);
+    }
+
+    if (type === 'location' && locationLat !== undefined && locationLng !== undefined) {
+      msgPayload.locationLat = Math.max(-90, Math.min(90, locationLat));
+      msgPayload.locationLng = Math.max(-180, Math.min(180, locationLng));
+      msgPayload.locationLabel = locationLabel.slice(0, 200);
+    }
+
+    if (type === 'sticker' && stickerId) {
+      msgPayload.stickerId = stickerId.slice(0, 64);
+    }
+
+    if (forwardedFromName) {
+      msgPayload.forwardedFromName = forwardedFromName.slice(0, 80);
+    }
+
+    if (chat.type === 'channel') {
+      msgPayload.viewCount = 1;
+    }
+
+    if (isEncrypted) {
+      msgPayload.isEncrypted = true;
+    }
+
+    if (chat.isSecret && chat.selfDestructSeconds && chat.selfDestructSeconds > 0) {
+      msgPayload.expiresAt = Timestamp.fromMillis(Date.now() + chat.selfDestructSeconds * 1000);
     }
 
     batch.set(doc(db, 'chats', chat.id, 'messages', messageId), msgPayload);
@@ -702,8 +1258,162 @@ export async function sendMessage(params: {
     });
 
     await batch.commit();
+
+    // Auto-reply if user messaged DANK Bot
+    if (chat.id === `dank_bot_${sender.uid}` && type === 'text' && trimmedText) {
+      window.setTimeout(() => {
+        void sendBotAutoReply(chat.id, sender, trimmedText);
+      }, 350);
+    }
+
+    return messageId;
   } catch (error) {
     handleFirestoreError(error, OperationType.CREATE, `chats/${chat.id}/messages/${messageId}`);
+  }
+}
+
+export async function editMessage(
+  chatId: string,
+  messageId: string,
+  newText: string,
+  chat?: Chat
+): Promise<void> {
+  const clean = newText.trim().slice(0, 4000);
+  if (!clean) return;
+
+  let stored = clean;
+  if (chat?.isSecret && chat.dmPeerIds?.length === 2) {
+    const enc = await encryptSecretText(clean, chat.id, chat.dmPeerIds);
+    stored = enc.cipherText.slice(0, 5900);
+  }
+
+  try {
+    await updateDoc(doc(db, 'chats', chatId, 'messages', messageId), {
+      text: stored,
+      isEdited: true,
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `chats/${chatId}/messages/${messageId}`);
+  }
+}
+
+export async function deleteMessageForMe(
+  chatId: string,
+  messageId: string,
+  uid: string
+): Promise<void> {
+  try {
+    await updateDoc(doc(db, 'chats', chatId, 'messages', messageId), {
+      deletedFor: arrayUnion(uid),
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `chats/${chatId}/messages/${messageId}`);
+  }
+}
+
+export async function forwardMessage(params: {
+  fromMsg: Message;
+  targetChat: Chat;
+  sender: UserPublic;
+  usersMap: Record<string, UserPublic>;
+  decryptedText?: string;
+}): Promise<string> {
+  const { fromMsg, targetChat, sender, usersMap, decryptedText } = params;
+  if (targetChat.isSecret) {
+    throw new Error('Forwarding is disabled in Secret Chats.');
+  }
+  return sendMessage({
+    chat: targetChat,
+    sender,
+    type: fromMsg.type,
+    text: decryptedText ?? fromMsg.text ?? '',
+    imageData: fromMsg.imageData,
+    audioData: fromMsg.audioData,
+    audioDuration: fromMsg.audioDuration,
+    waveform: fromMsg.waveform,
+    fileName: fromMsg.fileName,
+    fileSize: fromMsg.fileSize,
+    fileData: fromMsg.fileData,
+    videoData: fromMsg.videoData,
+    videoDuration: fromMsg.videoDuration,
+    locationLat: fromMsg.locationLat,
+    locationLng: fromMsg.locationLng,
+    locationLabel: fromMsg.locationLabel,
+    stickerId: fromMsg.stickerId,
+    forwardedFromName: fromMsg.forwardedFromName || fromMsg.senderName,
+    usersMap,
+  });
+}
+
+export async function recordChannelMessageView(
+  chatId: string,
+  messageId: string,
+  uid: string
+): Promise<void> {
+  try {
+    const viewRef = doc(db, 'chats', chatId, 'messages', messageId, 'views', uid);
+    const snap = await getDoc(viewRef);
+    if (snap.exists()) return;
+
+    const batch = writeBatch(db);
+    batch.set(viewRef, {
+      uid,
+      viewedAt: serverTimestamp(),
+    });
+    batch.update(doc(db, 'chats', chatId, 'messages', messageId), {
+      viewCount: increment(1),
+      updatedAt: serverTimestamp(),
+    });
+    await batch.commit();
+  } catch {
+    // Non-fatal view increment
+  }
+}
+
+export async function addChannelComment(params: {
+  chatId: string;
+  messageId: string;
+  user: UserPublic;
+  text: string;
+}): Promise<void> {
+  const clean = params.text.trim().slice(0, 600);
+  if (!clean) return;
+  const commentId = generateId();
+  try {
+    await setDoc(doc(db, 'chats', params.chatId, 'messages', params.messageId, 'comments', commentId), {
+      id: commentId,
+      chatId: params.chatId,
+      messageId: params.messageId,
+      authorId: params.user.uid,
+      authorName: params.user.name.slice(0, 80),
+      authorPhoto: (params.user.photoURL || '').slice(0, 250000),
+      text: clean,
+      createdAt: serverTimestamp(),
+    });
+  } catch (error) {
+    handleFirestoreError(
+      error,
+      OperationType.CREATE,
+      `chats/${params.chatId}/messages/${params.messageId}/comments/${commentId}`
+    );
+  }
+}
+
+export async function deleteChannelComment(
+  chatId: string,
+  messageId: string,
+  commentId: string
+): Promise<void> {
+  try {
+    await deleteDoc(doc(db, 'chats', chatId, 'messages', messageId, 'comments', commentId));
+  } catch (error) {
+    handleFirestoreError(
+      error,
+      OperationType.DELETE,
+      `chats/${chatId}/messages/${messageId}/comments/${commentId}`
+    );
   }
 }
 
@@ -835,6 +1545,16 @@ export async function pinMessage(chatId: string, message: Message | null): Promi
             ? 'Photo'
             : message.type === 'audio'
             ? 'Voice note'
+            : message.type === 'video'
+            ? 'Video'
+            : message.type === 'file'
+            ? message.fileName || 'File'
+            : message.type === 'location'
+            ? 'Location'
+            : message.type === 'sticker'
+            ? 'Sticker'
+            : message.isEncrypted
+            ? '🔒 Encrypted message'
             : message.text || ''
           ).slice(0, 300)
         : '',
@@ -847,14 +1567,347 @@ export async function pinMessage(chatId: string, message: Message | null): Promi
 }
 
 export async function toggleMuteChat(uid: string, chatId: string, muted: boolean): Promise<void> {
+  await setUserChatPref(uid, chatId, { muted });
+}
+
+export async function setUserChatPref(
+  uid: string,
+  chatId: string,
+  patch: Partial<Pick<UserChatPref, 'pinned' | 'archived' | 'muted'>> & {
+    markRead?: boolean;
+    deleted?: boolean;
+    restoreVisible?: boolean;
+  }
+): Promise<void> {
   try {
-    await setDoc(doc(db, 'users_private', uid, 'muted_chats', chatId), {
+    const prefRef = doc(db, 'users_private', uid, 'chat_prefs', chatId);
+    const payload: Record<string, unknown> = {
       chatId,
-      muted,
+      updatedAt: serverTimestamp(),
+    };
+    if (patch.pinned !== undefined) payload.pinned = patch.pinned;
+    if (patch.archived !== undefined) payload.archived = patch.archived;
+    if (patch.muted !== undefined) payload.muted = patch.muted;
+    if (patch.markRead) payload.unreadClearedAt = serverTimestamp();
+    if (patch.deleted) payload.deletedAt = serverTimestamp();
+    if (patch.restoreVisible) payload.deletedAt = null;
+
+    const batch = writeBatch(db);
+    batch.set(prefRef, payload, { merge: true });
+
+    if (patch.muted !== undefined) {
+      batch.set(doc(db, 'users_private', uid, 'muted_chats', chatId), {
+        chatId,
+        muted: patch.muted,
+        updatedAt: serverTimestamp(),
+      });
+    }
+
+    await batch.commit();
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `users_private/${uid}/chat_prefs/${chatId}`);
+  }
+}
+
+export async function addUserContact(uid: string, target: UserPublic): Promise<void> {
+  try {
+    await setDoc(doc(db, 'users_private', uid, 'contacts', target.uid), {
+      uid: target.uid,
+      name: target.name.slice(0, 80),
+      username: target.username,
+      photoURL: (target.photoURL || '').slice(0, 250000),
+      addedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `users_private/${uid}/contacts/${target.uid}`);
+  }
+}
+
+export async function addContactByUsername(
+  uid: string,
+  rawUsername: string
+): Promise<UserPublic> {
+  const clean = sanitizeUsername(rawUsername);
+  const snap = await getDocs(
+    query(collection(db, 'users_public'), where('username', '==', clean), limit(1))
+  );
+  if (snap.empty) {
+    throw new Error('USER_NOT_FOUND');
+  }
+  const target = snap.docs[0].data() as UserPublic;
+  if (target.uid === uid) {
+    throw new Error('CANNOT_ADD_SELF');
+  }
+  await addUserContact(uid, target);
+  return target;
+}
+
+export async function removeUserContact(uid: string, contactUid: string): Promise<void> {
+  try {
+    await deleteDoc(doc(db, 'users_private', uid, 'contacts', contactUid));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `users_private/${uid}/contacts/${contactUid}`);
+  }
+}
+
+export async function blockUserAccount(uid: string, target: UserPublic): Promise<void> {
+  try {
+    await setDoc(doc(db, 'users_private', uid, 'blocked_users', target.uid), {
+      uid: target.uid,
+      name: target.name.slice(0, 80),
+      username: target.username,
+      blockedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    handleFirestoreError(
+      error,
+      OperationType.WRITE,
+      `users_private/${uid}/blocked_users/${target.uid}`
+    );
+  }
+}
+
+export async function unblockUserAccount(uid: string, blockedUid: string): Promise<void> {
+  try {
+    await deleteDoc(doc(db, 'users_private', uid, 'blocked_users', blockedUid));
+  } catch (error) {
+    handleFirestoreError(
+      error,
+      OperationType.DELETE,
+      `users_private/${uid}/blocked_users/${blockedUid}`
+    );
+  }
+}
+
+export async function updateUserPhone(uid: string, phone: string): Promise<void> {
+  const clean = phone.trim().slice(0, 32);
+  try {
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'users_private', uid), {
+      phone: clean,
+      updatedAt: serverTimestamp(),
+    });
+    batch.update(doc(db, 'users_public', uid), {
+      hasPhone: clean.length > 0,
+      updatedAt: serverTimestamp(),
+    });
+    await batch.commit();
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `users_private/${uid}`);
+  }
+}
+
+export async function updatePrivacySettings(
+  uid: string,
+  settings: {
+    privacyPhone?: PrivacyVisibility;
+    privacyLastSeen?: PrivacyVisibility;
+    privacyLastSeenExceptions?: string[];
+    privacyProfilePhoto?: PrivacyVisibility;
+    privacyGroupAdd?: 'everyone' | 'contacts';
+    privacyCall?: PrivacyVisibility;
+    privacyMessages?: 'everyone' | 'contacts';
+  }
+): Promise<void> {
+  try {
+    const payload: Record<string, unknown> = {
+      updatedAt: serverTimestamp(),
+    };
+    if (settings.privacyPhone !== undefined) payload.privacyPhone = settings.privacyPhone;
+    if (settings.privacyLastSeen !== undefined) payload.privacyLastSeen = settings.privacyLastSeen;
+    if (settings.privacyLastSeenExceptions !== undefined) {
+      payload.privacyLastSeenExceptions = settings.privacyLastSeenExceptions.slice(0, 100);
+    }
+    if (settings.privacyProfilePhoto !== undefined) {
+      payload.privacyProfilePhoto = settings.privacyProfilePhoto;
+    }
+    if (settings.privacyGroupAdd !== undefined) payload.privacyGroupAdd = settings.privacyGroupAdd;
+    if (settings.privacyCall !== undefined) payload.privacyCall = settings.privacyCall;
+    if (settings.privacyMessages !== undefined) payload.privacyMessages = settings.privacyMessages;
+
+    await updateDoc(doc(db, 'users_public', uid), payload);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `users_public/${uid}`);
+  }
+}
+
+export async function enableTwoStepAuth(
+  uid: string,
+  password: string,
+  hint: string
+): Promise<string> {
+  const recoveryCode = `DANK-2FA-${makeCodeSuffix(4)}-${makeCodeSuffix(4)}`;
+  const [passwordHash, codeHash] = await Promise.all([
+    hashSecretSHA256(password),
+    hashSecretSHA256(recoveryCode),
+  ]);
+  try {
+    await updateDoc(doc(db, 'users_private', uid), {
+      twoStepEnabled: true,
+      twoStepPasswordHash: passwordHash,
+      twoStepCodeHash: codeHash,
+      twoStepHint: hint.trim().slice(0, 120),
+      updatedAt: serverTimestamp(),
+    });
+    return recoveryCode;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `users_private/${uid}`);
+  }
+}
+
+export async function disableTwoStepAuth(uid: string): Promise<void> {
+  try {
+    await updateDoc(doc(db, 'users_private', uid), {
+      twoStepEnabled: false,
+      twoStepPasswordHash: '',
+      twoStepCodeHash: '',
+      twoStepHint: '',
       updatedAt: serverTimestamp(),
     });
   } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, `users_private/${uid}/muted_chats/${chatId}`);
+    handleFirestoreError(error, OperationType.UPDATE, `users_private/${uid}`);
+  }
+}
+
+export async function verifyTwoStepInput(
+  input: string,
+  passwordHash?: string,
+  codeHash?: string
+): Promise<boolean> {
+  const trimmed = input.trim();
+  if (!trimmed) return false;
+  const candidateHash = await hashSecretSHA256(trimmed);
+  if (passwordHash && candidateHash === passwordHash) return true;
+  if (codeHash && candidateHash === codeHash) return true;
+  if (codeHash) {
+    const upperHash = await hashSecretSHA256(trimmed.toUpperCase());
+    if (upperHash === codeHash) return true;
+  }
+  return false;
+}
+
+export async function toggleDankPlus(uid: string, isPlus: boolean): Promise<void> {
+  try {
+    await updateDoc(doc(db, 'users_public', uid), {
+      isPlus,
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `users_public/${uid}`);
+  }
+}
+
+export function getOrCreateLocalSessionId(): string {
+  try {
+    let existing = localStorage.getItem('dank_session_id');
+    if (existing && /^[a-zA-Z0-9_-]{8,64}$/.test(existing)) return existing;
+    existing = `sess_${makeCodeSuffix(8)}_${Date.now().toString(36)}`;
+    localStorage.setItem('dank_session_id', existing);
+    return existing;
+  } catch {
+    return `sess_${makeCodeSuffix(10)}`;
+  }
+}
+
+export async function registerActiveSession(uid: string, sessionId: string): Promise<void> {
+  if (typeof navigator === 'undefined') return;
+  const ua = (navigator.userAgent || 'Web Browser').slice(0, 300);
+  const platform = (navigator.platform || 'Web').slice(0, 80);
+  let deviceName = 'Web Browser';
+  if (/iPhone|iPad/i.test(ua)) deviceName = 'DANK on iOS Safari';
+  else if (/Android/i.test(ua)) deviceName = 'DANK on Android';
+  else if (/Mac/i.test(ua)) deviceName = 'DANK Desktop (Mac)';
+  else if (/Windows/i.test(ua)) deviceName = 'DANK Desktop (Windows)';
+  else if (/Linux/i.test(ua)) deviceName = 'DANK Desktop (Linux)';
+
+  try {
+    const ref = doc(db, 'users_private', uid, 'sessions', sessionId);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) {
+      await setDoc(ref, {
+        id: sessionId,
+        deviceName,
+        platform,
+        userAgent: ua,
+        revoked: false,
+        lastActiveAt: serverTimestamp(),
+        createdAt: serverTimestamp(),
+      });
+    } else {
+      const data = snap.data() as { revoked?: boolean };
+      if (data.revoked) return;
+      await updateDoc(ref, {
+        deviceName,
+        platform,
+        userAgent: ua,
+        lastActiveAt: serverTimestamp(),
+      });
+    }
+  } catch {
+    // Non-fatal session heartbeat failure
+  }
+}
+
+export async function revokeActiveSession(uid: string, sessionId: string): Promise<void> {
+  try {
+    await updateDoc(doc(db, 'users_private', uid, 'sessions', sessionId), {
+      revoked: true,
+      lastActiveAt: serverTimestamp(),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `users_private/${uid}/sessions/${sessionId}`);
+  }
+}
+
+export async function initiateCall(params: {
+  caller: UserPublic;
+  callee: UserPublic;
+  chatId: string;
+  callType: 'voice' | 'video';
+}): Promise<string> {
+  const callId = generateId();
+  try {
+    await setDoc(doc(db, 'calls', callId), {
+      id: callId,
+      callerId: params.caller.uid,
+      callerName: params.caller.name.slice(0, 80),
+      callerPhoto: (params.caller.photoURL || '').slice(0, 250000),
+      calleeId: params.callee.uid,
+      calleeName: params.callee.name.slice(0, 80),
+      calleePhoto: (params.callee.photoURL || '').slice(0, 250000),
+      chatId: params.chatId,
+      callType: params.callType,
+      status: 'ringing',
+      startedAt: serverTimestamp(),
+      endedAt: null,
+      durationSeconds: 0,
+    });
+    return callId;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, `calls/${callId}`);
+  }
+}
+
+export async function updateCallState(
+  callId: string,
+  updates: {
+    status: 'ringing' | 'connected' | 'ended' | 'declined' | 'missed';
+    durationSeconds?: number;
+  }
+): Promise<void> {
+  try {
+    const payload: Record<string, unknown> = {
+      status: updates.status,
+    };
+    if (updates.status === 'ended' || updates.status === 'declined' || updates.status === 'missed') {
+      payload.endedAt = serverTimestamp();
+    }
+    if (updates.durationSeconds !== undefined) {
+      payload.durationSeconds = Math.max(0, Math.min(86400, Math.round(updates.durationSeconds)));
+    }
+    await updateDoc(doc(db, 'calls', callId), payload);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `calls/${callId}`);
   }
 }
 
@@ -907,7 +1960,6 @@ export async function fetchAdminStats(): Promise<AdminStatsData> {
       (m) => m.createdAt && m.createdAt.toMillis() >= startOfTodayMs
     ).length;
 
-    // Count messages per sender & per chat
     const userMsgCounts: Record<string, number> = {};
     const chatMsgCounts: Record<string, number> = {};
 
@@ -947,7 +1999,6 @@ export async function fetchAdminStats(): Promise<AdminStatsData> {
       .sort((a, b) => b.messageCount - a.messageCount || b.memberCount - a.memberCount)
       .slice(0, 6);
 
-    // 7-day activity histogram (including today)
     const dailyActivity: AdminDailyStat[] = [];
     for (let offset = 6; offset >= 0; offset -= 1) {
       const dayStart = new Date(
@@ -1006,12 +2057,8 @@ export async function setUserVerificationFlags(
     const payload: Record<string, unknown> = {
       updatedAt: serverTimestamp(),
     };
-    if (updates.isAdmin !== undefined) {
-      payload.isAdmin = updates.isAdmin;
-    }
-    if (updates.isVerified !== undefined) {
-      payload.isVerified = updates.isVerified;
-    }
+    if (updates.isAdmin !== undefined) payload.isAdmin = updates.isAdmin;
+    if (updates.isVerified !== undefined) payload.isVerified = updates.isVerified;
     await updateDoc(doc(db, 'users_public', targetUid), payload);
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, `users_public/${targetUid}`);
@@ -1026,12 +2073,8 @@ export async function setUserModeration(
     const payload: Record<string, unknown> = {
       updatedAt: serverTimestamp(),
     };
-    if (updates.isBanned !== undefined) {
-      payload.isBanned = updates.isBanned;
-    }
-    if (updates.mutedUntil !== undefined) {
-      payload.mutedUntil = updates.mutedUntil;
-    }
+    if (updates.isBanned !== undefined) payload.isBanned = updates.isBanned;
+    if (updates.mutedUntil !== undefined) payload.mutedUntil = updates.mutedUntil;
     await updateDoc(doc(db, 'users_public', targetUid), payload);
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, `users_public/${targetUid}`);
@@ -1058,4 +2101,24 @@ export async function saveAdsBanner(params: {
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, `app_config/${ADS_BANNER_DOC_ID}`);
   }
+}
+
+export function canSeePrivacyField(
+  viewerUid: string,
+  owner: UserPublic | undefined,
+  setting: PrivacyVisibility | undefined,
+  contactIds: Set<string>,
+  exceptions?: string[]
+): boolean {
+  if (!owner) return false;
+  if (owner.uid === viewerUid) return true;
+  if (exceptions && exceptions.includes(viewerUid)) return false;
+  const resolved = setting || 'everyone';
+  if (resolved === 'everyone') return true;
+  if (resolved === 'nobody') return false;
+  return contactIds.has(owner.uid);
+}
+
+export function getDisplayLanguageLabel(lang?: AppLanguage): string {
+  return lang === 'en' ? 'English' : 'العربية';
 }

@@ -1,10 +1,18 @@
 import type { Timestamp } from 'firebase/firestore';
 
 export type ChatType = 'private' | 'group' | 'channel';
-export type MessageType = 'text' | 'image' | 'audio';
+export type MessageType =
+  | 'text'
+  | 'image'
+  | 'audio'
+  | 'video'
+  | 'file'
+  | 'location'
+  | 'sticker';
 export type MessageStatus = 'sent' | 'delivered' | 'seen';
 export type MemberRole = 'admin' | 'member';
 export type AppLanguage = 'ar' | 'en';
+export type PrivacyVisibility = 'everyone' | 'contacts' | 'nobody';
 
 export interface UserPublic {
   uid: string;
@@ -18,12 +26,23 @@ export interface UserPublic {
   activeChatId?: string;
   isAdmin?: boolean;
   isVerified?: boolean;
+  isBot?: boolean;
+  isPlus?: boolean;
   inviteCode?: string;
   invitedBy?: string;
   inviteCount?: number;
   isVip?: boolean;
   isBanned?: boolean;
   mutedUntil?: Timestamp | null;
+  // Privacy Settings (visibility flags stored cleanly on public profile)
+  hasPhone?: boolean;
+  privacyPhone?: PrivacyVisibility;
+  privacyLastSeen?: PrivacyVisibility;
+  privacyLastSeenExceptions?: string[];
+  privacyProfilePhoto?: PrivacyVisibility;
+  privacyGroupAdd?: 'everyone' | 'contacts';
+  privacyCall?: PrivacyVisibility;
+  privacyMessages?: 'everyone' | 'contacts';
   createdAt: Timestamp | null;
   updatedAt: Timestamp | null;
 }
@@ -31,8 +50,75 @@ export interface UserPublic {
 export interface UserPrivate {
   uid: string;
   email: string;
+  phone?: string;
+  twoStepEnabled?: boolean;
+  twoStepPasswordHash?: string;
+  twoStepCodeHash?: string;
+  twoStepHint?: string;
   createdAt: Timestamp | null;
   updatedAt: Timestamp | null;
+}
+
+export interface UserChatPref {
+  chatId: string;
+  pinned?: boolean;
+  archived?: boolean;
+  muted?: boolean;
+  unreadClearedAt?: Timestamp | null;
+  deletedAt?: Timestamp | null;
+  updatedAt: Timestamp | null;
+}
+
+export interface UserContact {
+  uid: string;
+  name: string;
+  username: string;
+  photoURL?: string;
+  addedAt: Timestamp | null;
+}
+
+export interface BlockedUser {
+  uid: string;
+  name: string;
+  username: string;
+  blockedAt: Timestamp | null;
+}
+
+export interface ActiveSession {
+  id: string;
+  deviceName: string;
+  platform: string;
+  userAgent: string;
+  lastActiveAt: Timestamp | null;
+  createdAt: Timestamp | null;
+  revoked?: boolean;
+}
+
+export interface CallRecord {
+  id: string;
+  callerId: string;
+  callerName: string;
+  callerPhoto?: string;
+  calleeId: string;
+  calleeName: string;
+  calleePhoto?: string;
+  chatId: string;
+  callType: 'voice' | 'video';
+  status: 'ringing' | 'connected' | 'ended' | 'declined' | 'missed';
+  startedAt: Timestamp | null;
+  endedAt?: Timestamp | null;
+  durationSeconds?: number;
+}
+
+export interface ChannelComment {
+  id: string;
+  chatId: string;
+  messageId: string;
+  authorId: string;
+  authorName: string;
+  authorPhoto?: string;
+  text: string;
+  createdAt: Timestamp | null;
 }
 
 export interface Story {
@@ -64,6 +150,9 @@ export interface Chat {
   description?: string;
   photoURL?: string;
   isPublic: boolean;
+  isSecret?: boolean;
+  selfDestructSeconds?: number;
+  bannedMemberIds?: string[];
   createdBy: string;
   dmPeerIds?: string[];
   lastMessageText?: string;
@@ -110,6 +199,21 @@ export interface Message {
   audioData?: string;
   audioDuration?: number;
   waveform?: number[];
+  fileName?: string;
+  fileSize?: number;
+  fileData?: string;
+  videoData?: string;
+  videoDuration?: number;
+  locationLat?: number;
+  locationLng?: number;
+  locationLabel?: string;
+  stickerId?: string;
+  forwardedFromName?: string;
+  isEdited?: boolean;
+  deletedFor?: string[];
+  viewCount?: number;
+  isEncrypted?: boolean;
+  expiresAt?: Timestamp | null;
   status: MessageStatus;
   replyToId?: string;
   replyToSenderName?: string;
@@ -260,4 +364,3 @@ export interface SavedItem {
   targetId: string;
   createdAt: Timestamp | null;
 }
-

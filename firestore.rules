@@ -42,6 +42,22 @@ service cloud.firestore {
       return !(field in data) || (data[field] is string && data[field].size() <= maxLen);
     }
 
+    function isValidOptBool(data, field) {
+      return !(field in data) || data[field] is bool;
+    }
+
+    function isValidPrivacyVisibility(data, field) {
+      return !(field in data) || data[field] in ['everyone', 'contacts', 'nobody'];
+    }
+
+    function isValidIdList(data, field, maxSize) {
+      return !(field in data) || (
+        data[field] is list
+        && data[field].size() <= maxSize
+        && (data[field].size() == 0 || isValidId(data[field][0]))
+      );
+    }
+
     function isChatMember(chatId) {
       return exists(/databases/$(database)/documents/chats/$(chatId)/members/$(request.auth.uid));
     }
@@ -76,13 +92,20 @@ service cloud.firestore {
         && (!('mutedUntil' in senderPublicDoc()) || senderPublicDoc().mutedUntil == null || senderPublicDoc().mutedUntil <= request.time);
     }
 
+    function isNotBannedFromChat(chatId) {
+      return !('bannedMemberIds' in chatDoc(chatId)) || !(request.auth.uid in chatDoc(chatId).bannedMemberIds);
+    }
+
     // --- Validation Helpers ---
     function isValidUserPublic(data, userId) {
       return data.keys().hasAll(['uid', 'name', 'username', 'isOnline', 'lastSeen', 'createdAt', 'updatedAt'])
         && data.keys().hasOnly([
           'uid', 'name', 'username', 'photoURL', 'bio', 'language', 'isOnline', 'lastSeen',
-          'activeChatId', 'isAdmin', 'isVerified', 'inviteCode', 'invitedBy',
-          'inviteCount', 'isVip', 'isBanned', 'mutedUntil', 'createdAt', 'updatedAt'
+          'activeChatId', 'isAdmin', 'isVerified', 'isBot', 'isPlus',
+          'inviteCode', 'invitedBy', 'inviteCount', 'isVip', 'isBanned', 'mutedUntil',
+          'hasPhone', 'privacyPhone', 'privacyLastSeen', 'privacyLastSeenExceptions',
+          'privacyProfilePhoto', 'privacyGroupAdd', 'privacyCall', 'privacyMessages',
+          'createdAt', 'updatedAt'
         ])
         && isValidId(data.uid)
         && data.uid == userId
@@ -94,12 +117,22 @@ service cloud.firestore {
         && isValidOptString(data, 'activeChatId', 128)
         && isValidOptString(data, 'inviteCode', 16)
         && isValidOptString(data, 'invitedBy', 128)
-        && (!('isAdmin' in data) || data.isAdmin is bool)
-        && (!('isVerified' in data) || data.isVerified is bool)
+        && isValidOptBool(data, 'isAdmin')
+        && isValidOptBool(data, 'isVerified')
+        && isValidOptBool(data, 'isBot')
+        && isValidOptBool(data, 'isPlus')
+        && isValidOptBool(data, 'hasPhone')
         && (!('inviteCount' in data) || (data.inviteCount is int && data.inviteCount >= 0 && data.inviteCount <= 100000))
-        && (!('isVip' in data) || data.isVip is bool)
-        && (!('isBanned' in data) || data.isBanned is bool)
+        && isValidOptBool(data, 'isVip')
+        && isValidOptBool(data, 'isBanned')
         && (!('mutedUntil' in data) || data.mutedUntil == null || data.mutedUntil is timestamp)
+        && isValidPrivacyVisibility(data, 'privacyPhone')
+        && isValidPrivacyVisibility(data, 'privacyLastSeen')
+        && isValidIdList(data, 'privacyLastSeenExceptions', 100)
+        && isValidPrivacyVisibility(data, 'privacyProfilePhoto')
+        && (!('privacyGroupAdd' in data) || data.privacyGroupAdd in ['everyone', 'contacts'])
+        && isValidPrivacyVisibility(data, 'privacyCall')
+        && (!('privacyMessages' in data) || data.privacyMessages in ['everyone', 'contacts'])
         && data.isOnline is bool
         && data.lastSeen is timestamp
         && data.createdAt is timestamp
@@ -108,10 +141,18 @@ service cloud.firestore {
 
     function isValidUserPrivate(data, userId) {
       return data.keys().hasAll(['uid', 'email', 'createdAt', 'updatedAt'])
-        && data.keys().hasOnly(['uid', 'email', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly([
+          'uid', 'email', 'phone', 'twoStepEnabled', 'twoStepPasswordHash',
+          'twoStepCodeHash', 'twoStepHint', 'createdAt', 'updatedAt'
+        ])
         && isValidId(data.uid)
         && data.uid == userId
         && data.email is string && data.email.size() >= 3 && data.email.size() <= 200
+        && isValidOptString(data, 'phone', 32)
+        && isValidOptBool(data, 'twoStepEnabled')
+        && isValidOptString(data, 'twoStepPasswordHash', 128)
+        && isValidOptString(data, 'twoStepCodeHash', 128)
+        && isValidOptString(data, 'twoStepHint', 120)
         && data.createdAt is timestamp
         && data.updatedAt is timestamp;
     }
@@ -123,6 +164,53 @@ service cloud.firestore {
         && data.chatId == chatId
         && data.muted is bool
         && data.updatedAt is timestamp;
+    }
+
+    function isValidChatPref(data, chatId) {
+      return data.keys().hasAll(['chatId', 'updatedAt'])
+        && data.keys().hasOnly(['chatId', 'pinned', 'archived', 'muted', 'unreadClearedAt', 'deletedAt', 'updatedAt'])
+        && isValidId(data.chatId)
+        && data.chatId == chatId
+        && isValidOptBool(data, 'pinned')
+        && isValidOptBool(data, 'archived')
+        && isValidOptBool(data, 'muted')
+        && (!('unreadClearedAt' in data) || data.unreadClearedAt == null || data.unreadClearedAt is timestamp)
+        && (!('deletedAt' in data) || data.deletedAt == null || data.deletedAt is timestamp)
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidUserContact(data, contactUid) {
+      return data.keys().hasAll(['uid', 'name', 'username', 'addedAt'])
+        && data.keys().hasOnly(['uid', 'name', 'username', 'photoURL', 'addedAt'])
+        && isValidId(data.uid)
+        && data.uid == contactUid
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 80
+        && data.username is string && data.username.size() >= 2 && data.username.size() <= 40
+        && isValidOptString(data, 'photoURL', 250000)
+        && data.addedAt is timestamp;
+    }
+
+    function isValidBlockedUser(data, blockedUid) {
+      return data.keys().hasAll(['uid', 'name', 'username', 'blockedAt'])
+        && data.keys().hasOnly(['uid', 'name', 'username', 'blockedAt'])
+        && isValidId(data.uid)
+        && data.uid == blockedUid
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 80
+        && data.username is string && data.username.size() >= 2 && data.username.size() <= 40
+        && data.blockedAt is timestamp;
+    }
+
+    function isValidSession(data, sessionId) {
+      return data.keys().hasAll(['id', 'deviceName', 'platform', 'userAgent', 'lastActiveAt', 'createdAt'])
+        && data.keys().hasOnly(['id', 'deviceName', 'platform', 'userAgent', 'lastActiveAt', 'createdAt', 'revoked'])
+        && isValidId(data.id)
+        && data.id == sessionId
+        && data.deviceName is string && data.deviceName.size() >= 1 && data.deviceName.size() <= 120
+        && data.platform is string && data.platform.size() <= 80
+        && data.userAgent is string && data.userAgent.size() <= 300
+        && isValidOptBool(data, 'revoked')
+        && data.lastActiveAt is timestamp
+        && data.createdAt is timestamp;
     }
 
     function isValidInviteCode(data, code) {
@@ -188,6 +276,7 @@ service cloud.firestore {
       return data.keys().hasAll(['id', 'type', 'isPublic', 'createdBy', 'memberCount', 'createdAt', 'updatedAt'])
         && data.keys().hasOnly([
           'id', 'type', 'name', 'description', 'photoURL', 'isPublic',
+          'isSecret', 'selfDestructSeconds', 'bannedMemberIds',
           'createdBy', 'dmPeerIds', 'lastMessageText', 'lastMessageType',
           'lastMessageSenderId', 'lastMessageSenderName', 'lastMessageStatus',
           'lastMessageAt', 'pinnedMessageId', 'pinnedMessageText',
@@ -199,6 +288,9 @@ service cloud.firestore {
         && data.id == chatId
         && data.type in ['private', 'group', 'channel']
         && data.isPublic is bool
+        && isValidOptBool(data, 'isSecret')
+        && (!('selfDestructSeconds' in data) || (data.selfDestructSeconds is int && data.selfDestructSeconds >= 0 && data.selfDestructSeconds <= 604800))
+        && isValidIdList(data, 'bannedMemberIds', 500)
         && isValidId(data.createdBy)
         && (!('dmPeerIds' in data) || (
           data.dmPeerIds is list
@@ -209,7 +301,7 @@ service cloud.firestore {
         && isValidOptString(data, 'description', 300)
         && isValidOptString(data, 'photoURL', 250000)
         && isValidOptString(data, 'lastMessageText', 500)
-        && (!('lastMessageType' in data) || data.lastMessageType in ['', 'text', 'image', 'audio'])
+        && (!('lastMessageType' in data) || data.lastMessageType in ['', 'text', 'image', 'audio', 'video', 'file', 'location', 'sticker'])
         && isValidOptString(data, 'lastMessageSenderId', 128)
         && isValidOptString(data, 'lastMessageSenderName', 80)
         && (!('lastMessageStatus' in data) || data.lastMessageStatus in ['', 'sent', 'delivered', 'seen'])
@@ -217,7 +309,7 @@ service cloud.firestore {
         && isValidOptString(data, 'pinnedMessageId', 128)
         && isValidOptString(data, 'pinnedMessageText', 300)
         && isValidOptString(data, 'pinnedMessageSenderName', 80)
-        && data.memberCount is int && data.memberCount >= 1 && data.memberCount <= 100000
+        && data.memberCount is int && data.memberCount >= 1 && data.memberCount <= 200000
         && (!('messages24hCount' in data) || (data.messages24hCount is int && data.messages24hCount >= 0 && data.messages24hCount <= 10000000))
         && (!('messages24hWindowStart' in data) || data.messages24hWindowStart == null || data.messages24hWindowStart is timestamp)
         && data.createdAt is timestamp
@@ -263,8 +355,12 @@ service cloud.firestore {
       return data.keys().hasAll(['id', 'chatId', 'senderId', 'senderName', 'type', 'status', 'createdAt', 'updatedAt'])
         && data.keys().hasOnly([
           'id', 'chatId', 'senderId', 'senderName', 'senderPhoto',
-          'type', 'text', 'imageData', 'audioData', 'audioDuration', 'waveform', 'status',
-          'replyToId', 'replyToSenderName', 'replyToText',
+          'type', 'text', 'imageData', 'audioData', 'audioDuration', 'waveform',
+          'fileName', 'fileSize', 'fileData', 'videoData', 'videoDuration',
+          'locationLat', 'locationLng', 'locationLabel', 'stickerId',
+          'forwardedFromName', 'isEdited', 'deletedFor', 'viewCount',
+          'isEncrypted', 'expiresAt',
+          'status', 'replyToId', 'replyToSenderName', 'replyToText',
           'createdAt', 'updatedAt'
         ])
         && isValidId(data.id)
@@ -274,18 +370,75 @@ service cloud.firestore {
         && isValidId(data.senderId)
         && data.senderName is string && data.senderName.size() >= 1 && data.senderName.size() <= 80
         && isValidOptString(data, 'senderPhoto', 250000)
-        && data.type in ['text', 'image', 'audio']
-        && isValidOptString(data, 'text', 4000)
+        && data.type in ['text', 'image', 'audio', 'video', 'file', 'location', 'sticker']
+        && isValidOptString(data, 'text', 6000)
         && isValidOptString(data, 'imageData', 500000)
-        && isValidOptString(data, 'audioData', 500000)
+        && isValidOptString(data, 'audioData', 550000)
         && (!('audioDuration' in data) || (data.audioDuration is number && data.audioDuration >= 0 && data.audioDuration <= 300))
         && (!('waveform' in data) || (data.waveform is list && data.waveform.size() <= 40 && (data.waveform.size() == 0 || data.waveform[0] is number)))
+        && isValidOptString(data, 'fileName', 180)
+        && (!('fileSize' in data) || (data.fileSize is number && data.fileSize >= 0 && data.fileSize <= 2000000))
+        && isValidOptString(data, 'fileData', 750000)
+        && isValidOptString(data, 'videoData', 750000)
+        && (!('videoDuration' in data) || (data.videoDuration is number && data.videoDuration >= 0 && data.videoDuration <= 180))
+        && (!('locationLat' in data) || (data.locationLat is number && data.locationLat >= -90 && data.locationLat <= 90))
+        && (!('locationLng' in data) || (data.locationLng is number && data.locationLng >= -180 && data.locationLng <= 180))
+        && isValidOptString(data, 'locationLabel', 200)
+        && isValidOptString(data, 'stickerId', 64)
+        && isValidOptString(data, 'forwardedFromName', 80)
+        && isValidOptBool(data, 'isEdited')
+        && isValidIdList(data, 'deletedFor', 200)
+        && (!('viewCount' in data) || (data.viewCount is int && data.viewCount >= 0 && data.viewCount <= 10000000))
+        && isValidOptBool(data, 'isEncrypted')
+        && (!('expiresAt' in data) || data.expiresAt == null || data.expiresAt is timestamp)
         && data.status in ['sent', 'delivered', 'seen']
         && isValidOptString(data, 'replyToId', 128)
         && isValidOptString(data, 'replyToSenderName', 80)
         && isValidOptString(data, 'replyToText', 200)
         && data.createdAt is timestamp
         && data.updatedAt is timestamp;
+    }
+
+    function isValidChannelComment(data, chatId, messageId, commentId) {
+      return data.keys().hasAll(['id', 'chatId', 'messageId', 'authorId', 'authorName', 'text', 'createdAt'])
+        && data.keys().hasOnly(['id', 'chatId', 'messageId', 'authorId', 'authorName', 'authorPhoto', 'text', 'createdAt'])
+        && isValidId(data.id) && data.id == commentId
+        && isValidId(data.chatId) && data.chatId == chatId
+        && isValidId(data.messageId) && data.messageId == messageId
+        && isValidId(data.authorId)
+        && data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 80
+        && isValidOptString(data, 'authorPhoto', 250000)
+        && data.text is string && data.text.size() >= 1 && data.text.size() <= 600
+        && data.createdAt is timestamp;
+    }
+
+    function isValidChannelMessageView(data, viewerUid) {
+      return data.keys().hasAll(['uid', 'viewedAt'])
+        && data.keys().hasOnly(['uid', 'viewedAt'])
+        && isValidId(data.uid) && data.uid == viewerUid
+        && data.viewedAt is timestamp;
+    }
+
+    function isValidCallRecord(data, callId) {
+      return data.keys().hasAll(['id', 'callerId', 'callerName', 'calleeId', 'calleeName', 'chatId', 'callType', 'status', 'startedAt'])
+        && data.keys().hasOnly([
+          'id', 'callerId', 'callerName', 'callerPhoto',
+          'calleeId', 'calleeName', 'calleePhoto',
+          'chatId', 'callType', 'status', 'startedAt', 'endedAt', 'durationSeconds'
+        ])
+        && isValidId(data.id) && data.id == callId
+        && isValidId(data.callerId)
+        && data.callerName is string && data.callerName.size() >= 1 && data.callerName.size() <= 80
+        && isValidOptString(data, 'callerPhoto', 250000)
+        && isValidId(data.calleeId)
+        && data.calleeName is string && data.calleeName.size() >= 1 && data.calleeName.size() <= 80
+        && isValidOptString(data, 'calleePhoto', 250000)
+        && isValidId(data.chatId)
+        && data.callType in ['voice', 'video']
+        && data.status in ['ringing', 'connected', 'ended', 'declined', 'missed']
+        && data.startedAt is timestamp
+        && (!('endedAt' in data) || data.endedAt == null || data.endedAt is timestamp)
+        && (!('durationSeconds' in data) || (data.durationSeconds is int && data.durationSeconds >= 0 && data.durationSeconds <= 86400));
     }
 
     function isValidReaction(data, chatId) {
@@ -308,10 +461,6 @@ service cloud.firestore {
         && data.name is string && data.name.size() >= 1 && data.name.size() <= 80
         && data.isTyping is bool
         && data.updatedAt is timestamp;
-    }
-
-    function isValidOptBool(data, field) {
-      return !(field in data) || data[field] is bool;
     }
 
     function isValidHashtagsList(data) {
@@ -464,6 +613,7 @@ service cloud.firestore {
           || (
             (!('isAdmin' in incoming()) || incoming().isAdmin == false)
             && (!('isVerified' in incoming()) || incoming().isVerified == false)
+            && (!('isBot' in incoming()) || incoming().isBot == false)
           )
         );
 
@@ -477,7 +627,7 @@ service cloud.firestore {
           (
             isAdmin()
             && incoming().diff(existing()).affectedKeys().hasOnly([
-              'isAdmin', 'isVerified', 'isVip', 'isBanned', 'mutedUntil',
+              'isAdmin', 'isVerified', 'isVip', 'isPlus', 'isBanned', 'mutedUntil',
               'name', 'username', 'photoURL', 'bio', 'language',
               'isOnline', 'lastSeen', 'activeChatId', 'inviteCode', 'updatedAt'
             ])
@@ -491,7 +641,10 @@ service cloud.firestore {
             && incoming().lastSeen == request.time
             && incoming().diff(existing()).affectedKeys().hasOnly([
               'name', 'username', 'photoURL', 'bio', 'language', 'isOnline', 'lastSeen',
-              'activeChatId', 'inviteCode', 'invitedBy', 'updatedAt'
+              'activeChatId', 'inviteCode', 'invitedBy', 'isPlus', 'hasPhone',
+              'privacyPhone', 'privacyLastSeen', 'privacyLastSeenExceptions',
+              'privacyProfilePhoto', 'privacyGroupAdd', 'privacyCall', 'privacyMessages',
+              'updatedAt'
             ])
             && (
               !('invitedBy' in existing()) || existing().invitedBy == '' || incoming().invitedBy == existing().invitedBy
@@ -514,7 +667,7 @@ service cloud.firestore {
       allow delete: if isAdmin() && isValidId(userId);
     }
 
-    // 2. Private User PII
+    // 2. Private User PII, 2FA, Phone, Contacts, Blocked, Sessions & Chat Preferences
     match /users_private/{userId} {
       allow get: if (isOwner(userId) || isAdmin()) && isValidId(userId);
       allow list: if isAdmin();
@@ -533,7 +686,10 @@ service cloud.firestore {
         && incoming().updatedAt == request.time
         && (
           isAdmin()
-          || incoming().diff(existing()).affectedKeys().hasOnly(['email', 'updatedAt'])
+          || incoming().diff(existing()).affectedKeys().hasOnly([
+            'email', 'phone', 'twoStepEnabled', 'twoStepPasswordHash',
+            'twoStepCodeHash', 'twoStepHint', 'updatedAt'
+          ])
         );
 
       allow delete: if isAdmin() && isValidId(userId);
@@ -550,6 +706,62 @@ service cloud.firestore {
           && incoming().updatedAt == request.time;
 
         allow delete: if isOwner(userId) && isValidId(userId) && isValidId(chatId);
+      }
+
+      // Per-user chat preferences (Pin, Archive, Mute, Mark read, Delete for me)
+      match /chat_prefs/{chatId} {
+        allow get: if (isOwner(userId) || isAdmin()) && isValidId(userId) && isValidId(chatId);
+        allow list: if isOwner(userId) || isAdmin();
+
+        allow create, update: if isOwner(userId)
+          && isValidId(userId)
+          && isValidId(chatId)
+          && isValidChatPref(incoming(), chatId)
+          && incoming().updatedAt == request.time;
+
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(chatId);
+      }
+
+      // Contacts subcollection
+      match /contacts/{contactUid} {
+        allow get: if (isOwner(userId) || isAdmin()) && isValidId(userId) && isValidId(contactUid);
+        allow list: if isOwner(userId) || isAdmin();
+
+        allow create, update: if isOwner(userId)
+          && isValidId(userId)
+          && isValidId(contactUid)
+          && isValidUserContact(incoming(), contactUid)
+          && incoming().addedAt == request.time;
+
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(contactUid);
+      }
+
+      // Blocked users subcollection
+      match /blocked_users/{blockedUid} {
+        allow get: if (isOwner(userId) || isAdmin()) && isValidId(userId) && isValidId(blockedUid);
+        allow list: if isOwner(userId) || isAdmin();
+
+        allow create, update: if isOwner(userId)
+          && isValidId(userId)
+          && isValidId(blockedUid)
+          && isValidBlockedUser(incoming(), blockedUid)
+          && incoming().blockedAt == request.time;
+
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(blockedUid);
+      }
+
+      // Active sessions / devices subcollection
+      match /sessions/{sessionId} {
+        allow get: if (isOwner(userId) || isAdmin()) && isValidId(userId) && isValidId(sessionId);
+        allow list: if isOwner(userId) || isAdmin();
+
+        allow create, update: if isOwner(userId)
+          && isValidId(userId)
+          && isValidId(sessionId)
+          && isValidSession(incoming(), sessionId)
+          && incoming().lastActiveAt == request.time;
+
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(sessionId);
       }
 
       // Saved posts and reels subcollection
@@ -637,6 +849,35 @@ service cloud.firestore {
       }
     }
 
+    // 2e. Voice & Video Calls Log / Signaling
+    match /calls/{callId} {
+      allow get: if isVerified()
+        && isValidId(callId)
+        && (resource == null || existing().callerId == request.auth.uid || existing().calleeId == request.auth.uid || isAdmin());
+
+      allow list: if isVerified() && (existing().callerId == request.auth.uid || existing().calleeId == request.auth.uid || isAdmin());
+
+      allow create: if isVerified()
+        && isValidId(callId)
+        && isValidCallRecord(incoming(), callId)
+        && incoming().callerId == request.auth.uid
+        && incoming().startedAt == request.time
+        && isNotBanned();
+
+      allow update: if isVerified()
+        && isValidId(callId)
+        && isValidCallRecord(incoming(), callId)
+        && incoming().id == existing().id
+        && incoming().callerId == existing().callerId
+        && incoming().calleeId == existing().calleeId
+        && incoming().startedAt == existing().startedAt
+        && (existing().callerId == request.auth.uid || existing().calleeId == request.auth.uid || isAdmin());
+
+      allow delete: if isVerified()
+        && isValidId(callId)
+        && (existing().callerId == request.auth.uid || existing().calleeId == request.auth.uid || isAdmin());
+    }
+
     // 3. User Chat Index (Query-enforced personal inbox list)
     match /user_chats/{docId} {
       allow get: if isVerified() && isValidId(docId) && ((resource == null && docId.matches('^' + request.auth.uid + '_.*')) || existing().uid == request.auth.uid || isAdmin());
@@ -688,7 +929,7 @@ service cloud.firestore {
         );
     }
 
-    // 4. Chats (Private DMs, Groups, Channels)
+    // 4. Chats (Private DMs, Secret Chats, Groups, Channels, Saved Messages, DANK Bot, DANK Team)
     match /chats/{chatId} {
       allow get: if isVerified()
         && isValidId(chatId)
@@ -720,26 +961,27 @@ service cloud.firestore {
         && incoming().updatedAt == request.time
         && (
           isAdmin()
-          // Action 1: Chat Admin updating settings, members count, or pin
+          // Action 1: Chat Admin updating settings, members count, bans, or pin
           || (
             isChatAdmin(chatId)
             && isNotBanned()
             && incoming().diff(existing()).affectedKeys().hasOnly([
               'name', 'description', 'photoURL', 'isPublic', 'memberCount',
+              'bannedMemberIds', 'selfDestructSeconds',
               'pinnedMessageId', 'pinnedMessageText', 'pinnedMessageSenderName',
               'lastMessageText', 'lastMessageType', 'lastMessageSenderId',
               'lastMessageSenderName', 'lastMessageStatus', 'lastMessageAt',
               'messages24hCount', 'messages24hWindowStart', 'updatedAt'
             ])
           )
-          // Action 2: Chat member sending message or updating message status / pinning in private/group
+          // Action 2: Chat member sending message, updating status, pinning, or secret timer
           || (
             isChatMember(chatId)
             && (
               (
                 (existing().type != 'channel' || isChatAdmin(chatId))
                 && isNotBannedOrMuted()
-                && incoming().lastMessageSenderId == request.auth.uid
+                && (incoming().lastMessageSenderId == request.auth.uid || incoming().lastMessageSenderId == 'dank_bot')
                 && incoming().diff(existing()).affectedKeys().hasOnly([
                   'lastMessageText', 'lastMessageType', 'lastMessageSenderId',
                   'lastMessageSenderName', 'lastMessageStatus', 'lastMessageAt',
@@ -753,6 +995,12 @@ service cloud.firestore {
                 ])
               )
               || (
+                existing().isSecret == true
+                && incoming().diff(existing()).affectedKeys().hasOnly([
+                  'selfDestructSeconds', 'updatedAt'
+                ])
+              )
+              || (
                 incoming().diff(existing()).affectedKeys().hasOnly(['lastMessageStatus', 'updatedAt'])
                 && existing().lastMessageSenderId != request.auth.uid
                 && (
@@ -762,10 +1010,11 @@ service cloud.firestore {
               )
             )
           )
-          // Action 3: Joining a group or public channel via invite link / discover
+          // Action 3: Joining a group or public channel via invite link / discover (if not banned from chat)
           || (
             !isChatMember(chatId)
             && existing().type in ['group', 'channel']
+            && isNotBannedFromChat(chatId)
             && existsAfter(/databases/$(database)/documents/chats/$(chatId)/members/$(request.auth.uid))
             && incoming().diff(existing()).affectedKeys().hasOnly(['memberCount', 'updatedAt'])
             && incoming().memberCount == existing().memberCount + 1
@@ -823,6 +1072,7 @@ service cloud.firestore {
               memberUid == request.auth.uid
               && incoming().role == 'member'
               && chatDoc(chatId).type in ['group', 'channel']
+              && isNotBannedFromChat(chatId)
             )
           );
 
@@ -872,7 +1122,7 @@ service cloud.firestore {
           && isChatMember(chatId)
           && (chatDoc(chatId).type != 'channel' || isChatAdmin(chatId))
           && isValidMessage(incoming(), chatId, messageId)
-          && incoming().senderId == request.auth.uid
+          && (incoming().senderId == request.auth.uid || (incoming().senderId == 'dank_bot' && chatId == ('dank_bot_' + request.auth.uid)))
           && incoming().createdAt == request.time
           && incoming().updatedAt == request.time
           && isNotBannedOrMuted();
@@ -889,6 +1139,7 @@ service cloud.firestore {
           && incoming().updatedAt == request.time
           && (
             isAdmin()
+            // Receiver updating delivery / seen ticks
             || (
               existing().senderId != request.auth.uid
               && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
@@ -897,9 +1148,21 @@ service cloud.firestore {
                 || (existing().status == 'delivered' && incoming().status == 'seen')
               )
             )
+            // Sender editing message text
             || (
               existing().senderId == request.auth.uid
-              && incoming().diff(existing()).affectedKeys().hasOnly(['text', 'updatedAt'])
+              && incoming().diff(existing()).affectedKeys().hasOnly(['text', 'isEdited', 'updatedAt'])
+            )
+            // Member deleting message "for me"
+            || (
+              incoming().diff(existing()).affectedKeys().hasOnly(['deletedFor', 'updatedAt'])
+              && request.auth.uid in incoming().deletedFor
+            )
+            // Channel viewer incrementing post view count
+            || (
+              chatDoc(chatId).type == 'channel'
+              && incoming().diff(existing()).affectedKeys().hasOnly(['viewCount', 'updatedAt'])
+              && incoming().viewCount == (('viewCount' in existing() ? existing().viewCount : 0) + 1)
             )
           );
 
@@ -910,7 +1173,44 @@ service cloud.firestore {
             existing().senderId == request.auth.uid
             || isChatAdmin(chatId)
             || isAdmin()
+            || (chatDoc(chatId).isSecret == true && isChatMember(chatId))
           );
+
+        // Channel post comments subcollection
+        match /comments/{commentId} {
+          allow get: if isVerified() && isValidId(chatId) && isValidId(messageId) && isValidId(commentId) && (isChatMember(chatId) || isAdmin());
+          allow list: if isVerified() && (isChatMember(chatId) || isAdmin());
+
+          allow create: if isVerified()
+            && isValidId(chatId)
+            && isValidId(messageId)
+            && isValidId(commentId)
+            && isChatMember(chatId)
+            && isValidChannelComment(incoming(), chatId, messageId, commentId)
+            && incoming().authorId == request.auth.uid
+            && incoming().createdAt == request.time
+            && isNotBannedOrMuted();
+
+          allow delete: if isVerified()
+            && isValidId(chatId)
+            && isValidId(messageId)
+            && isValidId(commentId)
+            && (existing().authorId == request.auth.uid || isChatAdmin(chatId) || isAdmin());
+        }
+
+        // Channel post unique views tracking
+        match /views/{viewerUid} {
+          allow get: if isVerified() && isValidId(chatId) && isValidId(messageId) && isValidId(viewerUid) && (viewerUid == request.auth.uid || isChatAdmin(chatId) || isAdmin());
+          allow list: if isVerified() && (isChatAdmin(chatId) || isAdmin());
+
+          allow create: if isOwner(viewerUid)
+            && isValidId(chatId)
+            && isValidId(messageId)
+            && isValidId(viewerUid)
+            && isChatMember(chatId)
+            && isValidChannelMessageView(incoming(), viewerUid)
+            && incoming().viewedAt == request.time;
+        }
       }
 
       // 4c. Reactions Subcollection
@@ -999,20 +1299,17 @@ service cloud.firestore {
         && incoming().updatedAt == request.time
         && (
           isAdmin()
-          // Action 1: Owner editing caption or hashtags
           || (
             existing().authorId == request.auth.uid
             && isNotBanned()
             && incoming().diff(existing()).affectedKeys().hasOnly(['caption', 'hashtags', 'updatedAt'])
           )
-          // Action 2: User liking the post (atomic with /likes/{uid} creation)
           || (
             !exists(/databases/$(database)/documents/posts/$(postId)/likes/$(request.auth.uid))
             && existsAfter(/databases/$(database)/documents/posts/$(postId)/likes/$(request.auth.uid))
             && incoming().diff(existing()).affectedKeys().hasOnly(['likeCount', 'updatedAt'])
             && incoming().likeCount == existing().likeCount + 1
           )
-          // Action 3: User unliking the post (atomic with /likes/{uid} deletion)
           || (
             exists(/databases/$(database)/documents/posts/$(postId)/likes/$(request.auth.uid))
             && !existsAfter(/databases/$(database)/documents/posts/$(postId)/likes/$(request.auth.uid))
@@ -1020,13 +1317,11 @@ service cloud.firestore {
             && incoming().likeCount >= 0
             && incoming().likeCount == existing().likeCount - 1
           )
-          // Action 4: Incrementing commentCount on new comment
           || (
             isNotBannedOrMuted()
             && incoming().diff(existing()).affectedKeys().hasOnly(['commentCount', 'updatedAt'])
             && incoming().commentCount == existing().commentCount + 1
           )
-          // Action 5: Decrementing commentCount when deleting a comment
           || (
             incoming().diff(existing()).affectedKeys().hasOnly(['commentCount', 'updatedAt'])
             && incoming().commentCount >= 0

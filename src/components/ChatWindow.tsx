@@ -1,24 +1,41 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Bell,
   BellOff,
+  Check,
   ChevronDown,
   ChevronUp,
+  Download,
+  Edit3,
+  Eye,
+  FileText,
+  Film,
+  Forward,
   ImagePlus,
   Info,
   Link2,
+  Lock,
+  MapPin,
+  MessageCircle,
   Mic,
+  Paperclip,
+  Phone,
   Pin,
   Reply,
   Search,
   Send,
   Smile,
+  Timer,
   Trash2,
+  UserMinus,
+  Video,
   X,
 } from 'lucide-react';
 import {
   collection,
+  doc,
+  limit,
   onSnapshot,
   orderBy,
   query,
@@ -26,17 +43,33 @@ import {
 import { useLanguage } from '../contexts/LanguageContext';
 import { db } from '../lib/firebase';
 import {
+  canSeePrivacyField,
+  DANK_BOT_UID,
   deleteMessage,
+  deleteMessageForMe,
+  editMessage,
   markChatMessagesSeen,
   pinMessage,
+  recordChannelMessageView,
   sendMessage,
   setTypingStatus,
   toggleMuteChat,
   toggleReaction,
+  updateChatSelfDestruct,
 } from '../services/chatService';
-import type { Chat, ChatMember, Message, Reaction, TypingState, UserPublic } from '../types/dank';
+import type {
+  Chat,
+  ChatMember,
+  Message,
+  Reaction,
+  TypingState,
+  UserPublic,
+} from '../types/dank';
+import { getCachedChatMessages, setCachedChatMessages } from '../utils/chatCache';
 import { handleFirestoreError, isOfflineError, OperationType } from '../utils/firestoreErrors';
 import { compressImageFile } from '../utils/imageCompress';
+import { decryptSecretText } from '../utils/secretCrypto';
+import { DANK_STICKERS, getStickerById } from '../utils/stickers';
 import {
   formatDateDivider,
   formatLastSeen,
@@ -44,41 +77,117 @@ import {
   isUserActuallyOnline,
   timestampToMs,
 } from '../utils/timeFormat';
+import { compressVideoFile } from '../utils/videoCompress';
 import { Avatar } from './Avatar';
+import { ChannelCommentsDrawer } from './ChannelCommentsDrawer';
+import { ForwardModal } from './ForwardModal';
 import { MessageStatusTicks } from './MessageStatusTicks';
 import { UserBadges } from './UserBadges';
 import { VoiceNotePlayer } from './VoiceNotePlayer';
 
 const QUICK_EMOJIS = ['❤️', '👍', '😂', '🔥', '😮', '🙏'];
+const PICKER_EMOJIS = [
+  '😀', '😂', '😍', '🥳', '😎', '🤔', '😭', '🙏',
+  '❤️', '💚', '🔥', '✨', '🎉', '👏', '👍', '💯',
+  '🚀', '⭐', '👑', '⚡', '🤝', '🫡', '🤩', '🫶',
+];
+
+const SELF_DESTRUCT_OPTIONS = [
+  { seconds: 0, labelAr: 'إيقاف', labelEn: 'Off' },
+  { seconds: 5, labelAr: '5 ثوانٍ', labelEn: '5s' },
+  { seconds: 30, labelAr: '30 ثانية', labelEn: '30s' },
+  { seconds: 60, labelAr: 'دقيقة', labelEn: '1m' },
+  { seconds: 3600, labelAr: 'ساعة', labelEn: '1h' },
+  { seconds: 86400, labelAr: 'يوم', labelEn: '1d' },
+];
+
+const LazyMedia: React.FC<{
+  children: React.ReactNode;
+  placeholderHeight?: string;
+}> = ({ children, placeholderHeight = 'h-40' }) => {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if (visible) return;
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      setVisible(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '250px' }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [visible]);
+
+  return (
+    <div ref={ref}>
+      {visible ? (
+        children
+      ) : (
+        <div
+          className={`${placeholderHeight} w-48 rounded-xl bg-black/10 dark:bg-white/10 animate-pulse`}
+        />
+      )}
+    </div>
+  );
+};
 
 interface ChatWindowProps {
   chat: Chat;
+  chats: Chat[];
   currentUser: UserPublic;
   usersMap: Record<string, UserPublic>;
+  contactIds: Set<string>;
+  blockedUserIds: Set<string>;
   isMuted: boolean;
   onBackMobile: () => void;
   onOpenChatInfo: () => void;
+  onStartCall: (peer: UserPublic, callType: 'voice' | 'video', chatId: string) => void;
+  onSelectChat: (chatId: string) => void;
   onNotify: (msg: string) => void;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
   chat,
+  chats,
   currentUser,
   usersMap,
+  contactIds,
+  blockedUserIds,
   isMuted,
   onBackMobile,
   onOpenChatInfo,
+  onStartCall,
+  onSelectChat,
   onNotify,
 }) => {
   const { t, language } = useLanguage();
-  const [messages, setMessages] = useState<Message[]>([]);
+
+  const [messages, setMessages] = useState<Message[]>(() => getCachedChatMessages(chat.id));
+  const [optimisticMsgs, setOptimisticMsgs] = useState<Message[]>([]);
+  const [limitCount, setLimitCount] = useState(30);
+  const [hasMoreOlder, setHasMoreOlder] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+
   const [reactions, setReactions] = useState<Reaction[]>([]);
   const [members, setMembers] = useState<ChatMember[]>([]);
   const [typingStates, setTypingStates] = useState<TypingState[]>([]);
-  const [loadingMessages, setLoadingMessages] = useState(true);
+  const [loadingMessages, setLoadingMessages] = useState(
+    () => getCachedChatMessages(chat.id).length === 0
+  );
 
   const [text, setText] = useState('');
   const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [editingMsg, setEditingMsg] = useState<Message | null>(null);
   const [pendingImage, setPendingImage] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
 
@@ -88,16 +197,34 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
   const [activeActionMsgId, setActiveActionMsgId] = useState<string | null>(null);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
+  const [showStickerPopover, setShowStickerPopover] = useState(false);
+  const [pickerTab, setPickerTab] = useState<'emoji' | 'stickers'>('emoji');
+  const [forwardTargetMsg, setForwardTargetMsg] = useState<Message | null>(null);
+  const [commentsDrawerMsg, setCommentsDrawerMsg] = useState<Message | null>(null);
+
+  const [decryptedMap, setDecryptedMap] = useState<Record<string, string>>({});
 
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
 
+  const streamContainerRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const msgRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const videoInputRef = useRef<HTMLInputElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const typingTimerRef = useRef<number | null>(null);
   const isTypingSentRef = useRef(false);
+  const prevChatIdRef = useRef<string>(chat.id);
+  const shouldScrollToBottomRef = useRef<boolean>(true);
+  const viewedIdsSentRef = useRef<Set<string>>(new Set());
 
+  // Gesture refs
+  const msgSwipeStartRef = useRef<{ x: number; y: number; msg: Message } | null>(null);
+  const screenSwipeStartRef = useRef<{ x: number; y: number } | null>(null);
+
+  // Audio recorder refs
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -108,72 +235,86 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const analyserRafRef = useRef<number | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
 
-  // Subscribe to messages, reactions, members, and typing in active chat
+  // Reset per-chat state & load cache immediately on chat switch
   useEffect(() => {
-    setLoadingMessages(true);
-    setReplyTo(null);
-    setPendingImage(null);
-    setShowSearchBar(false);
-    setSearchQuery('');
-    setActiveActionMsgId(null);
+    if (prevChatIdRef.current !== chat.id) {
+      prevChatIdRef.current = chat.id;
+      const cached = getCachedChatMessages(chat.id);
+      setMessages(cached);
+      setOptimisticMsgs([]);
+      setLimitCount(30);
+      setHasMoreOlder(false);
+      setLoadingMessages(cached.length === 0);
+      setReplyTo(null);
+      setEditingMsg(null);
+      setPendingImage(null);
+      setShowSearchBar(false);
+      setSearchQuery('');
+      setActiveActionMsgId(null);
+      setShowAttachMenu(false);
+      setShowStickerPopover(false);
+      setForwardTargetMsg(null);
+      setCommentsDrawerMsg(null);
+      shouldScrollToBottomRef.current = true;
+      viewedIdsSentRef.current.clear();
+    }
+  }, [chat.id]);
 
+  // Subscribe to last `limitCount` messages (descending -> reversed for ascending chat view)
+  useEffect(() => {
     const msgQuery = query(
       collection(db, 'chats', chat.id, 'messages'),
-      orderBy('createdAt', 'asc')
+      orderBy('createdAt', 'desc'),
+      limit(limitCount)
     );
 
     const unsubMsgs = onSnapshot(
       msgQuery,
       (snap) => {
-        const list = snap.docs.map((d) => d.data() as Message);
-        setMessages(list);
+        const desc = snap.docs.map((d) => d.data() as Message);
+        const asc = desc.slice().reverse();
+        setMessages(asc);
+        setCachedChatMessages(chat.id, asc);
+        setHasMoreOlder(snap.docs.length >= limitCount);
         setLoadingMessages(false);
+        setLoadingOlder(false);
+        setOptimisticMsgs((prev) =>
+          prev.filter((opt) => !asc.some((real) => real.id === opt.id))
+        );
       },
       (error) => {
+        setLoadingMessages(false);
+        setLoadingOlder(false);
         if (!isOfflineError(error)) {
           handleFirestoreError(error, OperationType.LIST, `chats/${chat.id}/messages`);
         }
       }
     );
 
+    return () => unsubMsgs();
+  }, [chat.id, limitCount]);
+
+  // Subscribe to reactions, members, and typing
+  useEffect(() => {
     const unsubReactions = onSnapshot(
       collection(db, 'chats', chat.id, 'reactions'),
-      (snap) => {
-        setReactions(snap.docs.map((d) => d.data() as Reaction));
-      },
-      (error) => {
-        if (!isOfflineError(error)) {
-          handleFirestoreError(error, OperationType.LIST, `chats/${chat.id}/reactions`);
-        }
-      }
+      (snap) => setReactions(snap.docs.map((d) => d.data() as Reaction)),
+      () => {}
     );
 
     const unsubMembers = onSnapshot(
       collection(db, 'chats', chat.id, 'members'),
-      (snap) => {
-        setMembers(snap.docs.map((d) => d.data() as ChatMember));
-      },
-      (error) => {
-        if (!isOfflineError(error)) {
-          handleFirestoreError(error, OperationType.LIST, `chats/${chat.id}/members`);
-        }
-      }
+      (snap) => setMembers(snap.docs.map((d) => d.data() as ChatMember)),
+      () => {}
     );
 
     const unsubTyping = onSnapshot(
       collection(db, 'chats', chat.id, 'typing'),
-      (snap) => {
-        setTypingStates(snap.docs.map((d) => d.data() as TypingState));
-      },
-      (error) => {
-        if (!isOfflineError(error)) {
-          handleFirestoreError(error, OperationType.LIST, `chats/${chat.id}/typing`);
-        }
-      }
+      (snap) => setTypingStates(snap.docs.map((d) => d.data() as TypingState)),
+      () => {}
     );
 
     return () => {
-      unsubMsgs();
       unsubReactions();
       unsubMembers();
       unsubTyping();
@@ -187,7 +328,77 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     };
   }, [chat.id, currentUser.uid]);
 
-  // Automatically mark received messages as SEEN when chat is open and tab visible
+  // Combine server messages + pending optimistic messages & filter deletedFor / expired secret messages
+  const [nowTick, setNowTick] = useState(() => Date.now());
+
+  const visibleMessages = useMemo(() => {
+    const combined = [...messages];
+    for (const opt of optimisticMsgs) {
+      if (!combined.some((m) => m.id === opt.id)) {
+        combined.push(opt);
+      }
+    }
+    return combined.filter((m) => {
+      if (m.deletedFor?.includes(currentUser.uid)) return false;
+      if (m.expiresAt && m.expiresAt.toMillis() <= nowTick) return false;
+      return true;
+    });
+  }, [messages, optimisticMsgs, currentUser.uid, nowTick]);
+
+  // Decrypt Secret Chat messages transparently
+  useEffect(() => {
+    if (!chat.isSecret || !chat.dmPeerIds || chat.dmPeerIds.length !== 2) return;
+    let active = true;
+    const encryptedList = visibleMessages.filter((m) => m.isEncrypted && m.text);
+    if (encryptedList.length === 0) return;
+
+    void Promise.all(
+      encryptedList.map(async (m) => {
+        const plain = await decryptSecretText(m.text!, chat.id, chat.dmPeerIds!);
+        return [m.id, plain] as const;
+      })
+    ).then((pairs) => {
+      if (!active) return;
+      setDecryptedMap((prev) => {
+        const next = { ...prev };
+        for (const [id, plain] of pairs) {
+          next[id] = plain;
+        }
+        return next;
+      });
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [chat.id, chat.isSecret, chat.dmPeerIds, visibleMessages]);
+
+  // Secret chat self-destruct auto-purge timer + copy/screenshot warning
+  useEffect(() => {
+    if (!chat.isSecret) return;
+    const id = window.setInterval(() => {
+      const now = Date.now();
+      setNowTick(now);
+      for (const m of messages) {
+        if (m.expiresAt && m.expiresAt.toMillis() <= now) {
+          void deleteMessage(chat.id, m.id).catch(() => {});
+        }
+      }
+    }, 2000);
+
+    const handleCopyOrKey = (e: KeyboardEvent) => {
+      if (e.key === 'PrintScreen') {
+        onNotify(t.telegram.secretBanner);
+      }
+    };
+    window.addEventListener('keyup', handleCopyOrKey);
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener('keyup', handleCopyOrKey);
+    };
+  }, [chat.id, chat.isSecret, messages, onNotify, t.telegram.secretBanner]);
+
+  // Automatically mark received messages as SEEN when chat is open & visible
   useEffect(() => {
     const syncSeen = () => {
       if (document.visibilityState === 'visible') {
@@ -199,14 +410,25 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     return () => document.removeEventListener('visibilitychange', syncSeen);
   }, [chat, messages, currentUser.uid]);
 
-  // Scroll to bottom when new messages arrive (unless searching)
+  // Record unique views for channel broadcast posts
   useEffect(() => {
-    if (!showSearchBar && messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (chat.type !== 'channel') return;
+    for (const m of visibleMessages) {
+      if (!viewedIdsSentRef.current.has(m.id) && !m.id.startsWith('opt_')) {
+        viewedIdsSentRef.current.add(m.id);
+        void recordChannelMessageView(chat.id, m.id, currentUser.uid);
+      }
     }
-  }, [messages.length, showSearchBar]);
+  }, [chat.id, chat.type, currentUser.uid, visibleMessages]);
 
-  const [nowTick, setNowTick] = useState(() => Date.now());
+  // Scroll to bottom on initial load or new outgoing/incoming messages (unless loading older)
+  useEffect(() => {
+    if (shouldScrollToBottomRef.current && !showSearchBar && messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'auto' });
+    }
+  }, [visibleMessages.length, showSearchBar, chat.id]);
+
+  // Mute expiry ticker
   useEffect(() => {
     if (!currentUser.mutedUntil) return;
     const msLeft = currentUser.mutedUntil.toMillis() - Date.now();
@@ -215,6 +437,35 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     return () => window.clearTimeout(timer);
   }, [currentUser.mutedUntil, nowTick]);
 
+  const handleLoadOlder = useCallback(() => {
+    if (!hasMoreOlder || loadingOlder) return;
+    shouldScrollToBottomRef.current = false;
+    setLoadingOlder(true);
+    setLimitCount((c) => c + 30);
+  }, [hasMoreOlder, loadingOlder]);
+
+  const handleStreamScroll = () => {
+    const el = streamContainerRef.current;
+    if (!el) return;
+    const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    shouldScrollToBottomRef.current = distFromBottom < 140;
+    if (el.scrollTop <= 48 && hasMoreOlder && !loadingOlder) {
+      handleLoadOlder();
+    }
+  };
+
+  const isSavedMessages = chat.id === `saved_${currentUser.uid}`;
+  const isDankBot =
+    chat.id === `dank_bot_${currentUser.uid}` || Boolean(chat.dmPeerIds?.includes(DANK_BOT_UID));
+
+  const peerUser = useMemo(() => {
+    if (isSavedMessages || isDankBot) return null;
+    if (chat.type !== 'private' || !chat.dmPeerIds) return null;
+    const peerId = chat.dmPeerIds.find((id) => id !== currentUser.uid);
+    return peerId ? usersMap[peerId] || null : null;
+  }, [chat, currentUser.uid, isDankBot, isSavedMessages, usersMap]);
+
+  const isBlockedPeer = Boolean(peerUser && blockedUserIds.has(peerUser.uid));
   const isAdminMuted = Boolean(
     currentUser.mutedUntil && currentUser.mutedUntil.toMillis() > nowTick
   );
@@ -225,21 +476,50 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     [members, currentUser.uid]
   );
   const isChatAdmin = myMember?.role === 'admin';
-  const canPost = (chat.type !== 'channel' || isChatAdmin) && !isAdminBanned && !isAdminMuted;
+  const canPost =
+    (chat.type !== 'channel' || isChatAdmin) &&
+    !isAdminBanned &&
+    !isAdminMuted &&
+    !isBlockedPeer;
 
-  const peerUser = useMemo(() => {
-    if (chat.type !== 'private' || !chat.dmPeerIds) return null;
-    const peerId = chat.dmPeerIds.find((id) => id !== currentUser.uid);
-    return peerId ? usersMap[peerId] || null : null;
-  }, [chat, currentUser.uid, usersMap]);
+  const canSeePeerOnline = useMemo(() => {
+    if (!peerUser) return false;
+    return canSeePrivacyField(
+      currentUser.uid,
+      peerUser,
+      peerUser.privacyLastSeen,
+      contactIds,
+      peerUser.privacyLastSeenExceptions
+    );
+  }, [contactIds, currentUser.uid, peerUser]);
+
+  const canSeePeerPhoto = useMemo(() => {
+    if (!peerUser) return true;
+    return canSeePrivacyField(
+      currentUser.uid,
+      peerUser,
+      peerUser.privacyProfilePhoto,
+      contactIds
+    );
+  }, [contactIds, currentUser.uid, peerUser]);
+
+  const canCallPeer = useMemo(() => {
+    if (!peerUser || isSavedMessages || isDankBot || isBlockedPeer) return false;
+    return canSeePrivacyField(
+      currentUser.uid,
+      peerUser,
+      peerUser.privacyCall,
+      contactIds
+    );
+  }, [contactIds, currentUser.uid, isBlockedPeer, isDankBot, isSavedMessages, peerUser]);
 
   const activeTypers = useMemo(() => {
     const now = Date.now();
     return typingStates.filter(
-      (t) =>
-        t.uid !== currentUser.uid &&
-        t.isTyping &&
-        (!t.updatedAt || now - timestampToMs(t.updatedAt) < 10_000)
+      (tp) =>
+        tp.uid !== currentUser.uid &&
+        tp.isTyping &&
+        (!tp.updatedAt || now - timestampToMs(tp.updatedAt) < 10_000)
     );
   }, [typingStates, currentUser.uid]);
 
@@ -259,13 +539,20 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     return map;
   }, [reactions]);
 
+  const getDisplayText = (msg: Message) => {
+    if (msg.isEncrypted && decryptedMap[msg.id]) {
+      return decryptedMap[msg.id];
+    }
+    return msg.text || '';
+  };
+
   const searchMatches = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return [];
-    return messages
-      .filter((m) => (m.text || '').toLowerCase().includes(q))
+    return visibleMessages
+      .filter((m) => getDisplayText(m).toLowerCase().includes(q))
       .map((m) => m.id);
-  }, [messages, searchQuery]);
+  }, [visibleMessages, searchQuery, decryptedMap]);
 
   useEffect(() => {
     if (searchMatches.length > 0) {
@@ -279,9 +566,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     const el = msgRefs.current[messageId];
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      el.classList.add('ring-2', 'ring-[#38BDF8]');
+      el.classList.add('ring-2', 'ring-[#25D366]');
       window.setTimeout(() => {
-        el.classList.remove('ring-2', 'ring-[#38BDF8]');
+        el.classList.remove('ring-2', 'ring-[#25D366]');
       }, 1400);
     }
   };
@@ -306,40 +593,133 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     }
   };
 
+  const createOptimisticId = () => doc(collection(db, '_ids')).id;
+
+  const pushOptimisticAndSend = async (params: {
+    type: Message['type'];
+    text?: string;
+    imageData?: string;
+    audioData?: string;
+    audioDuration?: number;
+    waveform?: number[];
+    fileName?: string;
+    fileSize?: number;
+    fileData?: string;
+    videoData?: string;
+    videoDuration?: number;
+    locationLat?: number;
+    locationLng?: number;
+    locationLabel?: string;
+    stickerId?: string;
+  }) => {
+    const msgId = createOptimisticId();
+    shouldScrollToBottomRef.current = true;
+
+    const optimistic: Message = {
+      id: msgId,
+      chatId: chat.id,
+      senderId: currentUser.uid,
+      senderName: currentUser.name,
+      senderPhoto: currentUser.photoURL || '',
+      type: params.type,
+      text: params.text || '',
+      imageData: params.imageData || '',
+      audioData: params.audioData || '',
+      audioDuration: params.audioDuration,
+      waveform: params.waveform,
+      fileName: params.fileName,
+      fileSize: params.fileSize,
+      fileData: params.fileData,
+      videoData: params.videoData,
+      videoDuration: params.videoDuration,
+      locationLat: params.locationLat,
+      locationLng: params.locationLng,
+      locationLabel: params.locationLabel,
+      stickerId: params.stickerId,
+      status: 'sent',
+      replyToId: replyTo?.id,
+      replyToSenderName: replyTo?.senderName,
+      replyToText: replyTo ? getDisplayText(replyTo) : undefined,
+      createdAt: null,
+      updatedAt: null,
+    };
+
+    setOptimisticMsgs((prev) => [...prev, optimistic]);
+    try {
+      await sendMessage({
+        messageId: msgId,
+        chat,
+        sender: currentUser,
+        ...params,
+        replyTo,
+        usersMap,
+      });
+    } catch (err) {
+      setOptimisticMsgs((prev) => prev.filter((m) => m.id !== msgId));
+      throw err;
+    }
+  };
+
   const handleSend = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!canPost || sending) return;
     const trimmed = text.trim();
+
+    if (editingMsg) {
+      if (!trimmed) return;
+      setSending(true);
+      try {
+        await editMessage(chat.id, editingMsg.id, trimmed, chat);
+        setEditingMsg(null);
+        setText('');
+      } catch (err) {
+        onNotify(err instanceof Error ? err.message : t.chat.failedSend);
+      } finally {
+        setSending(false);
+      }
+      return;
+    }
+
     if (!trimmed && !pendingImage) return;
 
-    setSending(true);
+    // Respect recipient's "Who can send me messages" privacy if new DM
+    if (
+      peerUser &&
+      peerUser.privacyMessages === 'contacts' &&
+      !contactIds.has(peerUser.uid) &&
+      messages.length === 0
+    ) {
+      onNotify(t.privacy.cannotMessagePrivacy);
+      return;
+    }
+
+    const img = pendingImage || '';
+    setText('');
+    setPendingImage(null);
+    setReplyTo(null);
+    setShowStickerPopover(false);
+    setShowAttachMenu(false);
+
+    if (isTypingSentRef.current) {
+      isTypingSentRef.current = false;
+      void setTypingStatus(chat.id, currentUser, false);
+    }
+
     try {
-      if (isTypingSentRef.current) {
-        isTypingSentRef.current = false;
-        void setTypingStatus(chat.id, currentUser, false);
-      }
-      await sendMessage({
-        chat,
-        sender: currentUser,
-        type: pendingImage ? 'image' : 'text',
+      await pushOptimisticAndSend({
+        type: img ? 'image' : 'text',
         text: trimmed,
-        imageData: pendingImage || '',
-        replyTo,
-        usersMap,
+        imageData: img,
       });
-      setText('');
-      setPendingImage(null);
-      setReplyTo(null);
     } catch (err) {
       onNotify(err instanceof Error ? err.message : t.chat.failedSend);
-    } finally {
-      setSending(false);
     }
   };
 
   const handleImagePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
+    setShowAttachMenu(false);
     if (!file) return;
     try {
       const compressed = await compressImageFile(file, {
@@ -349,6 +729,103 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       setPendingImage(compressed);
     } catch (err) {
       onNotify(err instanceof Error ? err.message : t.chat.couldNotAttachImage);
+    }
+  };
+
+  const handleVideoPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    setShowAttachMenu(false);
+    if (!file) return;
+    setSending(true);
+    try {
+      const result = await compressVideoFile(file, {
+        maxDurationSec: 45,
+        maxWidth: 480,
+        targetBitrate: 320_000,
+      });
+      if (result.dataUrl.length > 720000) {
+        onNotify(t.chat.voiceTooLong);
+        return;
+      }
+      await pushOptimisticAndSend({
+        type: 'video',
+        videoData: result.dataUrl,
+        videoDuration: Math.round(result.duration),
+      });
+    } catch (err) {
+      onNotify(err instanceof Error ? err.message : t.chat.failedSend);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleFilePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    setShowAttachMenu(false);
+    if (!file) return;
+    if (file.size > 520 * 1024) {
+      onNotify('Max file size is 500 KB.');
+      return;
+    }
+    setSending(true);
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+        reader.onerror = () => reject(new Error('Failed to read file'));
+        reader.readAsDataURL(file);
+      });
+      await pushOptimisticAndSend({
+        type: 'file',
+        fileName: file.name,
+        fileSize: file.size,
+        fileData: dataUrl,
+      });
+    } catch (err) {
+      onNotify(err instanceof Error ? err.message : t.chat.failedSend);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleSendLocation = () => {
+    setShowAttachMenu(false);
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      onNotify(t.telegram.locationDenied);
+      return;
+    }
+    setSending(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        void pushOptimisticAndSend({
+          type: 'location',
+          locationLat: pos.coords.latitude,
+          locationLng: pos.coords.longitude,
+          locationLabel: t.telegram.locationShared,
+        })
+          .catch((err) => onNotify(err instanceof Error ? err.message : t.chat.failedSend))
+          .finally(() => setSending(false));
+      },
+      () => {
+        setSending(false);
+        onNotify(t.telegram.locationDenied);
+      },
+      { enableHighAccuracy: false, timeout: 7000 }
+    );
+  };
+
+  const handleSendSticker = async (stickerId: string) => {
+    setShowStickerPopover(false);
+    try {
+      await pushOptimisticAndSend({
+        type: 'sticker',
+        stickerId,
+      });
+      setReplyTo(null);
+    } catch (err) {
+      onNotify(err instanceof Error ? err.message : t.chat.failedSend);
     }
   };
 
@@ -372,7 +849,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       analyserRafRef.current = null;
     }
     if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+      mediaStreamRef.current.getTracks().forEach((tr) => tr.stop());
       mediaStreamRef.current = null;
     }
     if (audioCtxRef.current) {
@@ -430,20 +907,25 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       audioChunksRef.current = [];
       waveformSamplesRef.current = [];
 
+      // Prioritize AAC/MP4 first so iPhone Safari & Desktop browsers play smoothly!
       const preferredTypes = [
+        'audio/mp4;codecs=mp4a.40.2',
+        'audio/mp4',
+        'audio/aac',
         'audio/webm;codecs=opus',
         'audio/webm',
-        'audio/mp4',
         'audio/ogg;codecs=opus',
       ];
-      const mimeType = preferredTypes.find((t) => MediaRecorder.isTypeSupported(t));
+      const mimeType = preferredTypes.find((type) => MediaRecorder.isTypeSupported(type));
       const recorder = mimeType
-        ? new MediaRecorder(stream, { mimeType, audioBitsPerSecond: 24000 })
+        ? new MediaRecorder(stream, { mimeType, audioBitsPerSecond: 32000 })
         : new MediaRecorder(stream);
       mediaRecorderRef.current = recorder;
 
       try {
-        const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        const AudioCtx =
+          window.AudioContext ||
+          (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
         if (AudioCtx) {
           const ctx = new AudioCtx();
           audioCtxRef.current = ctx;
@@ -480,7 +962,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         const canceled = recordCancelRef.current;
         const rawSamples = [...waveformSamplesRef.current];
         const chunks = [...audioChunksRef.current];
-        const recType = recorder.mimeType || 'audio/webm';
+        const recType = recorder.mimeType || 'audio/mp4';
 
         cleanupRecordingResources();
         setIsRecording(false);
@@ -501,22 +983,18 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           reader.readAsDataURL(blob);
         });
 
-        if (!dataUrl || dataUrl.length > 480000) {
+        if (!dataUrl || dataUrl.length > 520000) {
           onNotify(t.chat.voiceTooLong);
           return;
         }
 
         setSending(true);
         try {
-          await sendMessage({
-            chat,
-            sender: currentUser,
+          await pushOptimisticAndSend({
             type: 'audio',
             audioData: dataUrl,
             audioDuration: Math.round(elapsedSec),
             waveform: downsampleWaveform(rawSamples, 28),
-            replyTo,
-            usersMap,
           });
           setReplyTo(null);
         } catch (err) {
@@ -569,38 +1047,91 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     }
   };
 
-  const chatTitle =
-    chat.type === 'private' ? peerUser?.name || t.common.privateChat : chat.name || t.common.chat;
-  const chatPhoto = chat.type === 'private' ? peerUser?.photoURL : chat.photoURL;
-  const peerOnline = peerUser ? isUserActuallyOnline(peerUser.isOnline, peerUser.lastSeen) : false;
+  const chatTitle = isSavedMessages
+    ? t.telegram.savedMessagesTitle
+    : isDankBot
+    ? t.telegram.dankBotTitle
+    : chat.type === 'private'
+    ? peerUser?.name || t.common.privateChat
+    : chat.name || t.common.chat;
+
+  const chatPhoto =
+    isSavedMessages || isDankBot
+      ? ''
+      : chat.type === 'private'
+      ? canSeePeerPhoto
+        ? peerUser?.photoURL
+        : ''
+      : chat.photoURL;
+
+  const peerOnline =
+    !isSavedMessages &&
+    !isDankBot &&
+    canSeePeerOnline &&
+    peerUser
+      ? isUserActuallyOnline(peerUser.isOnline, peerUser.lastSeen)
+      : false;
 
   const headerSubtitle = useMemo(() => {
+    if (isSavedMessages) return t.telegram.savedMessagesDesc;
+    if (isDankBot) return 'Official DANK Bot';
     if (activeTypers.length > 0) {
       return chat.type === 'private'
         ? t.chat.typing
         : `${activeTypers.map((tp) => tp.name.split(' ')[0]).join(', ')} ${t.chat.typingPluralSuffix}`;
     }
+    if (chat.isSecret) {
+      return peerOnline ? `${t.time.online} · ${t.telegram.secretChat}` : t.telegram.secretChat;
+    }
     if (chat.type === 'private') {
-      return peerUser
-        ? formatLastSeen(peerUser.isOnline, peerUser.lastSeen, language)
-        : t.common.privateChat;
+      if (!peerUser) return t.common.privateChat;
+      if (!canSeePeerOnline) return t.time.lastSeenRecently;
+      return formatLastSeen(peerUser.isOnline, peerUser.lastSeen, language);
     }
     if (chat.type === 'channel') {
       return `${chat.memberCount} ${t.common.subscribers} · ${t.chat.broadcastChannel}`;
     }
     return `${chat.memberCount} ${t.common.members} · ${onlineMembersCount} ${t.chat.onlineCountLabel}`;
-  }, [activeTypers, chat, peerUser, onlineMembersCount, t, language]);
+  }, [
+    activeTypers,
+    canSeePeerOnline,
+    chat,
+    isDankBot,
+    isSavedMessages,
+    language,
+    onlineMembersCount,
+    peerOnline,
+    peerUser,
+    t,
+  ]);
 
   return (
-    <section className="flex-1 h-full flex flex-col min-w-0 dank-chat-bg relative">
-      {/* Navy Chat Header */}
-      <header className="bg-[#0A1931] text-white px-3 sm:px-5 py-2.5 flex items-center justify-between gap-3 shrink-0 shadow-sm z-10">
-        <div className="flex items-center gap-2.5 min-w-0">
+    <section
+      className="flex-1 h-full flex flex-col min-w-0 dank-chat-bg relative"
+      onTouchStart={(e) => {
+        const touch = e.touches[0];
+        if (touch.clientX < 36) {
+          screenSwipeStartRef.current = { x: touch.clientX, y: touch.clientY };
+        }
+      }}
+      onTouchEnd={(e) => {
+        if (!screenSwipeStartRef.current) return;
+        const dx = e.changedTouches[0].clientX - screenSwipeStartRef.current.x;
+        const dy = Math.abs(e.changedTouches[0].clientY - screenSwipeStartRef.current.y);
+        screenSwipeStartRef.current = null;
+        if (dx > 85 && dy < 60) {
+          onBackMobile();
+        }
+      }}
+    >
+      {/* Dark Green Telegram-Style Header */}
+      <header className="bg-[#0a2e1f] text-white px-2.5 sm:px-4 py-2.5 flex items-center justify-between gap-2 shrink-0 shadow-sm z-10">
+        <div className="flex items-center gap-2 min-w-0">
           <button
             type="button"
             onClick={onBackMobile}
             aria-label={t.chat.backToChats}
-            className="md:hidden w-10 h-10 -ms-1 rounded-xl hover:bg-white/10 flex items-center justify-center shrink-0 cursor-pointer"
+            className="md:hidden w-10 h-10 rounded-xl hover:bg-white/10 flex items-center justify-center shrink-0 cursor-pointer"
           >
             <ArrowLeft className="w-5 h-5 rtl:rotate-180" />
           </button>
@@ -608,18 +1139,28 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           <button
             type="button"
             onClick={onOpenChatInfo}
-            className="flex items-center gap-3 min-w-0 text-start hover:opacity-90 transition-opacity cursor-pointer"
+            className="flex items-center gap-2.5 min-w-0 text-start hover:opacity-90 transition-opacity cursor-pointer"
           >
             <Avatar
               src={chatPhoto}
               name={chatTitle}
               size="md"
               isOnline={peerOnline}
-              showOnlineDot={chat.type === 'private'}
+              showOnlineDot={chat.type === 'private' && !isSavedMessages && !isDankBot}
               chatType={chat.type}
+              specialType={
+                isSavedMessages
+                  ? 'saved'
+                  : isDankBot
+                  ? 'bot'
+                  : chat.isSecret
+                  ? 'secret'
+                  : undefined
+              }
             />
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 min-w-0">
+                {chat.isSecret && <Lock className="w-3.5 h-3.5 text-[#25D366] shrink-0" />}
                 <h2 dir="auto" className="text-sm sm:text-base font-semibold text-white truncate">
                   {chatTitle}
                 </h2>
@@ -628,15 +1169,16 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     isAdmin={peerUser.isAdmin}
                     isVerified={peerUser.isVerified}
                     isVip={peerUser.isVip || (peerUser.inviteCount ?? 0) >= 5}
+                    isPlus={peerUser.isPlus}
                     size="sm"
                   />
                 )}
               </div>
               <p
                 className={`text-xs truncate ${
-                  activeTypers.length > 0 || (chat.type === 'private' && peerOnline)
-                    ? 'text-[#38BDF8] font-medium'
-                    : 'text-slate-300'
+                  activeTypers.length > 0 || peerOnline
+                    ? 'text-[#25D366] font-medium'
+                    : 'text-emerald-100/75'
                 }`}
               >
                 {headerSubtitle}
@@ -645,7 +1187,42 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           </button>
         </div>
 
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
+          {peerUser && !isSavedMessages && !isDankBot && (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!canCallPeer) {
+                    onNotify(t.privacy.cannotCallPrivacy);
+                    return;
+                  }
+                  onStartCall(peerUser, 'voice', chat.id);
+                }}
+                title={t.calls.voiceCall}
+                aria-label={t.calls.voiceCall}
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl hover:bg-white/10 text-[#25D366] flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <Phone className="w-4.5 h-4.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!canCallPeer) {
+                    onNotify(t.privacy.cannotCallPrivacy);
+                    return;
+                  }
+                  onStartCall(peerUser, 'video', chat.id);
+                }}
+                title={t.calls.videoCall}
+                aria-label={t.calls.videoCall}
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl hover:bg-white/10 text-[#25D366] flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <Video className="w-4.5 h-4.5" />
+              </button>
+            </>
+          )}
+
           <button
             type="button"
             onClick={() => {
@@ -655,8 +1232,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             }}
             title={t.chat.searchInsideChat}
             aria-label={t.chat.searchInsideChat}
-            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors cursor-pointer ${
-              showSearchBar ? 'bg-[#38BDF8] text-[#0A1931]' : 'hover:bg-white/10 text-white'
+            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center transition-colors cursor-pointer ${
+              showSearchBar ? 'bg-[#25D366] text-[#041f14]' : 'hover:bg-white/10 text-white'
             }`}
           >
             <Search className="w-4.5 h-4.5" />
@@ -667,10 +1244,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             onClick={handleToggleMute}
             title={isMuted ? t.chat.unmuteChat : t.chat.muteChat}
             aria-label={isMuted ? t.chat.unmuteChat : t.chat.muteChat}
-            className="w-10 h-10 rounded-xl hover:bg-white/10 text-white flex items-center justify-center transition-colors cursor-pointer"
+            className="hidden sm:flex w-10 h-10 rounded-xl hover:bg-white/10 text-white items-center justify-center transition-colors cursor-pointer"
           >
             {isMuted ? (
-              <BellOff className="w-4.5 h-4.5 text-[#38BDF8]" />
+              <BellOff className="w-4.5 h-4.5 text-[#25D366]" />
             ) : (
               <Bell className="w-4.5 h-4.5" />
             )}
@@ -682,7 +1259,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               onClick={handleCopyInvite}
               title={t.chat.copyInviteLink}
               aria-label={t.chat.copyInviteLink}
-              className="w-10 h-10 rounded-xl hover:bg-white/10 text-[#38BDF8] flex items-center justify-center transition-colors cursor-pointer"
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl hover:bg-white/10 text-[#25D366] flex items-center justify-center transition-colors cursor-pointer"
             >
               <Link2 className="w-4.5 h-4.5" />
             </button>
@@ -693,16 +1270,41 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             onClick={onOpenChatInfo}
             title={t.chat.chatDetails}
             aria-label={t.chat.chatDetails}
-            className="w-10 h-10 rounded-xl hover:bg-white/10 text-white flex items-center justify-center transition-colors cursor-pointer"
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl hover:bg-white/10 text-white flex items-center justify-center transition-colors cursor-pointer"
           >
             <Info className="w-4.5 h-4.5" />
           </button>
         </div>
       </header>
 
-      {/* Expandable Search Inside Chat Bar */}
+      {/* Secret Chat Banner + Self-Destruct Timer */}
+      {chat.isSecret && (
+        <div className="bg-[#062015] text-emerald-100 border-b border-[#25D366]/30 px-3 sm:px-4 py-1.5 flex items-center justify-between gap-2 text-[11px] shrink-0">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <Lock className="w-3.5 h-3.5 text-[#25D366] shrink-0" />
+            <span className="truncate">{t.telegram.secretBanner}</span>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Timer className="w-3.5 h-3.5 text-[#25D366]" />
+            <select
+              value={chat.selfDestructSeconds || 0}
+              onChange={(e) => void updateChatSelfDestruct(chat.id, Number(e.target.value))}
+              aria-label={t.telegram.selfDestructTimer}
+              className="h-7 px-2 rounded-lg bg-[#0a2e1f] border border-[#25D366]/40 text-xs text-white"
+            >
+              {SELF_DESTRUCT_OPTIONS.map((opt) => (
+                <option key={opt.seconds} value={opt.seconds}>
+                  {language === 'ar' ? opt.labelAr : opt.labelEn}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+
+      {/* Search Inside Chat Bar */}
       {showSearchBar && (
-        <div className="bg-[#F5EFE6] border-b border-[#0A1931]/12 px-4 py-2 flex items-center gap-2 shrink-0">
+        <div className="bg-white dark:bg-[#0d2218] border-b border-[#0a2e1f]/12 dark:border-white/12 px-4 py-2 flex items-center gap-2 shrink-0">
           <Search className="w-4 h-4 text-slate-500 shrink-0" />
           <input
             type="text"
@@ -714,10 +1316,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               setSearchMatchIdx(0);
             }}
             placeholder={t.chat.searchMessagesPlaceholder}
-            className="flex-1 h-9 bg-transparent text-sm text-[#0A1931] focus:outline-none"
+            className="flex-1 h-9 bg-transparent text-base text-[#0a2e1f] dark:text-white focus:outline-none"
           />
           {searchQuery && (
-            <span className="text-xs font-medium text-slate-600 tabular-nums shrink-0">
+            <span className="text-xs font-medium text-slate-600 dark:text-emerald-100/70 tabular-nums shrink-0">
               {searchMatches.length > 0
                 ? `${searchMatchIdx + 1} / ${searchMatches.length}`
                 : t.chat.resultsZero}
@@ -729,7 +1331,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             onClick={() =>
               setSearchMatchIdx((i) => (i - 1 + searchMatches.length) % searchMatches.length)
             }
-            className="w-8 h-8 rounded-lg hover:bg-[#E8DCC6] flex items-center justify-center text-[#0A1931] disabled:opacity-40 cursor-pointer"
+            className="w-8 h-8 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center text-[#0a2e1f] dark:text-white disabled:opacity-40 cursor-pointer"
           >
             <ChevronUp className="w-4 h-4" />
           </button>
@@ -737,7 +1339,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             type="button"
             disabled={searchMatches.length === 0}
             onClick={() => setSearchMatchIdx((i) => (i + 1) % searchMatches.length)}
-            className="w-8 h-8 rounded-lg hover:bg-[#E8DCC6] flex items-center justify-center text-[#0A1931] disabled:opacity-40 cursor-pointer"
+            className="w-8 h-8 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center text-[#0a2e1f] dark:text-white disabled:opacity-40 cursor-pointer"
           >
             <ChevronDown className="w-4 h-4" />
           </button>
@@ -747,7 +1349,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               setShowSearchBar(false);
               setSearchQuery('');
             }}
-            className="w-8 h-8 rounded-lg hover:bg-[#E8DCC6] flex items-center justify-center text-[#0A1931] cursor-pointer"
+            className="w-8 h-8 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center text-[#0a2e1f] dark:text-white cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -756,18 +1358,18 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
       {/* Pinned Message Banner */}
       {chat.pinnedMessageId && (
-        <div className="bg-[#F5EFE6]/95 backdrop-blur-sm border-b border-[#0A1931]/12 px-4 py-2 flex items-center justify-between gap-3 shrink-0">
+        <div className="bg-white/95 dark:bg-[#0d2218]/95 backdrop-blur-sm border-b border-[#0a2e1f]/12 dark:border-white/10 px-4 py-2 flex items-center justify-between gap-3 shrink-0">
           <button
             type="button"
             onClick={() => scrollToMessage(chat.pinnedMessageId!)}
             className="flex items-center gap-2.5 min-w-0 text-start flex-1 cursor-pointer"
           >
-            <Pin className="w-4 h-4 text-[#38BDF8] shrink-0" />
+            <Pin className="w-4 h-4 text-[#25D366] shrink-0" />
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold text-[#0A1931]">
+              <p className="text-[11px] font-semibold text-[#0a2e1f] dark:text-[#25D366]">
                 {t.chat.pinned} · {chat.pinnedMessageSenderName || t.common.message}
               </p>
-              <p dir="auto" className="text-xs text-slate-600 truncate">
+              <p dir="auto" className="text-xs text-slate-600 dark:text-emerald-100/80 truncate">
                 {chat.pinnedMessageText}
               </p>
             </div>
@@ -777,7 +1379,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               type="button"
               onClick={() => void pinMessage(chat.id, null)}
               title={t.chat.unpinMessage}
-              className="w-8 h-8 rounded-lg hover:bg-[#E8DCC6] flex items-center justify-center text-slate-500 hover:text-[#0A1931] shrink-0 cursor-pointer"
+              className="w-8 h-8 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center text-slate-500 hover:text-[#0a2e1f] dark:hover:text-white shrink-0 cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -787,31 +1389,61 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
       {/* Message Stream */}
       <div
+        ref={streamContainerRef}
+        onScroll={handleStreamScroll}
         className="flex-1 overflow-y-auto px-3 sm:px-6 py-4 space-y-2.5"
-        onClick={() => setActiveActionMsgId(null)}
+        onClick={() => {
+          setActiveActionMsgId(null);
+          setShowAttachMenu(false);
+          setShowStickerPopover(false);
+        }}
       >
-        {loadingMessages && (
-          <div className="flex justify-center py-10">
-            <span className="text-xs font-medium text-[#0A1931]/70 bg-[#F5EFE6] px-4 py-2 rounded-xl border border-[#0A1931]/10">
-              {t.chat.loadingConversation}
-            </span>
+        {hasMoreOlder && (
+          <div className="flex justify-center pb-2">
+            <button
+              type="button"
+              disabled={loadingOlder}
+              onClick={handleLoadOlder}
+              className="px-3.5 py-1.5 rounded-full bg-white/90 dark:bg-[#0d2218]/90 border border-[#0a2e1f]/12 dark:border-white/15 text-xs font-semibold text-[#0a2e1f] dark:text-[#25D366] shadow-xs cursor-pointer"
+            >
+              {loadingOlder ? t.telegram.loadingOlder : t.telegram.loadOlder}
+            </button>
           </div>
         )}
 
-        {!loadingMessages && messages.length === 0 && (
+        {/* Instant Clean Loading Skeleton only when uncached */}
+        {loadingMessages && visibleMessages.length === 0 && (
+          <div className="space-y-3 py-4">
+            {[false, true, false, true].map((mine, i) => (
+              <div key={i} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                <div
+                  className={`h-12 w-48 sm:w-64 rounded-2xl animate-pulse ${
+                    mine
+                      ? 'bg-[#0a2e1f]/40 dark:bg-[#134e35]/40'
+                      : 'bg-white/80 dark:bg-[#0d2218]/80'
+                  }`}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {!loadingMessages && visibleMessages.length === 0 && (
           <div className="flex justify-center py-14">
-            <div className="max-w-xs text-center bg-[#F5EFE6] border border-[#0A1931]/10 rounded-2xl p-5 shadow-sm">
-              <p className="text-sm font-semibold text-[#0A1931]">{t.chat.noMessagesYet}</p>
-              <p className="mt-1 text-xs text-slate-600">
+            <div className="max-w-xs text-center bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/10 dark:border-white/10 rounded-2xl p-5 shadow-sm">
+              <p className="text-sm font-semibold text-[#0a2e1f] dark:text-white">
+                {t.chat.noMessagesYet}
+              </p>
+              <p className="mt-1 text-xs text-slate-600 dark:text-emerald-100/70">
                 {canPost ? t.chat.startConversationHint : t.chat.channelReadOnlyHint}
               </p>
             </div>
           </div>
         )}
 
-        {messages.map((msg, idx) => {
+        {visibleMessages.map((msg, idx) => {
           const isMine = msg.senderId === currentUser.uid;
-          const prev = idx > 0 ? messages[idx - 1] : null;
+          const prev = idx > 0 ? visibleMessages[idx - 1] : null;
           const curDay = formatDateDivider(msg.createdAt, language);
           const prevDay = prev ? formatDateDivider(prev.createdAt, language) : null;
           const showDayDivider = idx === 0 || curDay !== prevDay;
@@ -826,17 +1458,20 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             return acc;
           }, {});
           const myReaction = msgReactions.find((r) => r.uid === currentUser.uid)?.emoji;
+          const displayText = getDisplayText(msg);
           const isSearchMatch =
             Boolean(searchQuery.trim()) &&
-            (msg.text || '').toLowerCase().includes(searchQuery.trim().toLowerCase());
-          const canDelete = isMine || isChatAdmin;
+            displayText.toLowerCase().includes(searchQuery.trim().toLowerCase());
+          const canDeleteEveryone = isMine || isChatAdmin;
           const canPin = chat.type !== 'channel' || isChatAdmin;
+          const sticker = msg.type === 'sticker' ? getStickerById(msg.stickerId) : undefined;
+          const senderObj = usersMap[msg.senderId];
 
           return (
             <React.Fragment key={msg.id}>
               {showDayDivider && (
                 <div className="flex justify-center my-3">
-                  <span className="px-3 py-1 rounded-lg bg-[#F5EFE6]/90 border border-[#0A1931]/10 text-[11px] font-semibold text-[#0A1931]/75 shadow-xs">
+                  <span className="px-3 py-1 rounded-full bg-white/90 dark:bg-[#0d2218]/90 border border-[#0a2e1f]/10 dark:border-white/10 text-[11px] font-semibold text-[#0a2e1f]/80 dark:text-emerald-100/80 shadow-xs">
                     {curDay}
                   </span>
                 </div>
@@ -846,6 +1481,20 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 ref={(el) => {
                   msgRefs.current[msg.id] = el;
                 }}
+                onTouchStart={(e) => {
+                  const touch = e.touches[0];
+                  msgSwipeStartRef.current = { x: touch.clientX, y: touch.clientY, msg };
+                }}
+                onTouchEnd={(e) => {
+                  if (!msgSwipeStartRef.current) return;
+                  const dx = e.changedTouches[0].clientX - msgSwipeStartRef.current.x;
+                  const dy = Math.abs(e.changedTouches[0].clientY - msgSwipeStartRef.current.y);
+                  const swipedMsg = msgSwipeStartRef.current.msg;
+                  msgSwipeStartRef.current = null;
+                  if (dx > 55 && dy < 45 && canPost) {
+                    setReplyTo(swipedMsg);
+                  }
+                }}
                 className={`flex flex-col ${isMine ? 'items-end' : 'items-start'} group transition-all rounded-2xl`}
               >
                 <div
@@ -853,34 +1502,53 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     e.stopPropagation();
                     setActiveActionMsgId((cur) => (cur === msg.id ? null : msg.id));
                   }}
-                  className={`relative max-w-[85%] sm:max-w-[70%] rounded-2xl px-3.5 py-2.5 shadow-xs cursor-pointer transition-shadow ${
-                    isMine
-                      ? 'bg-[#0A1931] text-white rounded-br-sm'
-                      : 'bg-[#F5EFE6] text-[#0A1931] border border-[#0A1931]/10 rounded-bl-sm'
-                  } ${isSearchMatch ? 'ring-2 ring-[#38BDF8]' : ''}`}
+                  className={`relative max-w-[85%] sm:max-w-[72%] rounded-2xl px-3.5 py-2 shadow-xs cursor-pointer transition-shadow ${
+                    msg.type === 'sticker' && sticker
+                      ? 'bg-transparent shadow-none px-1 py-0'
+                      : isMine
+                      ? 'bg-[#0a2e1f] dark:bg-[#134e35] text-white rounded-ee-sm'
+                      : 'bg-white dark:bg-[#11291f] text-[#0a2e1f] dark:text-white border border-[#0a2e1f]/10 dark:border-white/10 rounded-es-sm'
+                  } ${isSearchMatch ? 'ring-2 ring-[#25D366]' : ''}`}
                 >
-                  {/* Sender name + verification badges on incoming messages */}
+                  {/* Sender Name & Badges */}
                   {!isMine &&
                     (chat.type !== 'private' ||
-                      usersMap[msg.senderId]?.isAdmin ||
-                      usersMap[msg.senderId]?.isVerified ||
-                      usersMap[msg.senderId]?.isVip ||
-                      (usersMap[msg.senderId]?.inviteCount ?? 0) >= 5) && (
-                      <div className="flex items-center gap-1 text-[11px] font-semibold text-[#0284C7] mb-1">
+                      msg.senderId === DANK_BOT_UID ||
+                      senderObj?.isAdmin ||
+                      senderObj?.isVerified ||
+                      senderObj?.isVip ||
+                      senderObj?.isPlus ||
+                      (senderObj?.inviteCount ?? 0) >= 5) && (
+                      <div className="flex items-center gap-1 text-[11px] font-bold text-[#128C48] dark:text-[#25D366] mb-1">
                         <span className="truncate">{msg.senderName}</span>
                         <UserBadges
-                          isAdmin={usersMap[msg.senderId]?.isAdmin}
-                          isVerified={usersMap[msg.senderId]?.isVerified}
+                          isAdmin={senderObj?.isAdmin}
+                          isVerified={senderObj?.isVerified || msg.senderId === DANK_BOT_UID}
                           isVip={
-                            usersMap[msg.senderId]?.isVip ||
-                            (usersMap[msg.senderId]?.inviteCount ?? 0) >= 5
+                            senderObj?.isVip || (senderObj?.inviteCount ?? 0) >= 5
                           }
+                          isPlus={senderObj?.isPlus}
+                          isBot={msg.senderId === DANK_BOT_UID || senderObj?.isBot}
                           size="xs"
                         />
                       </div>
                     )}
 
-                  {/* Reply quote */}
+                  {/* Forwarded From Label */}
+                  {msg.forwardedFromName && (
+                    <div
+                      className={`mb-1 flex items-center gap-1 text-[11px] font-semibold ${
+                        isMine ? 'text-[#25D366]' : 'text-[#128C48] dark:text-[#25D366]'
+                      }`}
+                    >
+                      <Forward className="w-3 h-3" />
+                      <span>
+                        {t.telegram.forwardedFrom} {msg.forwardedFromName}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Reply Quote */}
                   {msg.replyToId && (
                     <button
                       type="button"
@@ -888,13 +1556,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         e.stopPropagation();
                         scrollToMessage(msg.replyToId!);
                       }}
-                      className={`w-full text-start mb-2 px-2.5 py-1.5 rounded-lg text-xs cursor-pointer ${
+                      className={`w-full text-start mb-2 px-2.5 py-1.5 rounded-lg text-xs cursor-pointer border-s-2 border-[#25D366] ${
                         isMine
-                          ? 'bg-white/10 text-slate-200 border border-white/10'
-                          : 'bg-[#E8DCC6]/80 text-[#0A1931] border border-[#0A1931]/10'
+                          ? 'bg-white/10 text-emerald-50'
+                          : 'bg-[#eef5f0] dark:bg-[#081c14] text-[#0a2e1f] dark:text-emerald-100'
                       }`}
                     >
-                      <div className="font-semibold text-[11px] text-[#38BDF8] truncate">
+                      <div className="font-semibold text-[11px] text-[#25D366] truncate">
                         {msg.replyToSenderName || t.chat.replyFallback}
                       </div>
                       <div dir="auto" className="truncate opacity-90">
@@ -903,22 +1571,113 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     </button>
                   )}
 
-                  {/* Image attachment */}
+                  {/* Image Attachment (Lazy) */}
                   {msg.type === 'image' && msg.imageData?.trim() && (
-                    <div className="mb-1.5 rounded-xl overflow-hidden bg-black/10">
-                      <img
-                        src={msg.imageData.trim()}
-                        alt={t.chat.photoLabel}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setLightboxImage(msg.imageData?.trim() || null);
-                        }}
-                        className="max-h-72 w-auto object-cover cursor-zoom-in"
-                      />
+                    <LazyMedia>
+                      <div className="mb-1.5 rounded-xl overflow-hidden bg-black/10">
+                        <img
+                          src={msg.imageData.trim()}
+                          alt={t.chat.photoLabel}
+                          loading="lazy"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setLightboxImage(msg.imageData?.trim() || null);
+                          }}
+                          className="max-h-72 w-auto object-cover cursor-zoom-in"
+                        />
+                      </div>
+                    </LazyMedia>
+                  )}
+
+                  {/* Video Attachment (Lazy) */}
+                  {msg.type === 'video' && msg.videoData?.trim() && (
+                    <LazyMedia>
+                      <div className="mb-1.5 rounded-xl overflow-hidden bg-black">
+                        <video
+                          src={msg.videoData.trim()}
+                          controls
+                          playsInline
+                          preload="metadata"
+                          onClick={(e) => e.stopPropagation()}
+                          className="max-h-72 w-full rounded-xl"
+                        />
+                      </div>
+                    </LazyMedia>
+                  )}
+
+                  {/* File Attachment */}
+                  {msg.type === 'file' && msg.fileData && (
+                    <a
+                      href={msg.fileData}
+                      download={msg.fileName || 'dank-file'}
+                      onClick={(e) => e.stopPropagation()}
+                      className={`mb-1 flex items-center gap-2.5 p-2.5 rounded-xl border ${
+                        isMine
+                          ? 'bg-white/10 border-white/15 text-white'
+                          : 'bg-[#f4f8f5] dark:bg-[#081c14] border-[#0a2e1f]/10 dark:border-white/10 text-[#0a2e1f] dark:text-white'
+                      }`}
+                    >
+                      <div className="w-9 h-9 rounded-lg bg-[#25D366] text-[#041f14] flex items-center justify-center shrink-0">
+                        <FileText className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold truncate">{msg.fileName || 'File'}</p>
+                        {msg.fileSize ? (
+                          <p className="text-[10px] opacity-70 tabular-nums">
+                            {(msg.fileSize / 1024).toFixed(1)} KB
+                          </p>
+                        ) : null}
+                      </div>
+                      <Download className="w-4 h-4 text-[#25D366] shrink-0" />
+                    </a>
+                  )}
+
+                  {/* Location Attachment */}
+                  {msg.type === 'location' &&
+                    msg.locationLat !== undefined &&
+                    msg.locationLng !== undefined && (
+                      <a
+                        href={`https://maps.google.com/?q=${msg.locationLat},${msg.locationLng}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className={`mb-1 flex items-center gap-2.5 p-2.5 rounded-xl border ${
+                          isMine
+                            ? 'bg-white/10 border-white/15 text-white'
+                            : 'bg-[#f4f8f5] dark:bg-[#081c14] border-[#0a2e1f]/10 dark:border-white/10 text-[#0a2e1f] dark:text-white'
+                        }`}
+                      >
+                        <div className="w-9 h-9 rounded-lg bg-[#25D366] text-[#041f14] flex items-center justify-center shrink-0">
+                          <MapPin className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold truncate">
+                            {msg.locationLabel || t.telegram.locationLabel}
+                          </p>
+                          <p dir="ltr" className="text-[10px] opacity-75 tabular-nums truncate">
+                            {msg.locationLat.toFixed(4)}, {msg.locationLng.toFixed(4)} ·{' '}
+                            {t.telegram.openInMaps}
+                          </p>
+                        </div>
+                      </a>
+                    )}
+
+                  {/* DANK Sticker */}
+                  {msg.type === 'sticker' && sticker && (
+                    <div
+                      className={`w-32 h-32 rounded-3xl bg-gradient-to-br ${sticker.bg} border border-[#25D366]/40 shadow-md flex flex-col items-center justify-center gap-1 select-none`}
+                    >
+                      <span className="text-5xl leading-none">{sticker.emoji}</span>
+                      <span
+                        className="text-[11px] font-extrabold tracking-widest"
+                        style={{ color: sticker.accent }}
+                      >
+                        {sticker.tagline}
+                      </span>
                     </div>
                   )}
 
-                  {/* Voice note attachment */}
+                  {/* Voice Note */}
                   {msg.type === 'audio' && msg.audioData && (
                     <div className="mb-1">
                       <VoiceNotePlayer
@@ -930,49 +1689,86 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     </div>
                   )}
 
-                  {/* Message text */}
-                  {msg.text && (
+                  {/* Message Text */}
+                  {displayText && (
                     <p
                       dir="auto"
                       className="text-sm leading-relaxed whitespace-pre-wrap break-words"
                     >
-                      {msg.text}
+                      {displayText}
                     </p>
                   )}
 
-                  {/* Bottom end: Badges (if mine & badged) + Time + Status Ticks on my messages */}
-                  <div className="mt-1 flex items-center justify-end gap-1 select-none">
+                  {/* Bottom Meta Row: Views (channels) + Edited + Self-Destruct + Badges + Time + Ticks */}
+                  <div
+                    className={`mt-1 flex items-center justify-end gap-1.5 select-none ${
+                      msg.type === 'sticker'
+                        ? 'px-2 py-0.5 rounded-full bg-black/55 text-white w-fit ms-auto'
+                        : ''
+                    }`}
+                  >
+                    {chat.type === 'channel' && (
+                      <span
+                        className={`inline-flex items-center gap-0.5 text-[10px] tabular-nums ${
+                          isMine ? 'text-emerald-100/80' : 'text-slate-500 dark:text-emerald-100/65'
+                        }`}
+                      >
+                        <Eye className="w-3 h-3" />
+                        {msg.viewCount || 1}
+                      </span>
+                    )}
+
+                    {msg.expiresAt && (
+                      <Timer className="w-3 h-3 text-[#25D366]" aria-label="Self-destruct" />
+                    )}
+
+                    {msg.isEdited && (
+                      <span
+                        className={`text-[10px] italic ${
+                          isMine ? 'text-emerald-100/75' : 'text-slate-400'
+                        }`}
+                      >
+                        {t.telegram.edited}
+                      </span>
+                    )}
+
                     {isMine &&
                       (currentUser.isAdmin ||
                         currentUser.isVerified ||
                         currentUser.isVip ||
+                        currentUser.isPlus ||
                         (currentUser.inviteCount ?? 0) >= 5) && (
                         <UserBadges
                           isAdmin={currentUser.isAdmin}
                           isVerified={currentUser.isVerified}
                           isVip={currentUser.isVip || (currentUser.inviteCount ?? 0) >= 5}
+                          isPlus={currentUser.isPlus}
                           size="xs"
                         />
                       )}
+
                     <span
                       className={`text-[10px] tabular-nums ${
-                        isMine ? 'text-slate-300/90' : 'text-slate-500'
+                        msg.type === 'sticker'
+                          ? 'text-white'
+                          : isMine
+                          ? 'text-emerald-100/85'
+                          : 'text-slate-500 dark:text-emerald-100/60'
                       }`}
                     >
                       {formatMessageTime(msg.createdAt, language)}
                     </span>
-                    {isMine && (
-                      <MessageStatusTicks status={msg.status} onDarkBubble={true} />
-                    )}
+
+                    {isMine && <MessageStatusTicks status={msg.status} onDarkBubble={true} />}
                   </div>
 
-                  {/* Quick Action Floating Bar on click/hover */}
+                  {/* Quick Action Floating Bar */}
                   {activeActionMsgId === msg.id && (
                     <div
                       onClick={(e) => e.stopPropagation()}
-                      className={`absolute -top-11 ${
+                      className={`absolute -top-12 ${
                         isMine ? 'end-0' : 'start-0'
-                      } z-20 flex items-center gap-0.5 bg-[#0A1931] text-white px-2 py-1 rounded-xl shadow-lg border border-white/15`}
+                      } z-20 flex flex-wrap items-center gap-0.5 bg-[#0a2e1f] text-white px-2 py-1 rounded-xl shadow-xl border border-[#25D366]/35 max-w-[90vw]`}
                     >
                       {QUICK_EMOJIS.map((emoji) => (
                         <button
@@ -989,7 +1785,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                             });
                           }}
                           className={`w-7 h-7 rounded-lg flex items-center justify-center text-sm hover:bg-white/15 cursor-pointer ${
-                            myReaction === emoji ? 'bg-[#38BDF8]/30' : ''
+                            myReaction === emoji ? 'bg-[#25D366]/30' : ''
                           }`}
                         >
                           {emoji}
@@ -1002,11 +1798,40 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                           title={t.common.reply}
                           onClick={() => {
                             setReplyTo(msg);
+                            setEditingMsg(null);
                             setActiveActionMsgId(null);
                           }}
                           className="w-7 h-7 rounded-lg hover:bg-white/15 flex items-center justify-center cursor-pointer"
                         >
                           <Reply className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      {!chat.isSecret && (
+                        <button
+                          type="button"
+                          title={t.telegram.forward}
+                          onClick={() => {
+                            setForwardTargetMsg(msg);
+                            setActiveActionMsgId(null);
+                          }}
+                          className="w-7 h-7 rounded-lg hover:bg-white/15 flex items-center justify-center cursor-pointer"
+                        >
+                          <Forward className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      {isMine && msg.type === 'text' && (
+                        <button
+                          type="button"
+                          title={t.telegram.edit}
+                          onClick={() => {
+                            setEditingMsg(msg);
+                            setReplyTo(null);
+                            setText(displayText);
+                            setActiveActionMsgId(null);
+                          }}
+                          className="w-7 h-7 rounded-lg hover:bg-white/15 flex items-center justify-center cursor-pointer"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
                         </button>
                       )}
                       {canPin && (
@@ -1022,10 +1847,21 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                           <Pin className="w-3.5 h-3.5" />
                         </button>
                       )}
-                      {canDelete && (
+                      <button
+                        type="button"
+                        title={t.telegram.deleteForMe}
+                        onClick={() => {
+                          setActiveActionMsgId(null);
+                          void deleteMessageForMe(chat.id, msg.id, currentUser.uid);
+                        }}
+                        className="w-7 h-7 rounded-lg hover:bg-white/15 text-amber-300 flex items-center justify-center cursor-pointer"
+                      >
+                        <UserMinus className="w-3.5 h-3.5" />
+                      </button>
+                      {canDeleteEveryone && (
                         <button
                           type="button"
-                          title={t.chat.deleteMessage}
+                          title={t.telegram.deleteForEveryone}
                           onClick={() => {
                             setActiveActionMsgId(null);
                             void deleteMessage(chat.id, msg.id);
@@ -1039,34 +1875,43 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   )}
                 </div>
 
-                {/* Reaction counts */}
-                {Object.values(reactionGroups).length > 0 && (
-                  <div className="mt-1 flex flex-wrap gap-1 px-1">
-                    {Object.values(reactionGroups).map((rg) => (
-                      <button
-                        key={rg.emoji}
-                        type="button"
-                        onClick={() =>
-                          void toggleReaction({
-                            chatId: chat.id,
-                            messageId: msg.id,
-                            user: currentUser,
-                            emoji: rg.emoji,
-                            currentUserEmoji: myReaction,
-                          })
-                        }
-                        className={`px-2 py-0.5 rounded-lg text-xs font-medium flex items-center gap-1 border transition-colors cursor-pointer ${
-                          rg.mine
-                            ? 'bg-[#38BDF8]/25 border-[#38BDF8] text-[#0A1931]'
-                            : 'bg-[#F5EFE6] border-[#0A1931]/12 text-[#0A1931]'
-                        }`}
-                      >
-                        <span>{rg.emoji}</span>
-                        <span className="tabular-nums text-[11px]">{rg.count}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
+                {/* Reaction Chips + Channel Comments Button */}
+                <div className="mt-1 flex flex-wrap items-center gap-1 px-1">
+                  {Object.values(reactionGroups).map((rg) => (
+                    <button
+                      key={rg.emoji}
+                      type="button"
+                      onClick={() =>
+                        void toggleReaction({
+                          chatId: chat.id,
+                          messageId: msg.id,
+                          user: currentUser,
+                          emoji: rg.emoji,
+                          currentUserEmoji: myReaction,
+                        })
+                      }
+                      className={`px-2 py-0.5 rounded-lg text-xs font-medium flex items-center gap-1 border transition-colors cursor-pointer ${
+                        rg.mine
+                          ? 'bg-[#25D366]/20 border-[#25D366] text-[#0a2e1f] dark:text-[#25D366]'
+                          : 'bg-white dark:bg-[#0d2218] border-[#0a2e1f]/12 dark:border-white/12 text-[#0a2e1f] dark:text-white'
+                      }`}
+                    >
+                      <span>{rg.emoji}</span>
+                      <span className="tabular-nums text-[11px]">{rg.count}</span>
+                    </button>
+                  ))}
+
+                  {chat.type === 'channel' && !msg.id.startsWith('opt_') && (
+                    <button
+                      type="button"
+                      onClick={() => setCommentsDrawerMsg(msg)}
+                      className="px-2.5 py-0.5 rounded-lg text-[11px] font-semibold bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/12 dark:border-white/12 text-[#128C48] dark:text-[#25D366] inline-flex items-center gap-1 cursor-pointer hover:opacity-90"
+                    >
+                      <MessageCircle className="w-3 h-3" />
+                      {t.telegram.channelComments}
+                    </button>
+                  )}
+                </div>
               </div>
             </React.Fragment>
           );
@@ -1075,13 +1920,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       </div>
 
       {/* Bottom Composer */}
-      <div className="bg-[#F5EFE6] border-t border-[#0A1931]/12 px-3 sm:px-5 py-2.5 shrink-0">
+      <div className="bg-white dark:bg-[#081c14] border-t border-[#0a2e1f]/10 dark:border-white/10 px-2.5 sm:px-4 py-2 shrink-0 relative">
         {isAdminBanned ? (
-          <div className="h-11 flex items-center justify-center text-xs font-semibold text-red-700 text-center">
+          <div className="h-11 flex items-center justify-center text-xs font-semibold text-red-600 dark:text-red-400 text-center">
             {t.chat.accountSuspendedNotice}
           </div>
         ) : isAdminMuted && currentUser.mutedUntil ? (
-          <div className="h-11 flex items-center justify-center text-xs font-semibold text-amber-700 text-center">
+          <div className="h-11 flex items-center justify-center text-xs font-semibold text-amber-600 dark:text-amber-300 text-center">
             {t.chat.mutedUntilNotice}{' '}
             {currentUser.mutedUntil
               .toDate()
@@ -1093,61 +1938,95 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               })}
             .
           </div>
+        ) : isBlockedPeer ? (
+          <div className="h-11 flex items-center justify-center text-xs font-semibold text-red-600 dark:text-red-400 text-center">
+            {t.privacy.blockedUsers}
+          </div>
         ) : !canPost ? (
-          <div className="h-11 flex items-center justify-center text-xs font-medium text-slate-600 text-center">
+          <div className="h-11 flex items-center justify-center text-xs font-medium text-slate-600 dark:text-emerald-100/70 text-center">
             {t.chat.channelPostNotice}
           </div>
         ) : (
           <div className="space-y-2">
-            {/* Reply Preview Strip */}
-            {replyTo && (
-              <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-[#E8DCC6] border border-[#0A1931]/10">
+            {/* Editing Banner */}
+            {editingMsg && (
+              <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-[#eef5f0] dark:bg-[#0d2218] border border-[#25D366]/35">
                 <div className="min-w-0">
-                  <div className="text-[11px] font-semibold text-[#0A1931] flex items-center gap-1">
-                    <Reply className="w-3 h-3 text-[#0284C7]" />
+                  <div className="text-[11px] font-semibold text-[#128C48] dark:text-[#25D366] flex items-center gap-1">
+                    <Edit3 className="w-3 h-3" />
+                    {t.telegram.editingMessage}
+                  </div>
+                  <p dir="auto" className="text-xs text-slate-600 dark:text-emerald-100/75 truncate">
+                    {getDisplayText(editingMsg)}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingMsg(null);
+                    setText('');
+                  }}
+                  className="w-7 h-7 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center text-[#0a2e1f] dark:text-white cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            {/* Reply Preview */}
+            {replyTo && !editingMsg && (
+              <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-[#eef5f0] dark:bg-[#0d2218] border border-[#0a2e1f]/10 dark:border-white/10">
+                <div className="min-w-0">
+                  <div className="text-[11px] font-semibold text-[#128C48] dark:text-[#25D366] flex items-center gap-1">
+                    <Reply className="w-3 h-3" />
                     {t.chat.replyingTo} {replyTo.senderName}
                   </div>
-                  <p dir="auto" className="text-xs text-slate-700 truncate">
+                  <p dir="auto" className="text-xs text-slate-700 dark:text-emerald-100/75 truncate">
                     {replyTo.type === 'image'
                       ? t.chat.photoLabel
                       : replyTo.type === 'audio'
                       ? t.chat.voiceNoteLabel
-                      : replyTo.text}
+                      : replyTo.type === 'video'
+                      ? t.telegram.videoLabel
+                      : replyTo.type === 'file'
+                      ? replyTo.fileName || t.telegram.fileLabel
+                      : getDisplayText(replyTo)}
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setReplyTo(null)}
-                  className="w-7 h-7 rounded-lg hover:bg-[#0A1931]/10 flex items-center justify-center text-[#0A1931] cursor-pointer"
+                  className="w-7 h-7 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center text-[#0a2e1f] dark:text-white cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
             )}
 
-            {/* Pending Photo Attachment Preview */}
+            {/* Pending Image Preview */}
             {pendingImage?.trim() && (
-              <div className="flex items-center gap-3 px-3 py-2 rounded-xl bg-[#E8DCC6] border border-[#0A1931]/10">
+              <div className="flex items-center gap-3 px-3 py-2 rounded-xl bg-[#eef5f0] dark:bg-[#0d2218] border border-[#0a2e1f]/10 dark:border-white/10">
                 <img
                   src={pendingImage.trim()}
                   alt={t.chat.photoLabel}
                   className="w-14 h-14 rounded-lg object-cover"
                 />
-                <div className="flex-1 text-xs font-medium text-[#0A1931]">
+                <div className="flex-1 text-xs font-medium text-[#0a2e1f] dark:text-white">
                   {t.chat.imageReady}
                 </div>
                 <button
                   type="button"
                   onClick={() => setPendingImage(null)}
-                  className="w-8 h-8 rounded-lg hover:bg-[#0A1931]/10 flex items-center justify-center text-[#0A1931] cursor-pointer"
+                  className="w-8 h-8 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center text-[#0a2e1f] dark:text-white cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
             )}
 
+            {/* Recording Bar */}
             {isRecording && (
-              <div className="flex items-center justify-between gap-3 px-3.5 py-2 rounded-xl bg-[#0A1931] text-white border border-[#38BDF8]/40">
+              <div className="flex items-center justify-between gap-3 px-3.5 py-2 rounded-xl bg-[#0a2e1f] text-white border border-[#25D366]/45">
                 <div className="flex items-center gap-2.5">
                   <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
                   <span className="text-xs font-semibold tabular-nums">
@@ -1160,7 +2039,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[11px] text-[#38BDF8] hidden sm:inline">
+                  <span className="text-[11px] text-[#25D366] hidden sm:inline">
                     {t.chat.releaseToSend}
                   </span>
                   <button
@@ -1174,31 +2053,169 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               </div>
             )}
 
-            <form onSubmit={handleSend} className="flex items-end gap-2">
+            {/* Popover: Emoji & DANK Stickers */}
+            {showStickerPopover && (
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="p-3 rounded-2xl bg-[#f7faf8] dark:bg-[#0d2218] border border-[#0a2e1f]/15 dark:border-white/15 shadow-xl space-y-2.5"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setPickerTab('emoji')}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold cursor-pointer ${
+                        pickerTab === 'emoji'
+                          ? 'bg-[#0a2e1f] text-white'
+                          : 'text-slate-600 dark:text-emerald-100/70'
+                      }`}
+                    >
+                      {t.telegram.emojiTab}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPickerTab('stickers')}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold cursor-pointer ${
+                        pickerTab === 'stickers'
+                          ? 'bg-[#0a2e1f] text-white'
+                          : 'text-slate-600 dark:text-emerald-100/70'
+                      }`}
+                    >
+                      {t.telegram.stickersTab}
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowStickerPopover(false)}
+                    className="p-1 text-slate-400 hover:text-[#0a2e1f] dark:hover:text-white cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {pickerTab === 'emoji' ? (
+                  <div className="grid grid-cols-8 gap-1">
+                    {PICKER_EMOJIS.map((em) => (
+                      <button
+                        key={em}
+                        type="button"
+                        onClick={() => handleTextChange(`${text}${em}`)}
+                        className="h-9 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-xl flex items-center justify-center cursor-pointer"
+                      >
+                        {em}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-4 gap-2">
+                    {DANK_STICKERS.map((st) => (
+                      <button
+                        key={st.id}
+                        type="button"
+                        onClick={() => void handleSendSticker(st.id)}
+                        className={`p-2 rounded-xl bg-gradient-to-br ${st.bg} border border-[#25D366]/35 flex flex-col items-center justify-center gap-0.5 hover:scale-105 transition-transform cursor-pointer`}
+                      >
+                        <span className="text-2xl">{st.emoji}</span>
+                        <span
+                          className="text-[10px] font-bold"
+                          style={{ color: st.accent }}
+                        >
+                          {st.tagline}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Popover: Attachment Menu (Photo / Video / File / Location) */}
+            {showAttachMenu && (
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="grid grid-cols-4 gap-2 p-2.5 rounded-2xl bg-[#f7faf8] dark:bg-[#0d2218] border border-[#0a2e1f]/15 dark:border-white/15 shadow-xl"
+              >
+                <button
+                  type="button"
+                  onClick={() => imageInputRef.current?.click()}
+                  className="p-2 rounded-xl hover:bg-[#eef5f0] dark:hover:bg-white/10 flex flex-col items-center gap-1 text-xs font-semibold text-[#0a2e1f] dark:text-white cursor-pointer"
+                >
+                  <ImagePlus className="w-5 h-5 text-[#25D366]" />
+                  <span>{t.chat.photoLabel}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => videoInputRef.current?.click()}
+                  className="p-2 rounded-xl hover:bg-[#eef5f0] dark:hover:bg-white/10 flex flex-col items-center gap-1 text-xs font-semibold text-[#0a2e1f] dark:text-white cursor-pointer"
+                >
+                  <Film className="w-5 h-5 text-[#25D366]" />
+                  <span>{t.telegram.videoLabel}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="p-2 rounded-xl hover:bg-[#eef5f0] dark:hover:bg-white/10 flex flex-col items-center gap-1 text-xs font-semibold text-[#0a2e1f] dark:text-white cursor-pointer"
+                >
+                  <FileText className="w-5 h-5 text-[#25D366]" />
+                  <span>{t.telegram.fileLabel}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSendLocation}
+                  className="p-2 rounded-xl hover:bg-[#eef5f0] dark:hover:bg-white/10 flex flex-col items-center gap-1 text-xs font-semibold text-[#0a2e1f] dark:text-white cursor-pointer"
+                >
+                  <MapPin className="w-5 h-5 text-[#25D366]" />
+                  <span>{t.telegram.locationLabel}</span>
+                </button>
+              </div>
+            )}
+
+            <form onSubmit={handleSend} className="flex items-end gap-1.5 sm:gap-2">
               <input
-                ref={fileInputRef}
+                ref={imageInputRef}
                 type="file"
                 accept="image/*"
                 onChange={handleImagePick}
                 className="hidden"
               />
+              <input
+                ref={videoInputRef}
+                type="file"
+                accept="video/*"
+                onChange={handleVideoPick}
+                className="hidden"
+              />
+              <input
+                ref={fileInputRef}
+                type="file"
+                onChange={handleFilePick}
+                className="hidden"
+              />
 
               <button
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowAttachMenu((v) => !v);
+                  setShowStickerPopover(false);
+                }}
                 title={t.chat.sendImage}
                 aria-label={t.chat.sendImage}
-                className="w-11 h-11 rounded-xl bg-[#E8DCC6] hover:bg-[#0A1931]/10 text-[#0A1931] flex items-center justify-center shrink-0 transition-colors cursor-pointer"
+                className="w-11 h-11 rounded-xl bg-[#eef5f0] dark:bg-[#0d2218] hover:bg-[#dcebe1] dark:hover:bg-white/10 text-[#0a2e1f] dark:text-[#25D366] flex items-center justify-center shrink-0 transition-colors cursor-pointer"
               >
-                <ImagePlus className="w-5 h-5" />
+                <Paperclip className="w-5 h-5" />
               </button>
 
               <button
                 type="button"
-                onClick={() => handleTextChange(`${text} 😊`.trimStart())}
-                title={t.chat.addSmiley}
-                aria-label={t.chat.addSmiley}
-                className="hidden sm:flex w-11 h-11 rounded-xl bg-[#E8DCC6] hover:bg-[#0A1931]/10 text-[#0A1931] items-center justify-center shrink-0 transition-colors cursor-pointer"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowStickerPopover((v) => !v);
+                  setShowAttachMenu(false);
+                }}
+                title={t.telegram.stickersAndEmoji}
+                aria-label={t.telegram.stickersAndEmoji}
+                className="w-11 h-11 rounded-xl bg-[#eef5f0] dark:bg-[#0d2218] hover:bg-[#dcebe1] dark:hover:bg-white/10 text-[#0a2e1f] dark:text-[#25D366] flex items-center justify-center shrink-0 transition-colors cursor-pointer"
               >
                 <Smile className="w-5 h-5" />
               </button>
@@ -1215,17 +2232,26 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   }
                 }}
                 placeholder={t.chat.writeMessagePlaceholder}
-                className="flex-1 min-h-[44px] max-h-32 px-4 py-2.5 rounded-xl bg-white border border-[#0A1931]/15 text-sm text-[#0A1931] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#38BDF8] resize-none"
+                className="flex-1 min-h-[44px] max-h-32 px-3.5 py-2.5 rounded-xl bg-[#f7faf8] dark:bg-[#0d2218] border border-[#0a2e1f]/15 dark:border-white/15 text-base text-[#0a2e1f] dark:text-white placeholder:text-slate-400 dark:placeholder:text-emerald-100/45 focus:outline-none focus:ring-2 focus:ring-[#25D366] resize-none"
               />
 
-              {text.trim() || pendingImage ? (
+              {editingMsg ? (
+                <button
+                  type="submit"
+                  disabled={!text.trim() || sending}
+                  aria-label={t.telegram.saveEdit}
+                  className="w-11 h-11 rounded-xl bg-[#25D366] hover:bg-[#1ebe5d] text-[#041f14] flex items-center justify-center shrink-0 transition-colors disabled:opacity-45 cursor-pointer"
+                >
+                  <Check className="w-5 h-5" />
+                </button>
+              ) : text.trim() || pendingImage ? (
                 <button
                   type="submit"
                   disabled={sending}
                   aria-label={t.chat.sendMessage}
-                  className="w-11 h-11 rounded-xl bg-[#38BDF8] hover:bg-[#0EA5E9] text-[#0A1931] flex items-center justify-center shrink-0 transition-colors disabled:opacity-45 cursor-pointer"
+                  className="w-11 h-11 rounded-xl bg-[#25D366] hover:bg-[#1ebe5d] text-[#041f14] flex items-center justify-center shrink-0 transition-colors disabled:opacity-45 cursor-pointer"
                 >
-                  <Send className="w-5 h-5" />
+                  <Send className="w-5 h-5 rtl:-scale-x-100" />
                 </button>
               ) : (
                 <button
@@ -1243,7 +2269,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 transition-all touch-none select-none cursor-pointer ${
                     isRecording
                       ? 'bg-red-500 text-white scale-105 shadow-lg ring-4 ring-red-500/30'
-                      : 'bg-[#0A1931] hover:bg-[#13284A] text-[#38BDF8]'
+                      : 'bg-[#0a2e1f] hover:bg-[#134e35] text-[#25D366]'
                   }`}
                 >
                   <Mic className="w-5 h-5" />
@@ -1274,6 +2300,36 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             className="max-w-full max-h-[88vh] rounded-xl object-contain"
           />
         </div>
+      )}
+
+      {/* Forward Message Modal */}
+      {forwardTargetMsg && (
+        <ForwardModal
+          message={forwardTargetMsg}
+          decryptedText={getDisplayText(forwardTargetMsg)}
+          currentUser={currentUser}
+          chats={chats}
+          usersMap={usersMap}
+          onForwarded={(targetChatId) => {
+            setForwardTargetMsg(null);
+            onSelectChat(targetChatId);
+            onNotify(t.telegram.forward);
+          }}
+          onClose={() => setForwardTargetMsg(null)}
+          onNotify={onNotify}
+        />
+      )}
+
+      {/* Channel Comments Drawer */}
+      {commentsDrawerMsg && (
+        <ChannelCommentsDrawer
+          chatId={chat.id}
+          message={commentsDrawerMsg}
+          currentUser={currentUser}
+          isChatAdmin={isChatAdmin}
+          onClose={() => setCommentsDrawerMsg(null)}
+          onNotify={onNotify}
+        />
       )}
     </section>
   );

@@ -9,16 +9,20 @@ import {
   Heart,
   ImagePlus,
   Loader2,
+  Menu,
   MessageCircle,
+  Moon,
   Plus,
   Search,
   Share2,
+  Sun,
   Trash2,
   X,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { db } from '../lib/firebase';
 import {
   createPost,
@@ -43,6 +47,7 @@ interface PostsFeedProps {
   savedPostIds: Set<string>;
   highlightedPostId?: string | null;
   onClearHighlightedPost?: () => void;
+  onOpenDrawer?: () => void;
   onOpenProfile: (user: UserPublic) => void;
   onNotify: (msg: string) => void;
 }
@@ -74,7 +79,7 @@ const PostCard: React.FC<PostCardProps> = ({
   const [showHeartBurst, setShowHeartBurst] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editCaption, setEditCaption] = useState(post.caption || '');
-  const [editTags, setEditTags] = useState((post.hashtags || []).map((t) => `#${t}`).join(' '));
+  const [editTags, setEditTags] = useState((post.hashtags || []).map((tag) => `#${tag}`).join(' '));
   const [savingEdit, setSavingEdit] = useState(false);
   const lastTapRef = useRef<number>(0);
 
@@ -96,6 +101,7 @@ const PostCard: React.FC<PostCardProps> = ({
   const authorIsVip = liveAuthor
     ? Boolean(liveAuthor.isVip || (liveAuthor.inviteCount ?? 0) >= 5)
     : Boolean(post.authorIsVip);
+  const authorIsPlus = Boolean(liveAuthor?.isPlus);
 
   const isOwner = post.authorId === currentUser.uid;
   const canDelete = isOwner || Boolean(currentUser.isAdmin);
@@ -197,7 +203,7 @@ const PostCard: React.FC<PostCardProps> = ({
             key={`${part}-${i}`}
             type="button"
             onClick={() => onSelectHashtag(cleanTag)}
-            className="text-[#0284C7] font-semibold hover:underline cursor-pointer"
+            className="text-[#146c43] dark:text-[#25D366] font-semibold hover:underline cursor-pointer"
           >
             {part}
           </button>
@@ -222,8 +228,7 @@ const PostCard: React.FC<PostCardProps> = ({
   };
 
   return (
-    <article className="rounded-2xl bg-[#F5EFE6] border border-[#0A1931]/12 shadow-sm overflow-hidden">
-      {/* Header */}
+    <article className="rounded-2xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/12 dark:border-white/10 shadow-sm overflow-hidden">
       <div className="px-4 py-3 flex items-center justify-between gap-3">
         <button
           type="button"
@@ -233,15 +238,18 @@ const PostCard: React.FC<PostCardProps> = ({
           <Avatar src={authorPhoto} name={authorName} size="md" />
           <div className="min-w-0">
             <div className="flex items-center gap-1.5 min-w-0">
-              <span className="text-sm font-bold text-[#0A1931] truncate">{authorName}</span>
+              <span className="text-sm font-bold text-[#0a2e1f] dark:text-white truncate">
+                {authorName}
+              </span>
               <UserBadges
                 isAdmin={authorIsAdmin}
                 isVerified={authorIsVerified}
                 isVip={authorIsVip}
+                isPlus={authorIsPlus}
                 size="xs"
               />
             </div>
-            <p className="text-[11px] text-slate-600 truncate tabular-nums">
+            <p className="text-[11px] text-slate-600 dark:text-emerald-200/70 truncate tabular-nums">
               @{authorUsername} · {formatMessageTime(post.createdAt, language)}
             </p>
           </div>
@@ -259,7 +267,7 @@ const PostCard: React.FC<PostCardProps> = ({
                 }}
                 title={t.posts.editCaption}
                 aria-label={t.posts.editCaption}
-                className="w-9 h-9 rounded-xl hover:bg-[#E8DCC6] text-[#0A1931] flex items-center justify-center cursor-pointer"
+                className="w-9 h-9 rounded-xl hover:bg-black/5 dark:hover:bg-white/10 text-[#0a2e1f] dark:text-white flex items-center justify-center cursor-pointer"
               >
                 <Edit3 className="w-4 h-4" />
               </button>
@@ -270,7 +278,7 @@ const PostCard: React.FC<PostCardProps> = ({
                 onClick={() => void handleDelete()}
                 title={t.posts.deletePost}
                 aria-label={t.posts.deletePost}
-                className="w-9 h-9 rounded-xl hover:bg-red-100 text-red-600 flex items-center justify-center cursor-pointer"
+                className="w-9 h-9 rounded-xl hover:bg-red-500/10 text-red-600 dark:text-red-400 flex items-center justify-center cursor-pointer"
               >
                 <Trash2 className="w-4 h-4" />
               </button>
@@ -279,16 +287,16 @@ const PostCard: React.FC<PostCardProps> = ({
         )}
       </div>
 
-      {/* Media Carousel (1-4 photos, double tap to like) */}
       <div
         onDoubleClick={handleDoubleTapPhoto}
         onTouchEnd={handleTouchPhoto}
-        className="relative bg-[#0A1931] aspect-square sm:aspect-[4/3] max-h-[480px] w-full overflow-hidden select-none"
+        className="relative bg-[#071911] aspect-square sm:aspect-[4/3] max-h-[480px] w-full overflow-hidden select-none"
       >
         {post.images?.[safeSlide]?.trim() ? (
           <img
             src={post.images[safeSlide]}
             alt={post.caption || `Post by ${authorName}`}
+            loading="lazy"
             referrerPolicy="no-referrer"
             className="w-full h-full object-cover"
           />
@@ -350,7 +358,7 @@ const PostCard: React.FC<PostCardProps> = ({
                   onClick={() => setSlideIdx(idx)}
                   aria-label={`${idx + 1}`}
                   className={`h-1.5 rounded-full transition-all cursor-pointer ${
-                    idx === safeSlide ? 'w-5 bg-[#38BDF8]' : 'w-1.5 bg-white/60'
+                    idx === safeSlide ? 'w-5 bg-[#25D366]' : 'w-1.5 bg-white/60'
                   }`}
                 />
               ))}
@@ -359,7 +367,6 @@ const PostCard: React.FC<PostCardProps> = ({
         )}
       </div>
 
-      {/* Actions */}
       <div className="px-4 pt-3 pb-3.5 space-y-2.5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -368,7 +375,7 @@ const PostCard: React.FC<PostCardProps> = ({
               onClick={() => void handleToggleLike()}
               title={t.posts.like}
               aria-label={t.posts.like}
-              className="flex items-center gap-1.5 text-sm font-semibold text-[#0A1931] cursor-pointer min-h-[36px]"
+              className="flex items-center gap-1.5 text-sm font-semibold text-[#0a2e1f] dark:text-white cursor-pointer min-h-[36px]"
             >
               <motion.span
                 key={isLiked ? 'liked' : 'unliked'}
@@ -378,7 +385,7 @@ const PostCard: React.FC<PostCardProps> = ({
               >
                 <Heart
                   className={`w-5 h-5 ${
-                    isLiked ? 'fill-red-500 text-red-500' : 'text-[#0A1931]'
+                    isLiked ? 'fill-red-500 text-red-500' : 'text-[#0a2e1f] dark:text-white'
                   }`}
                 />
               </motion.span>
@@ -390,7 +397,7 @@ const PostCard: React.FC<PostCardProps> = ({
               onClick={() => onOpenComments(post)}
               title={t.posts.comments}
               aria-label={t.posts.comments}
-              className="flex items-center gap-1.5 text-sm font-semibold text-[#0A1931] hover:text-[#0284C7] cursor-pointer min-h-[36px]"
+              className="flex items-center gap-1.5 text-sm font-semibold text-[#0a2e1f] dark:text-white hover:text-[#25D366] cursor-pointer min-h-[36px]"
             >
               <MessageCircle className="w-5 h-5" />
               <span className="tabular-nums">{post.commentCount}</span>
@@ -401,7 +408,7 @@ const PostCard: React.FC<PostCardProps> = ({
               onClick={() => void handleShare()}
               title={t.posts.share}
               aria-label={t.posts.sharePost}
-              className="flex items-center gap-1 text-[#0A1931] hover:text-[#0284C7] cursor-pointer min-h-[36px]"
+              className="flex items-center gap-1 text-[#0a2e1f] dark:text-white hover:text-[#25D366] cursor-pointer min-h-[36px]"
             >
               <Share2 className="w-5 h-5" />
             </button>
@@ -412,10 +419,10 @@ const PostCard: React.FC<PostCardProps> = ({
             onClick={() => void handleSaveBookmark()}
             title={t.posts.save}
             aria-label={isSaved ? t.posts.removeSavedPost : t.posts.savePost}
-            className="text-[#0A1931] hover:text-[#0284C7] cursor-pointer min-h-[36px] flex items-center"
+            className="text-[#0a2e1f] dark:text-white hover:text-[#25D366] cursor-pointer min-h-[36px] flex items-center"
           >
             <Bookmark
-              className={`w-5 h-5 ${isSaved ? 'fill-[#38BDF8] text-[#0284C7]' : ''}`}
+              className={`w-5 h-5 ${isSaved ? 'fill-[#25D366] text-[#25D366]' : ''}`}
             />
           </button>
         </div>
@@ -429,7 +436,7 @@ const PostCard: React.FC<PostCardProps> = ({
               value={editCaption}
               onChange={(e) => setEditCaption(e.target.value)}
               placeholder={t.posts.updateCaptionPlaceholder}
-              className="w-full px-3 py-2 rounded-xl bg-white border border-[#0A1931]/15 text-sm text-[#0A1931] focus:outline-none focus:ring-2 focus:ring-[#38BDF8] resize-none"
+              className="w-full px-3 py-2 rounded-xl bg-[#f4f7f5] dark:bg-[#071911] border border-[#0a2e1f]/15 dark:border-white/15 text-base text-[#0a2e1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#25D366] resize-none"
             />
             <input
               type="text"
@@ -437,13 +444,13 @@ const PostCard: React.FC<PostCardProps> = ({
               value={editTags}
               onChange={(e) => setEditTags(e.target.value)}
               placeholder={t.posts.hashtagsPlaceholder}
-              className="w-full h-9 px-3 rounded-xl bg-white border border-[#0A1931]/15 text-xs text-[#0A1931] focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
+              className="w-full h-10 px-3 rounded-xl bg-[#f4f7f5] dark:bg-[#071911] border border-[#0a2e1f]/15 dark:border-white/15 text-base text-[#0a2e1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#25D366]"
             />
             <div className="flex items-center gap-2 justify-end">
               <button
                 type="button"
                 onClick={() => setEditing(false)}
-                className="h-8 px-3 rounded-lg bg-[#E8DCC6] text-[#0A1931] text-xs font-semibold cursor-pointer"
+                className="h-9 px-3 rounded-lg bg-slate-200 dark:bg-white/10 text-[#0a2e1f] dark:text-white text-xs font-semibold cursor-pointer"
               >
                 {t.common.cancel}
               </button>
@@ -451,7 +458,7 @@ const PostCard: React.FC<PostCardProps> = ({
                 type="button"
                 disabled={savingEdit}
                 onClick={() => void handleSaveEdit()}
-                className="h-8 px-3.5 rounded-lg bg-[#38BDF8] hover:bg-[#0EA5E9] text-[#0A1931] text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                className="h-9 px-3.5 rounded-lg bg-[#25D366] hover:bg-[#1ebe5d] text-[#052014] text-xs font-bold flex items-center gap-1 cursor-pointer"
               >
                 <Check className="w-3.5 h-3.5" />
                 {savingEdit ? t.common.saving : t.common.save}
@@ -461,7 +468,7 @@ const PostCard: React.FC<PostCardProps> = ({
         ) : (
           <>
             {post.caption && (
-              <p dir="auto" className="text-sm text-[#0A1931] leading-relaxed break-words">
+              <p dir="auto" className="text-sm text-[#0a2e1f] dark:text-emerald-50 leading-relaxed break-words">
                 <span className="font-bold me-1.5">{authorName}</span>
                 {renderCaptionWithHashtags(post.caption)}
               </p>
@@ -473,7 +480,7 @@ const PostCard: React.FC<PostCardProps> = ({
                     key={tag}
                     type="button"
                     onClick={() => onSelectHashtag(tag)}
-                    className="text-[#0284C7] font-semibold hover:underline cursor-pointer"
+                    className="text-[#146c43] dark:text-[#25D366] font-semibold hover:underline cursor-pointer"
                   >
                     #{tag}
                   </button>
@@ -574,11 +581,11 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="w-full max-w-md rounded-2xl bg-[#F5EFE6] border border-[#0A1931]/15 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        <div className="bg-[#0A1931] text-white px-5 py-4 flex items-center justify-between shrink-0">
+      <div className="w-full max-w-md rounded-2xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/15 dark:border-white/10 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="bg-[#0a2e1f] text-white px-5 py-4 flex items-center justify-between shrink-0">
           <div>
             <h3 className="text-base font-semibold">{t.posts.modalTitle}</h3>
-            <p className="text-[11px] text-slate-300">{t.posts.modalSubtitle}</p>
+            <p className="text-[11px] text-emerald-200/80">{t.posts.modalSubtitle}</p>
           </div>
           <button
             type="button"
@@ -606,7 +613,7 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
                 {files.map((item, idx) => (
                   <div
                     key={item.previewUrl}
-                    className="relative aspect-square rounded-xl overflow-hidden bg-[#0A1931]"
+                    className="relative aspect-square rounded-xl overflow-hidden bg-[#071911]"
                   >
                     {item.previewUrl ? (
                       <img
@@ -630,9 +637,9 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
                 <button
                   type="button"
                   onClick={() => fileRef.current?.click()}
-                  className="w-full h-10 rounded-xl border border-dashed border-[#0A1931]/25 bg-white/70 hover:bg-white text-xs font-semibold text-[#0A1931] flex items-center justify-center gap-1.5 cursor-pointer"
+                  className="w-full h-10 rounded-xl border border-dashed border-[#0a2e1f]/25 dark:border-white/20 bg-[#f4f7f5] dark:bg-[#071911] hover:bg-[#eaf2ed] text-xs font-semibold text-[#0a2e1f] dark:text-white flex items-center justify-center gap-1.5 cursor-pointer"
                 >
-                  <Plus className="w-4 h-4 text-[#0284C7]" />
+                  <Plus className="w-4 h-4 text-[#25D366]" />
                   {t.posts.addMore} ({files.length}/4)
                 </button>
               )}
@@ -641,16 +648,18 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
-              className="w-full h-44 rounded-2xl border-2 border-dashed border-[#0A1931]/25 bg-white/70 hover:bg-white flex flex-col items-center justify-center gap-2 text-[#0A1931] transition-colors cursor-pointer"
+              className="w-full h-44 rounded-2xl border-2 border-dashed border-[#0a2e1f]/25 dark:border-white/20 bg-[#f4f7f5] dark:bg-[#071911] hover:bg-[#eaf2ed] dark:hover:bg-[#0b2319] flex flex-col items-center justify-center gap-2 text-[#0a2e1f] dark:text-white transition-colors cursor-pointer"
             >
-              <ImagePlus className="w-8 h-8 text-[#0284C7]" />
+              <ImagePlus className="w-8 h-8 text-[#25D366]" />
               <span className="text-sm font-semibold">{t.posts.selectUpToFour}</span>
-              <span className="text-xs text-slate-500">{t.posts.compressedAutoHint}</span>
+              <span className="text-xs text-slate-500 dark:text-emerald-200/70">
+                {t.posts.compressedAutoHint}
+              </span>
             </button>
           )}
 
           <div>
-            <label className="block text-xs font-semibold text-[#0A1931] mb-1">
+            <label className="block text-xs font-semibold text-[#0a2e1f] dark:text-emerald-100 mb-1">
               {t.posts.caption}
             </label>
             <textarea
@@ -660,12 +669,12 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
               value={caption}
               onChange={(e) => setCaption(e.target.value)}
               placeholder={t.posts.captionPlaceholder}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-[#0A1931]/15 text-sm text-[#0A1931] focus:outline-none focus:ring-2 focus:ring-[#38BDF8] resize-none"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-[#f4f7f5] dark:bg-[#071911] border border-[#0a2e1f]/15 dark:border-white/15 text-base text-[#0a2e1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#25D366] resize-none"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-[#0A1931] mb-1">
+            <label className="block text-xs font-semibold text-[#0a2e1f] dark:text-emerald-100 mb-1">
               {t.posts.hashtagsLabel}
             </label>
             <input
@@ -674,14 +683,14 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
               value={hashtagsInput}
               onChange={(e) => setHashtagsInput(e.target.value)}
               placeholder={t.posts.hashtagsInputPlaceholder}
-              className="w-full h-10 px-3.5 rounded-xl bg-white border border-[#0A1931]/15 text-sm text-[#0A1931] focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
+              className="w-full h-11 px-3.5 rounded-xl bg-[#f4f7f5] dark:bg-[#071911] border border-[#0a2e1f]/15 dark:border-white/15 text-base text-[#0a2e1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#25D366]"
             />
           </div>
 
           <button
             type="submit"
             disabled={files.length === 0 || publishing}
-            className="w-full h-11 rounded-xl bg-[#38BDF8] hover:bg-[#0EA5E9] text-[#0A1931] font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+            className="w-full h-11 rounded-xl bg-[#25D366] hover:bg-[#1ebe5d] text-[#052014] font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
           >
             {publishing && <Loader2 className="w-4 h-4 animate-spin" />}
             {publishing ? t.posts.publishing : t.posts.publishPost}
@@ -699,10 +708,12 @@ export const PostsFeed: React.FC<PostsFeedProps> = ({
   savedPostIds,
   highlightedPostId,
   onClearHighlightedPost,
+  onOpenDrawer,
   onOpenProfile,
   onNotify,
 }) => {
   const { t } = useLanguage();
+  const { isDark, toggleTheme } = useTheme();
   const [hashtagQuery, setHashtagQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [commentPost, setCommentPost] = useState<Post | null>(null);
@@ -728,7 +739,7 @@ export const PostsFeed: React.FC<PostsFeedProps> = ({
     if (!cleanQ) return base;
     return base.filter(
       (p) =>
-        (p.hashtags || []).some((t) => t.toLowerCase().includes(cleanQ)) ||
+        (p.hashtags || []).some((tag) => tag.toLowerCase().includes(cleanQ)) ||
         (p.caption || '').toLowerCase().includes(`#${cleanQ}`)
     );
   }, [posts, hashtagQuery, highlightedPostId]);
@@ -738,26 +749,35 @@ export const PostsFeed: React.FC<PostsFeedProps> = ({
     : null;
 
   return (
-    <div className="flex-1 h-full flex flex-col bg-[#E8DCC6] overflow-hidden">
-      {/* Navy Header */}
-      <header className="bg-[#0A1931] text-white px-4 py-3 flex items-center justify-between gap-3 shrink-0 border-b border-white/10">
-        <div className="flex items-center gap-3 min-w-0">
+    <div className="flex-1 h-full flex flex-col bg-[#eef5f0] dark:bg-[#061811] overflow-hidden">
+      <header className="bg-[#0a2e1f] text-white px-4 py-3 flex items-center justify-between gap-3 shrink-0 border-b border-white/10">
+        <div className="flex items-center gap-2.5 min-w-0">
+          {onOpenDrawer && (
+            <button
+              type="button"
+              onClick={onOpenDrawer}
+              aria-label="Menu"
+              className="w-9 h-9 rounded-xl hover:bg-white/10 flex items-center justify-center cursor-pointer"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+          )}
           <h2 className="text-lg font-bold tracking-tight whitespace-nowrap">{t.posts.title}</h2>
           <div className="relative flex-1 max-w-xs hidden sm:block">
-            <Hash className="w-3.5 h-3.5 text-[#38BDF8] absolute start-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Hash className="w-3.5 h-3.5 text-[#25D366] absolute start-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               dir="auto"
               value={hashtagQuery}
               onChange={(e) => setHashtagQuery(e.target.value)}
               placeholder={t.posts.searchHashtagHeader}
-              className="w-full h-9 ps-8 pe-8 rounded-xl bg-white/10 border border-white/15 text-xs text-white placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
+              className="w-full h-10 ps-8 pe-8 rounded-xl bg-white/10 border border-white/15 text-base text-white placeholder:text-emerald-200/70 focus:outline-none focus:ring-2 focus:ring-[#25D366]"
             />
             {hashtagQuery && (
               <button
                 type="button"
                 onClick={() => setHashtagQuery('')}
-                className="absolute end-2 top-1/2 -translate-y-1/2 text-slate-300 hover:text-white cursor-pointer"
+                className="absolute end-2 top-1/2 -translate-y-1/2 text-emerald-200 hover:text-white cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -768,8 +788,16 @@ export const PostsFeed: React.FC<PostsFeedProps> = ({
         <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
+            onClick={toggleTheme}
+            aria-label={isDark ? t.theme.switchToLight : t.theme.switchToDark}
+            className="w-9 h-9 rounded-xl hover:bg-white/10 flex items-center justify-center cursor-pointer"
+          >
+            {isDark ? <Sun className="w-4 h-4 text-amber-300" /> : <Moon className="w-4 h-4 text-[#25D366]" />}
+          </button>
+          <button
+            type="button"
             onClick={() => setShowCreateModal(true)}
-            className="h-10 px-3.5 rounded-xl bg-[#38BDF8] hover:bg-[#0EA5E9] text-[#0A1931] text-xs font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+            className="h-10 px-3.5 rounded-xl bg-[#25D366] hover:bg-[#1ebe5d] text-[#052014] text-xs font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
           >
             <Plus className="w-4 h-4 stroke-[2.5]" />
             {t.posts.createPost}
@@ -778,15 +806,14 @@ export const PostsFeed: React.FC<PostsFeedProps> = ({
             type="button"
             onClick={() => onOpenProfile(currentUser)}
             title={t.posts.myProfile}
-            className="rounded-full p-0.5 hover:ring-2 hover:ring-[#38BDF8] cursor-pointer"
+            className="rounded-full p-0.5 hover:ring-2 hover:ring-[#25D366] cursor-pointer"
           >
             <Avatar src={currentUser.photoURL} name={currentUser.name} size="sm" />
           </button>
         </div>
       </header>
 
-      {/* Mobile Hashtag Search + Quick Tags */}
-      <div className="bg-[#F5EFE6] border-b border-[#0A1931]/10 px-4 py-2.5 space-y-2 shrink-0">
+      <div className="bg-white dark:bg-[#0b1f16] border-b border-[#0a2e1f]/10 dark:border-white/10 px-4 py-2.5 space-y-2 shrink-0">
         <div className="relative sm:hidden">
           <Search className="w-4 h-4 text-slate-400 absolute start-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
@@ -795,13 +822,13 @@ export const PostsFeed: React.FC<PostsFeedProps> = ({
             value={hashtagQuery}
             onChange={(e) => setHashtagQuery(e.target.value)}
             placeholder={t.posts.searchHashtagMobile}
-            className="w-full h-9 ps-9 pe-8 rounded-xl bg-white border border-[#0A1931]/12 text-xs text-[#0A1931] focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
+            className="w-full h-10 ps-9 pe-8 rounded-xl bg-[#f4f7f5] dark:bg-[#071911] border border-[#0a2e1f]/12 dark:border-white/10 text-base text-[#0a2e1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#25D366]"
           />
           {hashtagQuery && (
             <button
               type="button"
               onClick={() => setHashtagQuery('')}
-              className="absolute end-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#0A1931] cursor-pointer"
+              className="absolute end-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#0a2e1f] cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -814,7 +841,7 @@ export const PostsFeed: React.FC<PostsFeedProps> = ({
               <button
                 type="button"
                 onClick={onClearHighlightedPost}
-                className="px-2.5 py-1 rounded-lg bg-[#0A1931] text-white text-xs font-semibold flex items-center gap-1 shrink-0 cursor-pointer"
+                className="px-2.5 py-1 rounded-lg bg-[#0a2e1f] text-white text-xs font-semibold flex items-center gap-1 shrink-0 cursor-pointer"
               >
                 <span>{t.posts.showAllPosts}</span>
                 <X className="w-3 h-3" />
@@ -830,8 +857,8 @@ export const PostsFeed: React.FC<PostsFeedProps> = ({
                   onClick={() => setHashtagQuery(active ? '' : `#${tag}`)}
                   className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
                     active
-                      ? 'bg-[#0A1931] text-[#38BDF8]'
-                      : 'bg-[#E8DCC6] hover:bg-[#DDD0B8] text-[#0A1931]'
+                      ? 'bg-[#25D366] text-[#052014]'
+                      : 'bg-[#e8f0ec] dark:bg-white/10 hover:bg-[#d8e6df] text-[#0a2e1f] dark:text-emerald-100'
                   }`}
                 >
                   #{tag}
@@ -842,19 +869,18 @@ export const PostsFeed: React.FC<PostsFeedProps> = ({
         )}
       </div>
 
-      {/* Feed */}
       <div className="flex-1 overflow-y-auto px-3 sm:px-6 py-4">
         <div className="max-w-xl mx-auto space-y-4 pb-6">
           {filteredPosts.length === 0 ? (
-            <div className="rounded-2xl bg-[#F5EFE6] border border-[#0A1931]/12 p-8 text-center space-y-3">
-              <ImagePlus className="w-10 h-10 mx-auto text-[#0284C7]" />
+            <div className="rounded-2xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/12 dark:border-white/10 p-8 text-center space-y-3">
+              <ImagePlus className="w-10 h-10 mx-auto text-[#25D366]" />
               <div>
-                <h3 className="text-base font-bold text-[#0A1931]">
+                <h3 className="text-base font-bold text-[#0a2e1f] dark:text-white">
                   {hashtagQuery
                     ? `${t.posts.noPostsMatchingPrefix} "${hashtagQuery}"`
                     : t.posts.noPostsYet}
                 </h3>
-                <p className="text-xs text-slate-600 mt-1">
+                <p className="text-xs text-slate-600 dark:text-emerald-200/75 mt-1">
                   {hashtagQuery ? t.posts.tryAnotherTag : t.posts.firstPostHint}
                 </p>
               </div>
@@ -862,7 +888,7 @@ export const PostsFeed: React.FC<PostsFeedProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(true)}
-                  className="h-10 px-4 rounded-xl bg-[#38BDF8] hover:bg-[#0EA5E9] text-[#0A1931] text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer"
+                  className="h-10 px-4 rounded-xl bg-[#25D366] hover:bg-[#1ebe5d] text-[#052014] text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer"
                 >
                   <Plus className="w-4 h-4" />
                   {t.posts.createFirstPost}

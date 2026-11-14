@@ -461,3 +461,25 @@ export async function compressStoryVideo(
     compressedBytes: outputBlob.size,
   };
 }
+
+export async function compressVideoFile(
+  file: File,
+  options?: {
+    maxDurationSec?: number;
+    maxWidth?: number;
+    targetBitrate?: number;
+    onProgress?: (pct: number) => void;
+  }
+): Promise<CompressedVideoResult> {
+  const maxSeconds = options?.maxDurationSec ?? MAX_STORY_VIDEO_SECONDS;
+  const metadata = await readVideoMetadata(file);
+  if (metadata.duration > maxSeconds) {
+    throw new Error(`Video too long (max ${maxSeconds}s).`);
+  }
+  return compressStoryVideo(file, {
+    metadata,
+    maxSeconds,
+    onProgress: options?.onProgress,
+  });
+}
+

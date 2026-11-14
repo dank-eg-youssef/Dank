@@ -72,6 +72,16 @@
           "type": "string",
           "format": "date-time"
         },
+        "isBot": { "type": "boolean" },
+        "isPlus": { "type": "boolean" },
+        "hasPhone": { "type": "boolean" },
+        "privacyPhone": { "type": "string", "enum": ["everyone", "contacts", "nobody"] },
+        "privacyLastSeen": { "type": "string", "enum": ["everyone", "contacts", "nobody"] },
+        "privacyLastSeenExceptions": { "type": "array" },
+        "privacyProfilePhoto": { "type": "string", "enum": ["everyone", "contacts", "nobody"] },
+        "privacyGroupAdd": { "type": "string", "enum": ["everyone", "contacts"] },
+        "privacyCall": { "type": "string", "enum": ["everyone", "contacts", "nobody"] },
+        "privacyMessages": { "type": "string", "enum": ["everyone", "contacts"] },
         "createdAt": {
           "type": "string",
           "format": "date-time"
@@ -85,7 +95,7 @@
     },
     "UserPrivate": {
       "title": "UserPrivate",
-      "description": "Isolated private PII for a user account.",
+      "description": "Isolated private PII, phone number, and 2FA hashes for a user account.",
       "type": "object",
       "properties": {
         "uid": {
@@ -99,6 +109,11 @@
           "minLength": 3,
           "maxLength": 200
         },
+        "phone": { "type": "string", "maxLength": 32 },
+        "twoStepEnabled": { "type": "boolean" },
+        "twoStepPasswordHash": { "type": "string", "maxLength": 128 },
+        "twoStepCodeHash": { "type": "string", "maxLength": 128 },
+        "twoStepHint": { "type": "string", "maxLength": 120 },
         "createdAt": {
           "type": "string",
           "format": "date-time"
@@ -317,6 +332,9 @@
         "isPublic": {
           "type": "boolean"
         },
+        "isSecret": { "type": "boolean" },
+        "selfDestructSeconds": { "type": "integer" },
+        "bannedMemberIds": { "type": "array" },
         "createdBy": {
           "type": "string",
           "minLength": 1,
@@ -332,7 +350,7 @@
         },
         "lastMessageType": {
           "type": "string",
-          "enum": ["", "text", "image", "audio"]
+          "enum": ["", "text", "image", "audio", "video", "file", "location", "sticker"]
         },
         "lastMessageSenderId": {
           "type": "string",
@@ -481,11 +499,11 @@
         },
         "type": {
           "type": "string",
-          "enum": ["text", "image", "audio"]
+          "enum": ["text", "image", "audio", "video", "file", "location", "sticker"]
         },
         "text": {
           "type": "string",
-          "maxLength": 4000
+          "maxLength": 6000
         },
         "imageData": {
           "type": "string",
@@ -493,7 +511,7 @@
         },
         "audioData": {
           "type": "string",
-          "maxLength": 500000
+          "maxLength": 550000
         },
         "audioDuration": {
           "type": "number"
@@ -501,6 +519,21 @@
         "waveform": {
           "type": "array"
         },
+        "fileName": { "type": "string", "maxLength": 180 },
+        "fileSize": { "type": "number" },
+        "fileData": { "type": "string", "maxLength": 750000 },
+        "videoData": { "type": "string", "maxLength": 750000 },
+        "videoDuration": { "type": "number" },
+        "locationLat": { "type": "number" },
+        "locationLng": { "type": "number" },
+        "locationLabel": { "type": "string", "maxLength": 200 },
+        "stickerId": { "type": "string", "maxLength": 64 },
+        "forwardedFromName": { "type": "string", "maxLength": 80 },
+        "isEdited": { "type": "boolean" },
+        "deletedFor": { "type": "array" },
+        "viewCount": { "type": "integer" },
+        "isEncrypted": { "type": "boolean" },
+        "expiresAt": { "type": "string", "format": "date-time" },
         "status": {
           "type": "string",
           "enum": ["sent", "delivered", "seen"]
@@ -851,6 +884,34 @@
     "/follows/{followId}": {
       "schema": { "$ref": "#/entities/FollowRelation" },
       "description": "User follow relationships."
+    },
+    "/calls/{callId}": {
+      "schema": { "type": "object" },
+      "description": "Voice and video call signaling and call log records."
+    },
+    "/users_private/{userId}/chat_prefs/{chatId}": {
+      "schema": { "type": "object" },
+      "description": "Per-user pinned, archived, muted, read, and deleted chat preferences."
+    },
+    "/users_private/{userId}/contacts/{contactUid}": {
+      "schema": { "type": "object" },
+      "description": "User's saved contacts."
+    },
+    "/users_private/{userId}/blocked_users/{blockedUid}": {
+      "schema": { "type": "object" },
+      "description": "Users blocked by this account."
+    },
+    "/users_private/{userId}/sessions/{sessionId}": {
+      "schema": { "type": "object" },
+      "description": "Active device login sessions."
+    },
+    "/chats/{chatId}/messages/{messageId}/comments/{commentId}": {
+      "schema": { "type": "object" },
+      "description": "Comments on broadcast channel posts."
+    },
+    "/chats/{chatId}/messages/{messageId}/views/{viewerUid}": {
+      "schema": { "type": "object" },
+      "description": "Unique view receipts for broadcast channel posts."
     }
   }
 }

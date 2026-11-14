@@ -20,7 +20,7 @@ export const MessageStatusTicks: React.FC<MessageStatusTicksProps> = ({
       <span title={t.chat.statusSent} className="inline-flex items-center">
         <Check
           className={`w-3.5 h-3.5 stroke-[2.25] ${
-            onDarkBubble ? 'text-slate-300/80' : 'text-slate-400'
+            onDarkBubble ? 'text-emerald-100/75' : 'text-slate-400 dark:text-emerald-200/60'
           }`}
         />
       </span>
@@ -30,15 +30,18 @@ export const MessageStatusTicks: React.FC<MessageStatusTicksProps> = ({
   if (status === 'delivered') {
     return (
       <span title={t.chat.statusDelivered} className="inline-flex items-center">
-        <CheckCheck className="w-4 h-4 stroke-[2.25] text-slate-400" />
+        <CheckCheck
+          className={`w-4 h-4 stroke-[2.25] ${
+            onDarkBubble ? 'text-emerald-100/80' : 'text-slate-400 dark:text-emerald-200/65'
+          }`}
+        />
       </span>
     );
   }
 
-  // 'seen' -> TWO RED checkmarks
   return (
     <span title={t.chat.statusSeen} className="inline-flex items-center">
-      <CheckCheck className="w-4 h-4 stroke-[2.5] text-red-500" />
+      <CheckCheck className="w-4 h-4 stroke-[2.5] text-[#25D366]" />
     </span>
   );
 };

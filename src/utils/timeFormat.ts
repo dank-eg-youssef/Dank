@@ -61,6 +61,13 @@ export function formatSidebarTime(
   }).format(date);
 }
 
+export function formatChatTime(
+  ts: Timestamp | null | undefined,
+  lang: AppLanguage = 'ar'
+): string {
+  return formatSidebarTime(ts, lang);
+}
+
 export function formatLastSeen(
   isOnline: boolean | undefined,
   lastSeen: Timestamp | null | undefined,

@@ -21,6 +21,28 @@ function formatDuration(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
+function dataUrlToBlobUrl(dataUrl: string): string | null {
+  if (!dataUrl || !dataUrl.startsWith('data:')) return null;
+  try {
+    const commaIdx = dataUrl.indexOf(',');
+    if (commaIdx === -1) return null;
+    const header = dataUrl.slice(5, commaIdx);
+    const mimeMatch = header.match(/^([^;]+)/);
+    const mime = mimeMatch ? mimeMatch[1] : 'audio/mp4';
+    const b64 = dataUrl.slice(commaIdx + 1);
+    const binary = atob(b64);
+    const len = binary.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    const blob = new Blob([bytes], { type: mime });
+    return URL.createObjectURL(blob);
+  } catch {
+    return null;
+  }
+}
+
 export const VoiceNotePlayer: React.FC<VoiceNotePlayerProps> = ({
   audioData,
   duration = 0,
@@ -28,7 +50,10 @@ export const VoiceNotePlayer: React.FC<VoiceNotePlayerProps> = ({
   onDarkBubble = false,
 }) => {
   const { t } = useLanguage();
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [shouldLoadAudio, setShouldLoadAudio] = useState(false);
+  const [blobSrc, setBlobSrc] = useState<string>('');
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [totalDuration, setTotalDuration] = useState(duration);
@@ -44,20 +69,59 @@ export const VoiceNotePlayer: React.FC<VoiceNotePlayerProps> = ({
     setTotalDuration(duration);
   }, [duration]);
 
+  // Lazy-mount <audio> via IntersectionObserver (or immediately when user taps play)
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || shouldLoadAudio) return;
+    if (typeof IntersectionObserver === 'undefined') {
+      setShouldLoadAudio(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setShouldLoadAudio(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '180px' }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [shouldLoadAudio]);
+
+  // Convert data: URI to Blob Object URL so iPhone Safari reliably plays & seeks
+  useEffect(() => {
+    if (!shouldLoadAudio || !audioData?.trim()) {
+      setBlobSrc('');
+      return;
+    }
+    if (!audioData.startsWith('data:')) {
+      setBlobSrc(audioData);
+      return;
+    }
+    const objectUrl = dataUrlToBlobUrl(audioData);
+    if (objectUrl) {
+      setBlobSrc(objectUrl);
+      return () => {
+        URL.revokeObjectURL(objectUrl);
+      };
+    }
+    setBlobSrc(audioData);
+  }, [shouldLoadAudio, audioData]);
+
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio) return;
+    if (!audio || !blobSrc) return;
 
-    const handleTimeUpdate = () => {
-      setCurrentTime(audio.currentTime || 0);
+    const syncDuration = () => {
       if (Number.isFinite(audio.duration) && audio.duration > 0) {
         setTotalDuration(audio.duration);
       }
     };
-    const handleLoadedMeta = () => {
-      if (Number.isFinite(audio.duration) && audio.duration > 0) {
-        setTotalDuration(audio.duration);
-      }
+    const handleTimeUpdate = () => {
+      setCurrentTime(audio.currentTime || 0);
+      syncDuration();
     };
     const handleEnded = () => {
       setIsPlaying(false);
@@ -67,33 +131,86 @@ export const VoiceNotePlayer: React.FC<VoiceNotePlayerProps> = ({
     const handlePlay = () => setIsPlaying(true);
 
     audio.addEventListener('timeupdate', handleTimeUpdate);
-    audio.addEventListener('loadedmetadata', handleLoadedMeta);
+    audio.addEventListener('loadedmetadata', syncDuration);
+    audio.addEventListener('durationchange', syncDuration);
     audio.addEventListener('ended', handleEnded);
     audio.addEventListener('pause', handlePause);
     audio.addEventListener('play', handlePlay);
+    audio.addEventListener('error', handlePause);
 
     return () => {
       audio.removeEventListener('timeupdate', handleTimeUpdate);
-      audio.removeEventListener('loadedmetadata', handleLoadedMeta);
+      audio.removeEventListener('loadedmetadata', syncDuration);
+      audio.removeEventListener('durationchange', syncDuration);
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('pause', handlePause);
       audio.removeEventListener('play', handlePlay);
+      audio.removeEventListener('error', handlePause);
       audio.pause();
     };
-  }, [audioData]);
+  }, [blobSrc]);
 
-  const togglePlayback = async (e: React.MouseEvent) => {
+  // Fallback interval timer for smooth progress bar animation on iOS Safari WebKit
+  useEffect(() => {
+    if (!isPlaying) return;
+    const id = window.setInterval(() => {
+      const audio = audioRef.current;
+      if (audio && !audio.paused) {
+        setCurrentTime(audio.currentTime || 0);
+        if (Number.isFinite(audio.duration) && audio.duration > 0) {
+          setTotalDuration(audio.duration);
+        }
+      }
+    }, 100);
+    return () => window.clearInterval(id);
+  }, [isPlaying]);
+
+  const togglePlayback = async (e: React.MouseEvent | React.TouchEvent) => {
     e.stopPropagation();
+
+    let srcToPlay = blobSrc;
+    if (!shouldLoadAudio) {
+      setShouldLoadAudio(true);
+    }
+
     const audio = audioRef.current;
     if (!audio) return;
+
+    // Ensure src is assigned synchronously during iOS user gesture handler
+    if (!audio.getAttribute('src') && audioData?.trim()) {
+      if (!srcToPlay && audioData.startsWith('data:')) {
+        srcToPlay = dataUrlToBlobUrl(audioData) || audioData;
+        setBlobSrc(srcToPlay);
+      } else if (!srcToPlay) {
+        srcToPlay = audioData;
+        setBlobSrc(srcToPlay);
+      }
+      if (srcToPlay) {
+        audio.src = srcToPlay;
+      }
+    }
+
     if (audio.paused) {
       try {
+        setIsPlaying(true);
         await audio.play();
       } catch {
+        // Fallback retry using raw audioData if Blob URL codec differed
+        if (audioData && audio.src !== audioData) {
+          try {
+            audio.src = audioData;
+            await audio.play();
+            setIsPlaying(true);
+            return;
+          } catch {
+            // ignore
+          }
+        }
         setIsPlaying(false);
       }
     } else {
       audio.pause();
+      setIsPlaying(false);
     }
   };
 
@@ -113,19 +230,27 @@ export const VoiceNotePlayer: React.FC<VoiceNotePlayerProps> = ({
   const progressRatio = totalDuration > 0 ? Math.min(1, currentTime / totalDuration) : 0;
 
   return (
-    <div className="flex items-center gap-2.5 min-w-[215px] sm:min-w-[245px] py-0.5 select-none">
-      {audioData?.trim() ? (
-        <audio ref={audioRef} src={audioData} preload="metadata" className="hidden" />
-      ) : null}
+    <div
+      ref={containerRef}
+      className="flex items-center gap-2.5 min-w-[220px] sm:min-w-[255px] py-0.5 select-none"
+    >
+      <audio
+        ref={audioRef}
+        src={blobSrc || undefined}
+        playsInline
+        preload="metadata"
+        className="hidden"
+      />
 
       <button
         type="button"
         onClick={(e) => void togglePlayback(e)}
         aria-label={isPlaying ? t.chat.pauseVoice : t.chat.playVoice}
-        className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-transform active:scale-95 cursor-pointer ${
+        style={{ touchAction: 'manipulation' }}
+        className={`w-11 h-11 min-w-[44px] min-h-[44px] rounded-full flex items-center justify-center shrink-0 transition-transform active:scale-95 cursor-pointer ${
           onDarkBubble
-            ? 'bg-[#38BDF8] text-[#0A1931] hover:bg-[#0EA5E9]'
-            : 'bg-[#0A1931] text-white hover:bg-[#13284A]'
+            ? 'bg-[#25D366] text-[#041f14] hover:bg-[#1ebe5d]'
+            : 'bg-[#0a2e1f] dark:bg-[#25D366] text-white dark:text-[#041f14] hover:opacity-90'
         }`}
       >
         {isPlaying ? (
@@ -146,15 +271,15 @@ export const VoiceNotePlayer: React.FC<VoiceNotePlayerProps> = ({
                 type="button"
                 onClick={(e) => handleSeekBar(e, idx)}
                 aria-label={`Seek waveform ${idx + 1}`}
-                style={{ height: `${Math.round(amp * 100)}%` }}
+                style={{ height: `${Math.round(amp * 100)}%`, touchAction: 'manipulation' }}
                 className={`flex-1 min-w-[2.5px] max-w-[4px] rounded-full transition-colors cursor-pointer ${
                   active
                     ? onDarkBubble
-                      ? 'bg-[#38BDF8]'
-                      : 'bg-[#0284C7]'
+                      ? 'bg-[#25D366]'
+                      : 'bg-[#25D366]'
                     : onDarkBubble
                     ? 'bg-white/30 hover:bg-white/50'
-                    : 'bg-[#0A1931]/20 hover:bg-[#0A1931]/35'
+                    : 'bg-[#0a2e1f]/20 dark:bg-white/25 hover:bg-[#0a2e1f]/35'
                 }`}
               />
             );
@@ -162,7 +287,7 @@ export const VoiceNotePlayer: React.FC<VoiceNotePlayerProps> = ({
         </div>
         <div
           className={`flex items-center justify-between text-[10px] font-medium tabular-nums ${
-            onDarkBubble ? 'text-slate-300' : 'text-slate-600'
+            onDarkBubble ? 'text-emerald-100/80' : 'text-slate-600 dark:text-emerald-100/70'
           }`}
         >
           <span>{isPlaying ? formatDuration(currentTime) : t.chat.voiceNoteLabel}</span>

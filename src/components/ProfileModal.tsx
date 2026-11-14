@@ -11,14 +11,18 @@ import {
   Heart,
   LogOut,
   MessageCircle,
+  Moon,
   Play,
   Save,
   Settings,
+  Shield,
+  Sun,
   UserPlus,
   X,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { getTranslations } from '../i18n';
 import { toggleFollowUser } from '../services/socialService';
 import type { AppLanguage, FollowRelation, Post, Reel, UserPublic } from '../types/dank';
@@ -36,6 +40,7 @@ interface ProfileModalProps {
   onOpenPost?: (postId: string) => void;
   onOpenReel?: (reelId: string) => void;
   onStartChat?: (user: UserPublic) => void;
+  onOpenPrivacySettings?: () => void;
   onClose: () => void;
   onNotify: (msg: string) => void;
 }
@@ -48,11 +53,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   onOpenPost,
   onOpenReel,
   onStartChat,
+  onOpenPrivacySettings,
   onClose,
   onNotify,
 }) => {
   const { profile, privateProfile, updateUserProfile, redeemReferralCode, logout } = useAuth();
   const { language, t, setLanguage } = useLanguage();
+  const { isDark, setTheme } = useTheme();
 
   const displayedUser = targetUser || profile;
   const isOwnProfile = Boolean(profile && displayedUser && profile.uid === displayedUser.uid);
@@ -184,52 +191,86 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     }
   };
 
-  const renderLanguageCard = () => (
-    <div className="p-3.5 rounded-xl bg-white border border-[#0A1931]/12 space-y-2.5">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 text-xs font-bold text-[#0A1931]">
-          <Globe className="w-4 h-4 text-[#0284C7]" />
-          <span>{t.common.language}</span>
+  const renderLanguageAndThemeCard = () => (
+    <div className="space-y-2.5">
+      <div className="p-3.5 rounded-xl bg-[#f4f7f5] dark:bg-[#071911] border border-[#0a2e1f]/12 dark:border-white/10 space-y-2.5">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-xs font-bold text-[#0a2e1f] dark:text-white">
+            <Globe className="w-4 h-4 text-[#25D366]" />
+            <span>{t.common.language}</span>
+          </div>
+          <span className="text-[11px] font-medium text-slate-500 dark:text-emerald-200/70">
+            {language === 'ar' ? t.common.arabic : t.common.english}
+          </span>
         </div>
-        <span className="text-[11px] font-medium text-slate-500">
-          {language === 'ar' ? t.common.arabic : t.common.english}
-        </span>
+
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => void handleLanguageChange('ar')}
+            className={`h-10 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border transition-colors cursor-pointer ${
+              language === 'ar'
+                ? 'bg-[#0a2e1f] border-[#0a2e1f] text-[#25D366] dark:bg-[#25D366] dark:border-[#25D366] dark:text-[#052014]'
+                : 'bg-white dark:bg-[#0d2218] border-[#0a2e1f]/15 dark:border-white/10 text-[#0a2e1f] dark:text-white'
+            }`}
+          >
+            {language === 'ar' && <Check className="w-3.5 h-3.5" />}
+            <span>{t.profile.arabicOption}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleLanguageChange('en')}
+            className={`h-10 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border transition-colors cursor-pointer ${
+              language === 'en'
+                ? 'bg-[#0a2e1f] border-[#0a2e1f] text-[#25D366] dark:bg-[#25D366] dark:border-[#25D366] dark:text-[#052014]'
+                : 'bg-white dark:bg-[#0d2218] border-[#0a2e1f]/15 dark:border-white/10 text-[#0a2e1f] dark:text-white'
+            }`}
+          >
+            {language === 'en' && <Check className="w-3.5 h-3.5" />}
+            <span>{t.profile.englishOption}</span>
+          </button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          onClick={() => void handleLanguageChange('ar')}
-          className={`h-10 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border transition-colors cursor-pointer ${
-            language === 'ar'
-              ? 'bg-[#0A1931] border-[#0A1931] text-[#38BDF8]'
-              : 'bg-[#FAF7F2] border-[#0A1931]/15 text-[#0A1931] hover:bg-[#E8DCC6]'
-          }`}
-        >
-          {language === 'ar' && <Check className="w-3.5 h-3.5" />}
-          <span>{t.profile.arabicOption}</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => void handleLanguageChange('en')}
-          className={`h-10 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border transition-colors cursor-pointer ${
-            language === 'en'
-              ? 'bg-[#0A1931] border-[#0A1931] text-[#38BDF8]'
-              : 'bg-[#FAF7F2] border-[#0A1931]/15 text-[#0A1931] hover:bg-[#E8DCC6]'
-          }`}
-        >
-          {language === 'en' && <Check className="w-3.5 h-3.5" />}
-          <span>{t.profile.englishOption}</span>
-        </button>
+      <div className="p-3.5 rounded-xl bg-[#f4f7f5] dark:bg-[#071911] border border-[#0a2e1f]/12 dark:border-white/10 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-xs font-bold text-[#0a2e1f] dark:text-white">
+          {isDark ? <Moon className="w-4 h-4 text-[#25D366]" /> : <Sun className="w-4 h-4 text-amber-500" />}
+          <span>{isDark ? t.theme.darkMode : t.theme.lightMode}</span>
+        </div>
+        <div className="grid grid-cols-2 gap-1.5">
+          <button
+            type="button"
+            onClick={() => setTheme('light')}
+            className={`px-2.5 h-8 rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer ${
+              !isDark
+                ? 'bg-[#25D366] text-[#052014]'
+                : 'bg-white/10 text-emerald-100/80 hover:bg-white/15'
+            }`}
+          >
+            <Sun className="w-3 h-3" />
+            {t.theme.lightMode}
+          </button>
+          <button
+            type="button"
+            onClick={() => setTheme('dark')}
+            className={`px-2.5 h-8 rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer ${
+              isDark
+                ? 'bg-[#25D366] text-[#052014]'
+                : 'bg-white border border-[#0a2e1f]/15 text-[#0a2e1f]'
+            }`}
+          >
+            <Moon className="w-3 h-3" />
+            {t.theme.darkMode}
+          </button>
+        </div>
       </div>
     </div>
   );
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="w-full max-w-lg rounded-2xl bg-[#F5EFE6] border border-[#0A1931]/15 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
-        {/* Header */}
-        <div className="bg-[#0A1931] text-white px-5 py-4 flex items-center justify-between shrink-0">
+      <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/15 dark:border-white/10 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+        <div className="bg-[#0a2e1f] text-white px-5 py-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2 min-w-0">
             <h3 className="text-base font-semibold truncate">
               {editMode ? t.profile.editAccountTitle : `@${displayedUser.username}`}
@@ -249,7 +290,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 }}
                 className={`h-8 px-3 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer ${
                   editMode
-                    ? 'bg-[#38BDF8] text-[#0A1931]'
+                    ? 'bg-[#25D366] text-[#052014]'
                     : 'bg-white/10 hover:bg-white/20 text-white'
                 }`}
               >
@@ -290,62 +331,79 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   type="button"
                   onClick={() => fileRef.current?.click()}
                   title={t.profile.profileTitle}
-                  className="absolute -bottom-1 -end-1 w-8 h-8 rounded-full bg-[#38BDF8] text-[#0A1931] flex items-center justify-center shadow-md hover:bg-[#0EA5E9] cursor-pointer"
+                  className="absolute -bottom-1 -end-1 w-8 h-8 rounded-full bg-[#25D366] text-[#052014] flex items-center justify-center shadow-md hover:bg-[#1ebe5d] cursor-pointer"
                 >
                   <Camera className="w-4 h-4" />
                 </button>
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
-                  <p className="text-sm font-semibold text-[#0A1931] truncate">{profile.name}</p>
+                  <p className="text-sm font-semibold text-[#0a2e1f] dark:text-white truncate">
+                    {profile.name}
+                  </p>
                   <UserBadges
                     isAdmin={profile.isAdmin}
                     isVerified={profile.isVerified}
                     isVip={isVip}
+                    isPlus={profile.isPlus}
                     size="sm"
                   />
                 </div>
-                <p dir="ltr" className="text-xs text-slate-600 truncate">
+                <p dir="ltr" className="text-xs text-slate-600 dark:text-emerald-200/75 truncate">
                   @{profile.username}
                 </p>
                 {privateProfile?.email && (
-                  <p dir="ltr" className="text-[11px] text-slate-500 truncate mt-0.5">
+                  <p dir="ltr" className="text-[11px] text-slate-500 dark:text-emerald-200/60 truncate mt-0.5">
                     {privateProfile.email}
                   </p>
                 )}
               </div>
             </div>
 
-            {/* Language Switcher in Settings */}
-            {renderLanguageCard()}
+            {renderLanguageAndThemeCard()}
 
-            {/* Standalone App Install (shown when installable or on iOS Safari) */}
+            {onOpenPrivacySettings && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenPrivacySettings();
+                }}
+                className="w-full h-10 px-4 rounded-xl bg-[#0a2e1f] hover:bg-[#103d2a] text-white text-xs font-semibold flex items-center justify-between cursor-pointer"
+              >
+                <span className="flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-[#25D366]" />
+                  {t.privacy.privacySecurity}
+                </span>
+                <span className="text-[#25D366] text-[11px]">{t.common.open}</span>
+              </button>
+            )}
+
             <PWAInstallButton variant="card" />
 
-            {/* Invite Code & DANK VIP Card */}
-            <div className="p-3.5 rounded-xl bg-white border border-[#0A1931]/12 space-y-2.5">
+            <div className="p-3.5 rounded-xl bg-[#f4f7f5] dark:bg-[#071911] border border-[#0a2e1f]/12 dark:border-white/10 space-y-2.5">
               <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-[#0A1931]">
-                  <Gift className="w-4 h-4 text-[#0284C7]" />
+                <div className="flex items-center gap-1.5 text-xs font-bold text-[#0a2e1f] dark:text-white">
+                  <Gift className="w-4 h-4 text-[#25D366]" />
                   <span>{t.profile.myInviteCode}</span>
                 </div>
                 {isVip ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gradient-to-r from-amber-500 to-yellow-400 text-[#0A1931] text-[10px] font-bold">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gradient-to-r from-amber-500 to-yellow-400 text-[#052014] text-[10px] font-bold">
                     <Crown className="w-3 h-3" />
                     {t.profile.vipUnlocked}
                   </span>
                 ) : (
-                  <span className="text-[11px] font-semibold text-slate-500 tabular-nums">
+                  <span className="text-[11px] font-semibold text-slate-500 dark:text-emerald-200/70 tabular-nums">
                     {inviteCount} / 5 {t.profile.invitesSuffix}
                   </span>
                 )}
               </div>
 
               <div className="flex items-center gap-2">
-                <div className="flex-1 h-10 px-3 rounded-lg bg-[#F5EFE6] border border-[#0A1931]/10 flex items-center justify-between">
+                <div className="flex-1 h-10 px-3 rounded-lg bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/10 dark:border-white/10 flex items-center justify-between">
                   <span
                     dir="ltr"
-                    className="text-sm font-bold tracking-wider text-[#0A1931] tabular-nums"
+                    className="text-sm font-bold tracking-wider text-[#0a2e1f] dark:text-white tabular-nums"
                   >
                     {profile.inviteCode || t.profile.generating}
                   </span>
@@ -354,7 +412,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   type="button"
                   disabled={!profile.inviteCode}
                   onClick={() => void handleCopyInviteCode()}
-                  className="h-10 px-3.5 rounded-lg bg-[#38BDF8] hover:bg-[#0EA5E9] text-[#0A1931] text-xs font-semibold flex items-center gap-1.5 shrink-0 disabled:opacity-50 cursor-pointer"
+                  className="h-10 px-3.5 rounded-lg bg-[#25D366] hover:bg-[#1ebe5d] text-[#052014] text-xs font-bold flex items-center gap-1.5 shrink-0 disabled:opacity-50 cursor-pointer"
                 >
                   {copiedCode ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                   {copiedCode ? t.common.copied : t.common.copy}
@@ -362,13 +420,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               </div>
 
               <div className="space-y-1">
-                <div className="h-1.5 w-full rounded-full bg-[#E8DCC6] overflow-hidden">
+                <div className="h-1.5 w-full rounded-full bg-[#0a2e1f]/10 dark:bg-white/10 overflow-hidden">
                   <div
                     style={{ width: `${vipProgress}%` }}
-                    className="h-full bg-gradient-to-r from-[#38BDF8] to-amber-400 transition-all duration-300"
+                    className="h-full bg-gradient-to-r from-[#25D366] to-amber-400 transition-all duration-300"
                   />
                 </div>
-                <p className="text-[11px] text-slate-600">
+                <p className="text-[11px] text-slate-600 dark:text-emerald-200/75">
                   {isVip
                     ? `${t.profile.vipEarnedDescPrefix} ${inviteCount} ${t.profile.vipEarnedDescSuffix}`
                     : `${t.profile.inviteMorePrefix} ${Math.max(1, 5 - inviteCount)} ${
@@ -380,8 +438,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               </div>
 
               {!profile.invitedBy && (
-                <div className="pt-2 border-t border-[#0A1931]/10">
-                  <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                <div className="pt-2 border-t border-[#0a2e1f]/10 dark:border-white/10">
+                  <label className="block text-[11px] font-medium text-slate-600 dark:text-emerald-200/75 mb-1">
                     {t.profile.haveFriendCode}
                   </label>
                   <div className="flex items-center gap-2">
@@ -392,13 +450,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                       onChange={(e) => setFriendCode(e.target.value.toUpperCase())}
                       placeholder="DANK-XXXX"
                       maxLength={16}
-                      className="flex-1 h-9 px-3 rounded-lg bg-[#FAF7F2] border border-[#0A1931]/12 text-xs text-[#0A1931] uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
+                      className="flex-1 h-10 px-3 rounded-lg bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/12 dark:border-white/15 text-base text-[#0a2e1f] dark:text-white uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-[#25D366]"
                     />
                     <button
                       type="button"
                       disabled={redeeming || !friendCode.trim()}
                       onClick={() => void handleRedeemCode()}
-                      className="h-9 px-3 rounded-lg bg-[#0A1931] hover:bg-[#13284A] text-white text-xs font-semibold disabled:opacity-50 cursor-pointer"
+                      className="h-10 px-3 rounded-lg bg-[#0a2e1f] hover:bg-[#103d2a] text-white text-xs font-semibold disabled:opacity-50 cursor-pointer"
                     >
                       {redeeming ? t.profile.applying : t.profile.apply}
                     </button>
@@ -408,7 +466,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-[#0A1931] mb-1">
+              <label className="block text-xs font-medium text-[#0a2e1f] dark:text-emerald-100 mb-1">
                 {t.profile.displayName}
               </label>
               <input
@@ -418,12 +476,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 maxLength={80}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full h-11 px-3.5 rounded-xl bg-white border border-[#0A1931]/15 text-sm text-[#0A1931] focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
+                className="w-full h-11 px-3.5 rounded-xl bg-[#f4f7f5] dark:bg-[#071911] border border-[#0a2e1f]/15 dark:border-white/15 text-base text-[#0a2e1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#25D366]"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-[#0A1931] mb-1">
+              <label className="block text-xs font-medium text-[#0a2e1f] dark:text-emerald-100 mb-1">
                 {t.profile.username}
               </label>
               <input
@@ -433,12 +491,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 maxLength={32}
                 value={username}
                 onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
-                className="w-full h-11 px-3.5 rounded-xl bg-white border border-[#0A1931]/15 text-sm text-[#0A1931] focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
+                className="w-full h-11 px-3.5 rounded-xl bg-[#f4f7f5] dark:bg-[#071911] border border-[#0a2e1f]/15 dark:border-white/15 text-base text-[#0a2e1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#25D366]"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-[#0A1931] mb-1">
+              <label className="block text-xs font-medium text-[#0a2e1f] dark:text-emerald-100 mb-1">
                 {t.profile.bio}
               </label>
               <textarea
@@ -448,7 +506,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
                 placeholder={t.profile.bioPlaceholder}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-[#0A1931]/15 text-sm text-[#0A1931] focus:outline-none focus:ring-2 focus:ring-[#38BDF8] resize-none"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-[#f4f7f5] dark:bg-[#071911] border border-[#0a2e1f]/15 dark:border-white/15 text-base text-[#0a2e1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#25D366] resize-none"
               />
             </div>
 
@@ -456,7 +514,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               <button
                 type="submit"
                 disabled={saving}
-                className="flex-1 h-11 rounded-xl bg-[#38BDF8] hover:bg-[#0EA5E9] text-[#0A1931] font-semibold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-60 cursor-pointer"
+                className="flex-1 h-11 rounded-xl bg-[#25D366] hover:bg-[#1ebe5d] text-[#052014] font-bold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-60 cursor-pointer"
               >
                 <Save className="w-4 h-4" />
                 {saving ? t.common.saving : t.profile.saveChanges}
@@ -467,17 +525,20 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   onClose();
                   void logout();
                 }}
-                className="h-11 px-4 rounded-xl bg-[#0A1931] hover:bg-[#13284A] text-white text-sm font-medium flex items-center gap-2 transition-colors cursor-pointer"
+                className="h-11 px-4 rounded-xl bg-[#0a2e1f] hover:bg-[#103d2a] text-white text-sm font-medium flex items-center gap-2 transition-colors cursor-pointer"
               >
-                <LogOut className="w-4 h-4 text-[#38BDF8]" />
+                <LogOut className="w-4 h-4 text-[#25D366]" />
                 {t.profile.logout}
               </button>
             </div>
+
+            <p className="text-[11px] text-center text-slate-400 dark:text-emerald-200/50 pt-1">
+              {t.brand.footerCopyright}
+            </p>
           </form>
         ) : (
           <div className="flex-1 overflow-y-auto flex flex-col">
-            {/* Instagram-style Profile Header + Counts */}
-            <div className="p-5 space-y-4 bg-white/70 border-b border-[#0A1931]/10 shrink-0">
+            <div className="p-5 space-y-4 bg-[#f4f7f5]/80 dark:bg-[#071911]/60 border-b border-[#0a2e1f]/10 dark:border-white/10 shrink-0">
               <div className="flex items-center gap-4">
                 <Avatar
                   src={displayedUser.photoURL}
@@ -489,44 +550,55 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
                 <div className="flex-1 grid grid-cols-4 gap-2 text-center">
                   <div>
-                    <p className="text-base font-bold text-[#0A1931] tabular-nums">
+                    <p className="text-base font-bold text-[#0a2e1f] dark:text-white tabular-nums">
                       {userPosts.length}
                     </p>
-                    <p className="text-[11px] text-slate-600">{t.profile.postsCount}</p>
+                    <p className="text-[11px] text-slate-600 dark:text-emerald-200/70">
+                      {t.profile.postsCount}
+                    </p>
                   </div>
                   <div>
-                    <p className="text-base font-bold text-[#0A1931] tabular-nums">
+                    <p className="text-base font-bold text-[#0a2e1f] dark:text-white tabular-nums">
                       {userReels.length}
                     </p>
-                    <p className="text-[11px] text-slate-600">{t.profile.reelsCount}</p>
+                    <p className="text-[11px] text-slate-600 dark:text-emerald-200/70">
+                      {t.profile.reelsCount}
+                    </p>
                   </div>
                   <div>
-                    <p className="text-base font-bold text-[#0A1931] tabular-nums">
+                    <p className="text-base font-bold text-[#0a2e1f] dark:text-white tabular-nums">
                       {followersCount}
                     </p>
-                    <p className="text-[11px] text-slate-600">{t.profile.followersCount}</p>
+                    <p className="text-[11px] text-slate-600 dark:text-emerald-200/70">
+                      {t.profile.followersCount}
+                    </p>
                   </div>
                   <div>
-                    <p className="text-base font-bold text-[#0A1931] tabular-nums">
+                    <p className="text-base font-bold text-[#0a2e1f] dark:text-white tabular-nums">
                       {followingCount}
                     </p>
-                    <p className="text-[11px] text-slate-600">{t.profile.followingCount}</p>
+                    <p className="text-[11px] text-slate-600 dark:text-emerald-200/70">
+                      {t.profile.followingCount}
+                    </p>
                   </div>
                 </div>
               </div>
 
               <div>
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <h4 className="text-sm font-bold text-[#0A1931]">{displayedUser.name}</h4>
+                  <h4 className="text-sm font-bold text-[#0a2e1f] dark:text-white">
+                    {displayedUser.name}
+                  </h4>
                   <UserBadges
                     isAdmin={displayedUser.isAdmin}
                     isVerified={displayedUser.isVerified}
                     isVip={isVip}
+                    isPlus={displayedUser.isPlus}
                     size="sm"
                   />
                 </div>
                 {displayedUser.bio && (
-                  <p dir="auto" className="text-xs text-slate-700 mt-1 leading-relaxed">
+                  <p dir="auto" className="text-xs text-slate-700 dark:text-emerald-100/80 mt-1 leading-relaxed">
                     {displayedUser.bio}
                   </p>
                 )}
@@ -540,8 +612,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     onClick={() => void handleToggleFollow()}
                     className={`flex-1 h-9 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors ${
                       isFollowing
-                        ? 'bg-[#E8DCC6] hover:bg-[#DDD0B8] text-[#0A1931]'
-                        : 'bg-[#38BDF8] hover:bg-[#0EA5E9] text-[#0A1931]'
+                        ? 'bg-[#e8f0ec] dark:bg-white/10 text-[#0a2e1f] dark:text-white'
+                        : 'bg-[#25D366] hover:bg-[#1ebe5d] text-[#052014]'
                     }`}
                   >
                     {isFollowing ? (
@@ -558,17 +630,16 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                         onStartChat(displayedUser);
                         onClose();
                       }}
-                      className="flex-1 h-9 rounded-xl bg-[#0A1931] hover:bg-[#13284A] text-white text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
+                      className="flex-1 h-9 rounded-xl bg-[#0a2e1f] hover:bg-[#103d2a] text-white text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
                     >
-                      <MessageCircle className="w-3.5 h-3.5 text-[#38BDF8]" />
+                      <MessageCircle className="w-3.5 h-3.5 text-[#25D366]" />
                       {t.profile.messageBtn}
                     </button>
                   )}
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {/* Direct Language Switcher on Profile Page */}
-                  {renderLanguageCard()}
+                  {renderLanguageAndThemeCard()}
 
                   <div className="flex items-center gap-2">
                     <button
@@ -580,17 +651,30 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                         setPhotoURL(profile.photoURL || '');
                         setEditMode(true);
                       }}
-                      className="flex-1 h-9 rounded-xl bg-[#0A1931] hover:bg-[#13284A] text-white text-xs font-semibold cursor-pointer"
+                      className="flex-1 h-9 rounded-xl bg-[#0a2e1f] hover:bg-[#103d2a] text-white text-xs font-semibold cursor-pointer"
                     >
                       {t.profile.editProfileBtn}
                     </button>
+                    {onOpenPrivacySettings && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onClose();
+                          onOpenPrivacySettings();
+                        }}
+                        className="h-9 px-3 rounded-xl bg-[#25D366]/15 hover:bg-[#25D366]/25 text-[#0a2e1f] dark:text-[#25D366] text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Shield className="w-3.5 h-3.5" />
+                        {t.privacy.privacySecurity}
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => {
                         onClose();
                         void logout();
                       }}
-                      className="h-9 px-3.5 rounded-xl border border-[#0A1931]/20 hover:bg-[#E8DCC6] text-[#0A1931] text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                      className="h-9 px-3 rounded-xl border border-[#0a2e1f]/20 dark:border-white/15 hover:bg-black/5 dark:hover:bg-white/10 text-[#0a2e1f] dark:text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
                     >
                       <LogOut className="w-3.5 h-3.5" />
                       {t.profile.logout}
@@ -600,15 +684,14 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               )}
             </div>
 
-            {/* Instagram 2 Tabs: Posts / Reels */}
-            <div className="grid grid-cols-2 border-b border-[#0A1931]/10 bg-[#F5EFE6] shrink-0">
+            <div className="grid grid-cols-2 border-b border-[#0a2e1f]/10 dark:border-white/10 bg-white dark:bg-[#0d2218] shrink-0">
               <button
                 type="button"
                 onClick={() => setActiveTab('posts')}
                 className={`h-11 flex items-center justify-center gap-1.5 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
                   activeTab === 'posts'
-                    ? 'border-[#0A1931] text-[#0A1931]'
-                    : 'border-transparent text-slate-500 hover:text-[#0A1931]'
+                    ? 'border-[#25D366] text-[#0a2e1f] dark:text-[#25D366]'
+                    : 'border-transparent text-slate-500 dark:text-emerald-200/60'
                 }`}
               >
                 <Grid className="w-4 h-4" />
@@ -621,8 +704,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 onClick={() => setActiveTab('reels')}
                 className={`h-11 flex items-center justify-center gap-1.5 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
                   activeTab === 'reels'
-                    ? 'border-[#0A1931] text-[#0A1931]'
-                    : 'border-transparent text-slate-500 hover:text-[#0A1931]'
+                    ? 'border-[#25D366] text-[#0a2e1f] dark:text-[#25D366]'
+                    : 'border-transparent text-slate-500 dark:text-emerald-200/60'
                 }`}
               >
                 <Film className="w-4 h-4" />
@@ -632,11 +715,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               </button>
             </div>
 
-            {/* 3-Column Content Grid */}
             <div className="p-2 flex-1">
               {activeTab === 'posts' ? (
                 userPosts.length === 0 ? (
-                  <div className="py-12 text-center text-xs text-slate-500">
+                  <div className="py-12 text-center text-xs text-slate-500 dark:text-emerald-200/60">
                     {t.profile.noPhotoPosts}
                   </div>
                 ) : (
@@ -651,12 +733,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                             onClose();
                           }
                         }}
-                        className="relative aspect-square rounded-lg overflow-hidden bg-[#0A1931] group cursor-pointer"
+                        className="relative aspect-square rounded-lg overflow-hidden bg-[#0a2e1f] group cursor-pointer"
                       >
                         {post.images?.[0]?.trim() ? (
                           <img
                             src={post.images[0]}
                             alt={post.caption || t.posts.title}
+                            loading="lazy"
                             referrerPolicy="no-referrer"
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                           />
@@ -677,7 +760,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   </div>
                 )
               ) : userReels.length === 0 ? (
-                <div className="py-12 text-center text-xs text-slate-500">
+                <div className="py-12 text-center text-xs text-slate-500 dark:text-emerald-200/60">
                   {t.profile.noReelsYet}
                 </div>
               ) : (
@@ -692,7 +775,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                           onClose();
                         }
                       }}
-                      className="relative aspect-[9/14] rounded-lg overflow-hidden bg-[#0A1931] group cursor-pointer flex flex-col justify-end p-2 text-start"
+                      className="relative aspect-[9/14] rounded-lg overflow-hidden bg-[#0a2e1f] group cursor-pointer flex flex-col justify-end p-2 text-start"
                     >
                       {reel.videoUrl?.trim() && reel.videoUrl !== 'chunked' && (
                         <video

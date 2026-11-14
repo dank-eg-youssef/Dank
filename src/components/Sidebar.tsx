@@ -1,26 +1,51 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
+  Archive,
+  ArchiveRestore,
   Bell,
   BellOff,
+  CheckCheck,
+  ChevronDown,
+  ChevronUp,
   ExternalLink,
   Flame,
+  Lock,
   Megaphone,
+  Menu,
   MessageSquarePlus,
+  Moon,
+  Pin,
+  PinOff,
   Search,
   Shield,
+  Sun,
+  Trash2,
   Users,
   X,
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
-import { getEffective24hCount } from '../services/chatService';
-import type { AdsBanner, Chat, Story, TypingState, UserPublic } from '../types/dank';
+import { useTheme } from '../contexts/ThemeContext';
+import {
+  canSeePrivacyField,
+  DANK_BOT_UID,
+  getEffective24hCount,
+  setUserChatPref,
+} from '../services/chatService';
+import type {
+  AdsBanner,
+  Chat,
+  Story,
+  TypingState,
+  UserChatPref,
+  UserPublic,
+} from '../types/dank';
 import { formatSidebarTime, isUserActuallyOnline, timestampToMs } from '../utils/timeFormat';
 import { Avatar } from './Avatar';
+import { DankLogo } from './DankLogo';
 import { MessageStatusTicks } from './MessageStatusTicks';
 import { PWAInstallButton } from './PWAInstallButton';
 import { StoriesBar, type StoryAuthorGroup } from './StoriesBar';
 import { UserBadges } from './UserBadges';
-import brandEmblem from '../assets/images/dank_brand_emblem_1794576170469.jpg';
 
 export type SidebarTab = 'all' | 'private' | 'group' | 'channel' | 'trending';
 
@@ -31,22 +56,26 @@ interface SidebarProps {
   allUsers: UserPublic[];
   publicChannels: Chat[];
   usersMap: Record<string, UserPublic>;
+  contactIds: Set<string>;
   mutedChatIds: Set<string>;
+  chatPrefsById: Record<string, UserChatPref>;
   typingByChat: Record<string, TypingState[]>;
   stories: Story[];
   viewedStoryIds: Set<string>;
   adsBanner?: AdsBanner | null;
   notificationPermission: NotificationPermission | 'unsupported';
   activeChatId: string | null;
+  tabScope?: 'chats' | 'groups' | 'channels';
+  onOpenDrawer: () => void;
   onSelectChat: (chatId: string) => void;
   onStartPrivateChat: (peer: UserPublic) => void;
   onJoinPublicChannel: (chatId: string) => void;
   onOpenCreateModal: (defaultType: 'group' | 'channel') => void;
-  onOpenProfileModal: () => void;
   onOpenAdminModal: () => void;
   onOpenCreateStory: () => void;
   onOpenStoryGroup: (group: StoryAuthorGroup) => void;
   onRequestNotifications: () => void;
+  onNotify: (msg: string) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -56,106 +85,203 @@ export const Sidebar: React.FC<SidebarProps> = ({
   allUsers,
   publicChannels,
   usersMap,
+  contactIds,
   mutedChatIds,
+  chatPrefsById,
   typingByChat,
   stories,
   viewedStoryIds,
   adsBanner,
   notificationPermission,
   activeChatId,
+  tabScope = 'chats',
+  onOpenDrawer,
   onSelectChat,
   onStartPrivateChat,
   onJoinPublicChannel,
   onOpenCreateModal,
-  onOpenProfileModal,
   onOpenAdminModal,
   onOpenCreateStory,
   onOpenStoryGroup,
   onRequestNotifications,
+  onNotify,
 }) => {
   const { t, language } = useLanguage();
+  const { isDark, toggleTheme } = useTheme();
   const [search, setSearch] = useState('');
-  const [tab, setTab] = useState<SidebarTab>('all');
+  const [localTab, setLocalTab] = useState<SidebarTab>('all');
   const [showNewMenu, setShowNewMenu] = useState(false);
+  const [showArchivedFolder, setShowArchivedFolder] = useState(false);
 
-  const onlineUsers = useMemo(() => {
-    return allUsers.filter(
-      (u) => u.uid !== currentUser.uid && isUserActuallyOnline(u.isOnline, u.lastSeen)
-    );
-  }, [allUsers, currentUser.uid]);
+  // Swipe-left & Context Menu State
+  const [swipedChatId, setSwipedChatId] = useState<string | null>(null);
+  const [contextMenuChat, setContextMenuChat] = useState<{
+    chat: Chat;
+    title: string;
+  } | null>(null);
+  const touchStartRef = useRef<{ x: number; y: number; chatId: string } | null>(null);
+  const longPressTimerRef = useRef<number | null>(null);
+
+  const effectiveTab: SidebarTab =
+    tabScope === 'groups'
+      ? localTab === 'trending'
+        ? 'trending'
+        : 'group'
+      : tabScope === 'channels'
+      ? localTab === 'trending'
+        ? 'trending'
+        : 'channel'
+      : localTab;
 
   const getChatDisplay = (chat: Chat) => {
+    if (chat.id === `saved_${currentUser.uid}`) {
+      return {
+        title: t.telegram.savedMessagesTitle,
+        subtitle: t.telegram.savedMessagesDesc,
+        photoURL: '',
+        isOnline: false,
+        isAdmin: false,
+        isVerified: true,
+        isVip: false,
+        isPlus: false,
+        isBot: false,
+        specialType: 'saved' as const,
+      };
+    }
+
+    if (chat.id === `dank_bot_${currentUser.uid}` || chat.dmPeerIds?.includes(DANK_BOT_UID)) {
+      return {
+        title: t.telegram.dankBotTitle,
+        subtitle: '@dank_bot',
+        photoURL: '',
+        isOnline: true,
+        isAdmin: false,
+        isVerified: true,
+        isVip: false,
+        isPlus: false,
+        isBot: true,
+        specialType: 'bot' as const,
+      };
+    }
+
     if (chat.type === 'private' && chat.dmPeerIds) {
       const peerId = chat.dmPeerIds.find((id) => id !== currentUser.uid);
       const peer = peerId ? usersMap[peerId] : undefined;
+      const canSeePhoto = canSeePrivacyField(
+        currentUser.uid,
+        peer,
+        peer?.privacyProfilePhoto,
+        contactIds
+      );
+      const canSeeOnline = canSeePrivacyField(
+        currentUser.uid,
+        peer,
+        peer?.privacyLastSeen,
+        contactIds,
+        peer?.privacyLastSeenExceptions
+      );
       return {
         title: peer?.name || t.common.privateChat,
         subtitle: peer ? `@${peer.username}` : '',
-        photoURL: peer?.photoURL || '',
-        isOnline: peer ? isUserActuallyOnline(peer.isOnline, peer.lastSeen) : false,
+        photoURL: canSeePhoto ? peer?.photoURL || '' : '',
+        isOnline:
+          canSeeOnline && peer ? isUserActuallyOnline(peer.isOnline, peer.lastSeen) : false,
         isAdmin: Boolean(peer?.isAdmin),
         isVerified: Boolean(peer?.isVerified),
         isVip: Boolean(peer?.isVip || (peer?.inviteCount ?? 0) >= 5),
+        isPlus: Boolean(peer?.isPlus),
+        isBot: Boolean(peer?.isBot),
+        specialType: chat.isSecret ? ('secret' as const) : undefined,
       };
     }
+
     return {
       title: chat.name || (chat.type === 'channel' ? t.common.channel : t.common.group),
       subtitle: chat.description || '',
       photoURL: chat.photoURL || '',
       isOnline: false,
       isAdmin: false,
-      isVerified: false,
+      isVerified: chat.id === 'dank_official' || chat.id === 'dank_team',
       isVip: false,
+      isPlus: false,
+      isBot: false,
+      specialType: undefined,
     };
   };
 
-  const sortedChats = useMemo(() => {
+  // Separate archived vs inbox chats, filter out soft-deleted chats
+  const { inboxChats, archivedChats } = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return chats
-      .filter((chat) => {
-        if (tab !== 'all' && chat.type !== tab) return false;
-        if (!q) return true;
-        const disp = getChatDisplay(chat);
-        return (
-          disp.title.toLowerCase().includes(q) ||
-          disp.subtitle.toLowerCase().includes(q) ||
-          (chat.lastMessageText || '').toLowerCase().includes(q)
-        );
-      })
-      .sort((a, b) => {
-        const aTime = timestampToMs(a.lastMessageAt) || timestampToMs(a.updatedAt);
-        const bTime = timestampToMs(b.lastMessageAt) || timestampToMs(b.updatedAt);
-        return bTime - aTime;
-      });
-  }, [chats, tab, search, usersMap, currentUser.uid]);
+    const visible = chats.filter((chat) => {
+      const pref = chatPrefsById[chat.id];
+      const deletedMs = timestampToMs(pref?.deletedAt);
+      const lastMsgMs = timestampToMs(chat.lastMessageAt);
+      if (deletedMs && (!lastMsgMs || lastMsgMs <= deletedMs)) {
+        return false;
+      }
+      if (effectiveTab !== 'all' && effectiveTab !== 'trending' && chat.type !== effectiveTab) {
+        return false;
+      }
+      if (!q) return true;
+      const disp = getChatDisplay(chat);
+      return (
+        disp.title.toLowerCase().includes(q) ||
+        disp.subtitle.toLowerCase().includes(q) ||
+        (chat.lastMessageText || '').toLowerCase().includes(q)
+      );
+    });
 
+    const sortFn = (a: Chat, b: Chat) => {
+      const aPinned = Boolean(chatPrefsById[a.id]?.pinned);
+      const bPinned = Boolean(chatPrefsById[b.id]?.pinned);
+      if (aPinned !== bPinned) return aPinned ? -1 : 1;
+      const aTime = timestampToMs(a.lastMessageAt) || timestampToMs(a.updatedAt);
+      const bTime = timestampToMs(b.lastMessageAt) || timestampToMs(b.updatedAt);
+      return bTime - aTime;
+    };
+
+    const inbox: Chat[] = [];
+    const archived: Chat[] = [];
+    for (const c of visible) {
+      if (chatPrefsById[c.id]?.archived) {
+        archived.push(c);
+      } else {
+        inbox.push(c);
+      }
+    }
+
+    inbox.sort(sortFn);
+    archived.sort(sortFn);
+    return { inboxChats: inbox, archivedChats: archived };
+  }, [chats, chatPrefsById, effectiveTab, search, usersMap, contactIds, currentUser.uid]);
+
+  // PRIVACY FIX: Only discover people when user actively types a search query!
   const discoverPeople = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const others = allUsers.filter((u) => u.uid !== currentUser.uid);
-    if (!q) {
-      // Show a few people to start chats with when user has few chats
-      return chats.length < 4 ? others.slice(0, 6) : [];
-    }
-    return others.filter(
-      (u) =>
-        u.name.toLowerCase().includes(q) ||
-        u.username.toLowerCase().includes(q) ||
-        (u.bio || '').toLowerCase().includes(q)
-    );
-  }, [allUsers, currentUser.uid, search, chats.length]);
+    if (!q) return [];
+    const cleanQ = q.replace(/^@/, '');
+    return allUsers
+      .filter((u) => u.uid !== currentUser.uid)
+      .filter(
+        (u) =>
+          u.name.toLowerCase().includes(q) ||
+          u.username.toLowerCase().includes(cleanQ)
+      )
+      .slice(0, 20);
+  }, [allUsers, currentUser.uid, search]);
 
   const discoverChannels = useMemo(() => {
     const joinedIds = new Set(chats.map((c) => c.id));
     const q = search.trim().toLowerCase();
     return publicChannels.filter((ch) => {
       if (joinedIds.has(ch.id)) return false;
-      if (!q) return tab === 'channel' || chats.length < 4;
+      if (!q) return effectiveTab === 'channel';
       return (
         (ch.name || '').toLowerCase().includes(q) ||
         (ch.description || '').toLowerCase().includes(q)
       );
     });
-  }, [publicChannels, chats, search, tab]);
+  }, [publicChannels, chats, search, effectiveTab]);
 
   const trendingItems = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -188,62 +314,334 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return `https://${raw}`;
   }, [adsBanner?.link]);
 
-  const tabs: { id: SidebarTab; label: string }[] = [
-    { id: 'all', label: t.sidebar.all },
-    { id: 'private', label: t.sidebar.private },
-    { id: 'group', label: t.sidebar.groups },
-    { id: 'channel', label: t.sidebar.channels },
-    { id: 'trending', label: t.sidebar.trending },
-  ];
+  const tabs: { id: SidebarTab; label: string }[] =
+    tabScope === 'groups'
+      ? [
+          { id: 'group', label: t.sidebar.groups },
+          { id: 'trending', label: t.sidebar.trending },
+        ]
+      : tabScope === 'channels'
+      ? [
+          { id: 'channel', label: t.sidebar.channels },
+          { id: 'trending', label: t.sidebar.trending },
+        ]
+      : [
+          { id: 'all', label: t.sidebar.all },
+          { id: 'private', label: t.sidebar.private },
+          { id: 'group', label: t.sidebar.groups },
+          { id: 'channel', label: t.sidebar.channels },
+          { id: 'trending', label: t.sidebar.trending },
+        ];
+
+  const displayedChats = showArchivedFolder ? archivedChats : inboxChats;
+
+  const isUnreadChat = (chat: Chat): boolean => {
+    if (chat.id === activeChatId) return false;
+    if (!chat.lastMessageSenderId || chat.lastMessageSenderId === currentUser.uid) return false;
+    const msgMs = timestampToMs(chat.lastMessageAt);
+    if (!msgMs) return false;
+    const clearedMs = timestampToMs(chatPrefsById[chat.id]?.unreadClearedAt);
+    return msgMs > clearedMs && chat.lastMessageStatus !== 'seen';
+  };
+
+  const renderChatRow = (chat: Chat) => {
+    const disp = getChatDisplay(chat);
+    const isActive = chat.id === activeChatId;
+    const pref = chatPrefsById[chat.id];
+    const isMuted = Boolean(pref?.muted) || mutedChatIds.has(chat.id);
+    const isPinned = Boolean(pref?.pinned);
+    const isArchived = Boolean(pref?.archived);
+    const unread = isUnreadChat(chat);
+    const activeTypers = (typingByChat[chat.id] || []).filter(
+      (tp) => tp.uid !== currentUser.uid && tp.isTyping
+    );
+    const isLastFromMe = chat.lastMessageSenderId === currentUser.uid;
+    const isSwiped = swipedChatId === chat.id;
+
+    return (
+      <div
+        key={chat.id}
+        className="relative overflow-hidden rounded-xl"
+        onTouchStart={(e) => {
+          const touch = e.touches[0];
+          touchStartRef.current = { x: touch.clientX, y: touch.clientY, chatId: chat.id };
+          if (longPressTimerRef.current) window.clearTimeout(longPressTimerRef.current);
+          longPressTimerRef.current = window.setTimeout(() => {
+            setContextMenuChat({ chat, title: disp.title });
+          }, 520);
+        }}
+        onTouchMove={(e) => {
+          if (!touchStartRef.current || touchStartRef.current.chatId !== chat.id) return;
+          const dx = e.touches[0].clientX - touchStartRef.current.x;
+          const dy = e.touches[0].clientY - touchStartRef.current.y;
+          if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+            if (longPressTimerRef.current) {
+              window.clearTimeout(longPressTimerRef.current);
+              longPressTimerRef.current = null;
+            }
+          }
+          if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.4) {
+            if (dx < -40) setSwipedChatId(chat.id);
+            else if (dx > 30) setSwipedChatId(null);
+          }
+        }}
+        onTouchEnd={() => {
+          if (longPressTimerRef.current) {
+            window.clearTimeout(longPressTimerRef.current);
+            longPressTimerRef.current = null;
+          }
+          touchStartRef.current = null;
+        }}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          setContextMenuChat({ chat, title: disp.title });
+        }}
+      >
+        {/* Swipe Left Revealed Quick Actions */}
+        {isSwiped && (
+          <div className="absolute inset-y-0 end-0 flex items-stretch z-10">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSwipedChatId(null);
+                void setUserChatPref(currentUser.uid, chat.id, { muted: !isMuted });
+              }}
+              className="px-3 bg-amber-500 text-white text-[11px] font-bold flex flex-col items-center justify-center gap-0.5 cursor-pointer"
+            >
+              {isMuted ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
+              <span>{isMuted ? t.chat.unmuteChat : t.chat.muteChat}</span>
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSwipedChatId(null);
+                void setUserChatPref(currentUser.uid, chat.id, { archived: !isArchived });
+              }}
+              className="px-3 bg-[#134e35] text-white text-[11px] font-bold flex flex-col items-center justify-center gap-0.5 cursor-pointer"
+            >
+              {isArchived ? <ArchiveRestore className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
+              <span>{isArchived ? t.telegram.unarchiveChat : t.telegram.archiveChat}</span>
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSwipedChatId(null);
+                void setUserChatPref(currentUser.uid, chat.id, { deleted: true });
+              }}
+              className="px-3 bg-red-600 text-white text-[11px] font-bold flex flex-col items-center justify-center gap-0.5 cursor-pointer"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>{t.common.delete}</span>
+            </button>
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={() => {
+            if (isSwiped) {
+              setSwipedChatId(null);
+              return;
+            }
+            void setUserChatPref(currentUser.uid, chat.id, { markRead: true });
+            onSelectChat(chat.id);
+          }}
+          className={`w-full px-3 py-2.5 rounded-xl flex items-center gap-3 text-start transition-transform cursor-pointer ${
+            isSwiped ? '-translate-x-44 rtl:translate-x-44' : ''
+          } ${
+            isActive
+              ? 'bg-[#0a2e1f] text-white shadow-sm'
+              : 'hover:bg-[#e3efe7] dark:hover:bg-white/6 text-[#0a2e1f] dark:text-white'
+          }`}
+        >
+          <Avatar
+            src={disp.photoURL}
+            name={disp.title}
+            size="md"
+            isOnline={disp.isOnline}
+            showOnlineDot={chat.type === 'private'}
+            chatType={chat.type}
+            specialType={disp.specialType}
+          />
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 min-w-0">
+                {chat.isSecret && <Lock className="w-3.5 h-3.5 text-[#25D366] shrink-0" />}
+                {chat.type === 'group' && (
+                  <Users
+                    className={`w-3.5 h-3.5 shrink-0 ${
+                      isActive ? 'text-[#25D366]' : 'text-[#0a2e1f]/60 dark:text-[#25D366]/80'
+                    }`}
+                  />
+                )}
+                {chat.type === 'channel' && (
+                  <Megaphone
+                    className={`w-3.5 h-3.5 shrink-0 ${
+                      isActive ? 'text-[#25D366]' : 'text-[#0a2e1f]/60 dark:text-[#25D366]/80'
+                    }`}
+                  />
+                )}
+                <span dir="auto" className="text-sm font-semibold truncate">
+                  {disp.title}
+                </span>
+                <UserBadges
+                  isAdmin={disp.isAdmin}
+                  isVerified={disp.isVerified}
+                  isVip={disp.isVip}
+                  isPlus={disp.isPlus}
+                  isBot={disp.isBot}
+                  size="xs"
+                />
+                {isMuted && (
+                  <BellOff
+                    className={`w-3.5 h-3.5 shrink-0 ${
+                      isActive ? 'text-emerald-200/70' : 'text-slate-400'
+                    }`}
+                  />
+                )}
+              </div>
+
+              <div className="flex items-center gap-1 shrink-0">
+                {isPinned && (
+                  <Pin
+                    className={`w-3 h-3 shrink-0 ${
+                      isActive ? 'text-[#25D366]' : 'text-[#128C48] dark:text-[#25D366]'
+                    }`}
+                  />
+                )}
+                {isLastFromMe && activeTypers.length === 0 && (
+                  <MessageStatusTicks status={chat.lastMessageStatus} onDarkBubble={isActive} />
+                )}
+                <span
+                  className={`text-[11px] tabular-nums ${
+                    isActive ? 'text-emerald-100/80' : 'text-slate-500 dark:text-emerald-100/55'
+                  }`}
+                >
+                  {formatSidebarTime(chat.lastMessageAt || chat.updatedAt, language)}
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-0.5 flex items-center justify-between gap-2">
+              {activeTypers.length > 0 ? (
+                <span className="text-xs font-medium text-[#25D366] truncate">
+                  {chat.type === 'private'
+                    ? t.sidebar.typing
+                    : `${activeTypers[0].name.split(' ')[0]} ${t.sidebar.isTypingSuffix}`}
+                </span>
+              ) : (
+                <span
+                  dir="auto"
+                  className={`text-xs truncate ${
+                    isActive
+                      ? 'text-emerald-100/85'
+                      : 'text-slate-600 dark:text-emerald-100/65'
+                  }`}
+                >
+                  {disp.isOnline && chat.type === 'private' && !chat.lastMessageText
+                    ? t.time.online
+                    : chat.lastMessageText
+                    ? chat.type !== 'private' && chat.lastMessageSenderName
+                      ? `${
+                          isLastFromMe
+                            ? t.common.you
+                            : chat.lastMessageSenderName.split(' ')[0]
+                        }: ${chat.lastMessageText}`
+                      : chat.lastMessageText
+                    : chat.type === 'private'
+                    ? t.sidebar.startChatting
+                    : `${chat.memberCount} ${t.common.members}`}
+                </span>
+              )}
+
+              <div className="flex items-center gap-1 shrink-0">
+                {disp.isOnline && chat.type === 'private' && (
+                  <span className="hidden sm:inline text-[10px] font-semibold text-[#128C48] dark:text-[#25D366]">
+                    {t.time.online}
+                  </span>
+                )}
+                {unread && (
+                  <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-[#25D366] text-[#041f14] text-[11px] font-bold flex items-center justify-center tabular-nums">
+                    1
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        </button>
+      </div>
+    );
+  };
 
   return (
-    <aside className="w-full md:w-[340px] lg:w-[370px] shrink-0 h-full flex flex-col bg-[#F5EFE6] border-e border-[#0A1931]/12">
-      {/* Navy Top Header */}
-      <header className="bg-[#0A1931] text-white px-4 py-3 flex items-center justify-between gap-2 shrink-0">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <img
-            src={brandEmblem}
-            alt={t.appName}
-            className="w-9 h-9 rounded-xl object-cover ring-1 ring-white/15 shrink-0"
-          />
+    <aside className="w-full md:w-[350px] lg:w-[380px] shrink-0 h-full flex flex-col bg-[#f7faf8] dark:bg-[#081c14] border-e border-[#0a2e1f]/10 dark:border-white/10">
+      {/* Dark Green Telegram-Style Header */}
+      <header className="bg-[#0a2e1f] text-white px-3 py-2.5 flex items-center justify-between gap-2 shrink-0">
+        <div className="flex items-center gap-2 min-w-0">
+          <button
+            type="button"
+            onClick={onOpenDrawer}
+            aria-label={t.drawer.menu}
+            className="w-10 h-10 rounded-xl hover:bg-white/10 text-white flex items-center justify-center shrink-0 cursor-pointer transition-colors"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+
+          <DankLogo size={32} />
+
           <div className="min-w-0">
             <div className="flex items-center gap-1.5 min-w-0">
-              <h1 className="text-lg font-bold tracking-tight text-white leading-none">
+              <h1 className="text-base font-extrabold tracking-tight text-white leading-none">
                 {t.appName}
               </h1>
               <UserBadges
                 isAdmin={currentUser.isAdmin}
                 isVerified={currentUser.isVerified}
                 isVip={currentUser.isVip || (currentUser.inviteCount ?? 0) >= 5}
+                isPlus={currentUser.isPlus}
                 size="xs"
               />
             </div>
-            <p dir="ltr" className="text-[11px] text-[#38BDF8] truncate mt-0.5 text-start">
-              @{currentUser.username}
-            </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0 relative">
+        <div className="flex items-center gap-1 shrink-0 relative">
+          {/* Top Moon / Sun Dark Mode Toggle */}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            title={isDark ? t.theme.switchToLight : t.theme.switchToDark}
+            aria-label={isDark ? t.theme.switchToLight : t.theme.switchToDark}
+            className="w-10 h-10 rounded-xl hover:bg-white/10 text-[#25D366] flex items-center justify-center transition-colors cursor-pointer"
+          >
+            {isDark ? <Sun className="w-4.5 h-4.5" /> : <Moon className="w-4.5 h-4.5" />}
+          </button>
+
           <PWAInstallButton variant="compact" />
+
           {notificationPermission === 'default' && (
             <button
               type="button"
               onClick={onRequestNotifications}
               title={t.sidebar.enableNotifications}
               aria-label={t.sidebar.enableNotifications}
-              className="w-10 h-10 rounded-xl bg-[#38BDF8]/15 hover:bg-[#38BDF8]/25 text-[#38BDF8] flex items-center justify-center transition-colors cursor-pointer"
+              className="w-10 h-10 rounded-xl bg-[#25D366]/15 hover:bg-[#25D366]/25 text-[#25D366] flex items-center justify-center transition-colors cursor-pointer"
             >
               <Bell className="w-4.5 h-4.5" />
             </button>
           )}
+
           {isAdmin && (
             <button
               type="button"
               onClick={onOpenAdminModal}
               title={t.sidebar.adminDashboard}
               aria-label={t.sidebar.adminDashboard}
-              className="w-10 h-10 rounded-xl bg-[#38BDF8]/15 hover:bg-[#38BDF8]/25 text-[#38BDF8] flex items-center justify-center transition-colors cursor-pointer"
+              className="w-10 h-10 rounded-xl bg-[#25D366]/15 hover:bg-[#25D366]/25 text-[#25D366] flex items-center justify-center transition-colors cursor-pointer"
             >
               <Shield className="w-4.5 h-4.5" />
             </button>
@@ -260,16 +658,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
 
           {showNewMenu && (
-            <div className="absolute end-12 top-12 z-30 w-48 rounded-xl bg-[#F5EFE6] text-[#0A1931] shadow-xl border border-[#0A1931]/15 py-1.5">
+            <div className="absolute end-0 top-12 z-30 w-48 rounded-xl bg-white dark:bg-[#0d2218] text-[#0a2e1f] dark:text-white shadow-xl border border-[#0a2e1f]/15 dark:border-white/15 py-1.5">
               <button
                 type="button"
                 onClick={() => {
                   setShowNewMenu(false);
                   onOpenCreateModal('group');
                 }}
-                className="w-full px-3.5 py-2.5 text-start text-sm font-medium hover:bg-[#E8DCC6] flex items-center gap-2.5 cursor-pointer"
+                className="w-full px-3.5 py-2.5 text-start text-sm font-medium hover:bg-[#eef5f0] dark:hover:bg-white/10 flex items-center gap-2.5 cursor-pointer"
               >
-                <Users className="w-4 h-4 text-[#0A1931]" />
+                <Users className="w-4 h-4 text-[#25D366]" />
                 {t.sidebar.newGroup}
               </button>
               <button
@@ -278,34 +676,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   setShowNewMenu(false);
                   onOpenCreateModal('channel');
                 }}
-                className="w-full px-3.5 py-2.5 text-start text-sm font-medium hover:bg-[#E8DCC6] flex items-center gap-2.5 cursor-pointer"
+                className="w-full px-3.5 py-2.5 text-start text-sm font-medium hover:bg-[#eef5f0] dark:hover:bg-white/10 flex items-center gap-2.5 cursor-pointer"
               >
-                <Megaphone className="w-4 h-4 text-[#0A1931]" />
+                <Megaphone className="w-4 h-4 text-[#25D366]" />
                 {t.sidebar.newChannel}
               </button>
             </div>
           )}
-
-          <button
-            type="button"
-            onClick={onOpenProfileModal}
-            title={t.sidebar.profileSettings}
-            aria-label={t.sidebar.profileSettings}
-            className="rounded-full p-0.5 hover:ring-2 hover:ring-[#38BDF8] transition-all cursor-pointer"
-          >
-            <Avatar
-              src={currentUser.photoURL}
-              name={currentUser.name}
-              size="sm"
-              isOnline={true}
-              showOnlineDot={true}
-            />
-          </button>
         </div>
       </header>
 
       {/* Search Bar */}
-      <div className="px-3 pt-3 pb-2 shrink-0">
+      <div className="px-3 pt-2.5 pb-2 shrink-0">
         <div className="relative">
           <Search className="w-4 h-4 text-slate-400 absolute start-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
@@ -314,60 +696,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t.sidebar.searchPlaceholder}
-            className="w-full h-10 ps-9 pe-9 rounded-xl bg-[#FAF7F2] border border-[#0A1931]/12 text-sm text-[#0A1931] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
+            className="w-full h-10 ps-9 pe-9 rounded-xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/12 dark:border-white/12 text-base text-[#0a2e1f] dark:text-white placeholder:text-slate-400 dark:placeholder:text-emerald-100/45 focus:outline-none focus:ring-2 focus:ring-[#25D366]"
           />
           {search && (
             <button
               type="button"
               onClick={() => setSearch('')}
               aria-label={t.sidebar.clearSearch}
-              className="absolute end-2 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center text-slate-400 hover:text-[#0A1931] cursor-pointer"
+              className="absolute end-2 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center text-slate-400 hover:text-[#0a2e1f] dark:hover:text-white cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
       </div>
-
-      {/* Online Users Strip */}
-      {onlineUsers.length > 0 && (
-        <div className="px-3 pb-2 shrink-0">
-          <div className="flex items-center justify-between mb-1.5 px-1">
-            <span className="text-[11px] font-semibold text-[#0A1931]/70">
-              {t.sidebar.onlineNow} ({onlineUsers.length})
-            </span>
-          </div>
-          <div className="flex items-center gap-2.5 overflow-x-auto pb-1">
-            {onlineUsers.map((u) => (
-              <button
-                key={u.uid}
-                type="button"
-                onClick={() => onStartPrivateChat(u)}
-                title={`${t.sidebar.chatWith} ${u.name}`}
-                className="flex flex-col items-center gap-1 min-w-[54px] max-w-[60px] group cursor-pointer"
-              >
-                <Avatar
-                  src={u.photoURL}
-                  name={u.name}
-                  size="sm"
-                  isOnline={true}
-                  showOnlineDot={true}
-                  className="group-hover:scale-105 transition-transform"
-                />
-                <span className="text-[11px] text-[#0A1931] font-medium truncate w-full text-center flex items-center justify-center gap-0.5">
-                  <span className="truncate">{u.name.split(' ')[0]}</span>
-                  <UserBadges
-                    isAdmin={u.isAdmin}
-                    isVerified={u.isVerified}
-                    isVip={u.isVip || (u.inviteCount ?? 0) >= 5}
-                    size="xs"
-                  />
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* 24h Stories Circle Row */}
       <StoriesBar
@@ -379,36 +721,40 @@ export const Sidebar: React.FC<SidebarProps> = ({
         onOpenStoryGroup={onOpenStoryGroup}
       />
 
-      {/* Segmented Chat Filter Tabs */}
+      {/* Segmented Filter Tabs */}
       <div className="px-3 pt-2 pb-2 shrink-0">
-        <div className="grid grid-cols-5 gap-1 p-1 rounded-xl bg-[#E8DCC6]">
-          {tabs.map((t) => (
+        <div
+          className={`grid gap-1 p-1 rounded-xl bg-[#e6efe9] dark:bg-[#05120c] ${
+            tabs.length === 2 ? 'grid-cols-2' : 'grid-cols-5'
+          }`}
+        >
+          {tabs.map((tabItem) => (
             <button
-              key={t.id}
+              key={tabItem.id}
               type="button"
-              onClick={() => setTab(t.id)}
+              onClick={() => setLocalTab(tabItem.id)}
               className={`py-1.5 px-1 text-[11px] font-semibold rounded-lg whitespace-nowrap truncate flex items-center justify-center gap-1 transition-colors cursor-pointer ${
-                tab === t.id
-                  ? 'bg-[#0A1931] text-white shadow-sm'
-                  : 'text-[#0A1931]/75 hover:text-[#0A1931]'
+                effectiveTab === tabItem.id
+                  ? 'bg-[#0a2e1f] text-white shadow-sm'
+                  : 'text-[#0a2e1f]/75 dark:text-emerald-100/65 hover:text-[#0a2e1f] dark:hover:text-white'
               }`}
             >
-              {t.id === 'trending' && (
+              {tabItem.id === 'trending' && (
                 <Flame
                   className={`w-3 h-3 shrink-0 ${
-                    tab === 'trending' ? 'text-[#38BDF8]' : 'text-amber-600'
+                    effectiveTab === 'trending' ? 'text-[#25D366]' : 'text-amber-500'
                   }`}
                 />
               )}
-              <span className="truncate">{t.label}</span>
+              <span className="truncate">{tabItem.label}</span>
             </button>
           ))}
         </div>
       </div>
 
-      {/* Chats + Trending + Ads Banner Scrollable List */}
+      {/* Main List */}
       <div className="flex-1 overflow-y-auto px-2 pb-4 space-y-1">
-        {/* Admin Ads Banner on Top of Chat List */}
+        {/* Admin Ads Banner */}
         {adsBanner?.enabled && (adsBanner.text || adsBanner.imageData) && (
           <div className="px-1 pb-2">
             {safeAdHref ? (
@@ -416,19 +762,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 href={safeAdHref}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="block rounded-xl bg-[#0A1931] text-white border border-[#38BDF8]/35 overflow-hidden hover:border-[#38BDF8] transition-colors shadow-xs"
+                className="block rounded-xl bg-[#0a2e1f] text-white border border-[#25D366]/35 overflow-hidden hover:border-[#25D366] transition-colors shadow-xs"
               >
                 {adsBanner.imageData?.trim() && (
                   <img
                     src={adsBanner.imageData.trim()}
                     alt={adsBanner.text || t.common.sponsored}
+                    loading="lazy"
                     referrerPolicy="no-referrer"
                     className="w-full h-24 object-cover"
                   />
                 )}
                 <div className="p-2.5 flex items-center justify-between gap-2">
                   <div className="min-w-0">
-                    <span className="text-[10px] font-semibold text-[#38BDF8]">
+                    <span className="text-[10px] font-semibold text-[#25D366]">
                       {t.common.sponsored}
                     </span>
                     {adsBanner.text && (
@@ -437,21 +784,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       </p>
                     )}
                   </div>
-                  <ExternalLink className="w-4 h-4 text-[#38BDF8] shrink-0" />
+                  <ExternalLink className="w-4 h-4 text-[#25D366] shrink-0" />
                 </div>
               </a>
             ) : (
-              <div className="rounded-xl bg-[#0A1931] text-white border border-[#38BDF8]/35 overflow-hidden shadow-xs">
+              <div className="rounded-xl bg-[#0a2e1f] text-white border border-[#25D366]/35 overflow-hidden shadow-xs">
                 {adsBanner.imageData?.trim() && (
                   <img
                     src={adsBanner.imageData.trim()}
                     alt={adsBanner.text || t.common.sponsored}
+                    loading="lazy"
                     referrerPolicy="no-referrer"
                     className="w-full h-24 object-cover"
                   />
                 )}
                 <div className="p-2.5">
-                  <span className="text-[10px] font-semibold text-[#38BDF8]">
+                  <span className="text-[10px] font-semibold text-[#25D366]">
                     {t.common.sponsored}
                   </span>
                   {adsBanner.text && (
@@ -465,21 +813,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         )}
 
-        {tab === 'trending' ? (
+        {effectiveTab === 'trending' ? (
           <div className="space-y-1.5 pt-1">
             <div className="px-2 pb-1 flex items-center justify-between">
-              <span className="text-[11px] font-semibold text-[#0A1931]/75">
+              <span className="text-[11px] font-semibold text-[#0a2e1f]/75 dark:text-emerald-100/75">
                 {t.sidebar.trendingHeader}
               </span>
-              <span className="text-[11px] text-slate-500 tabular-nums">
+              <span className="text-[11px] text-slate-500 dark:text-emerald-100/55 tabular-nums">
                 {trendingItems.length} {t.sidebar.publicCountSuffix}
               </span>
             </div>
 
             {trendingItems.length === 0 ? (
               <div className="px-4 py-10 text-center">
-                <p className="text-sm font-medium text-[#0A1931]">{t.sidebar.noPublicYet}</p>
-                <p className="mt-1 text-xs text-slate-600">{t.sidebar.noPublicYetDesc}</p>
+                <p className="text-sm font-medium text-[#0a2e1f] dark:text-white">
+                  {t.sidebar.noPublicYet}
+                </p>
+                <p className="mt-1 text-xs text-slate-600 dark:text-emerald-100/60">
+                  {t.sidebar.noPublicYetDesc}
+                </p>
               </div>
             ) : (
               trendingItems.map(({ chat, count24h }, idx) => {
@@ -487,17 +839,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 return (
                   <div
                     key={chat.id}
-                    className="px-3 py-2.5 rounded-xl bg-white/85 border border-[#0A1931]/10 flex items-center gap-2.5"
+                    className="px-3 py-2.5 rounded-xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/10 dark:border-white/10 flex items-center gap-2.5"
                   >
                     <span
                       className={`w-6 text-center text-xs font-bold tabular-nums shrink-0 ${
                         idx === 0
-                          ? 'text-amber-600'
+                          ? 'text-amber-500'
                           : idx === 1
-                          ? 'text-slate-600'
+                          ? 'text-slate-400'
                           : idx === 2
-                          ? 'text-amber-800'
-                          : 'text-slate-400'
+                          ? 'text-amber-700'
+                          : 'text-slate-500'
                       }`}
                     >
                       #{idx + 1}
@@ -513,16 +865,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1 min-w-0">
                         {chat.type === 'group' ? (
-                          <Users className="w-3.5 h-3.5 text-[#0284C7] shrink-0" />
+                          <Users className="w-3.5 h-3.5 text-[#25D366] shrink-0" />
                         ) : (
-                          <Megaphone className="w-3.5 h-3.5 text-[#0284C7] shrink-0" />
+                          <Megaphone className="w-3.5 h-3.5 text-[#25D366] shrink-0" />
                         )}
-                        <p dir="auto" className="text-xs font-semibold text-[#0A1931] truncate">
+                        <p
+                          dir="auto"
+                          className="text-xs font-semibold text-[#0a2e1f] dark:text-white truncate"
+                        >
                           {chat.name ||
                             (chat.type === 'channel' ? t.common.channel : t.common.group)}
                         </p>
                       </div>
-                      <p className="text-[11px] text-slate-600 truncate tabular-nums mt-0.5">
+                      <p className="text-[11px] text-slate-600 dark:text-emerald-100/60 truncate tabular-nums mt-0.5">
                         {count24h} {t.sidebar.msgs24hSuffix} · {chat.memberCount}{' '}
                         {chat.type === 'channel' ? t.common.subscribers : t.common.members}
                       </p>
@@ -532,7 +887,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       <button
                         type="button"
                         onClick={() => onSelectChat(chat.id)}
-                        className="h-8 px-3 rounded-lg bg-[#E8DCC6] hover:bg-[#DDD0B8] text-[#0A1931] text-xs font-semibold shrink-0 cursor-pointer"
+                        className="h-8 px-3 rounded-lg bg-[#eef5f0] dark:bg-white/10 hover:opacity-90 text-[#0a2e1f] dark:text-white text-xs font-semibold shrink-0 cursor-pointer"
                       >
                         {t.common.open}
                       </button>
@@ -540,7 +895,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       <button
                         type="button"
                         onClick={() => onJoinPublicChannel(chat.id)}
-                        className="h-8 px-3 rounded-lg bg-[#38BDF8] hover:bg-[#0EA5E9] text-[#0A1931] text-xs font-semibold shrink-0 cursor-pointer"
+                        className="h-8 px-3 rounded-lg bg-[#25D366] hover:bg-[#1ebe5d] text-[#041f14] text-xs font-bold shrink-0 cursor-pointer"
                       >
                         {t.common.join}
                       </button>
@@ -552,150 +907,80 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         ) : (
           <>
-            {sortedChats.length === 0 &&
+            {/* Archived Chats Folder Banner at Top */}
+            {archivedChats.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowArchivedFolder((prev) => !prev)}
+                className="w-full px-3 py-2.5 rounded-xl bg-[#e6efe9] dark:bg-[#0d2218] border border-[#0a2e1f]/10 dark:border-white/10 flex items-center justify-between gap-2 text-start cursor-pointer mb-1"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-9 h-9 rounded-full bg-[#0a2e1f] text-[#25D366] flex items-center justify-center shrink-0">
+                    <Archive className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-[#0a2e1f] dark:text-white">
+                      {t.telegram.archivedChats}
+                    </p>
+                    <p className="text-[11px] text-slate-500 dark:text-emerald-100/60 tabular-nums">
+                      {archivedChats.length}
+                    </p>
+                  </div>
+                </div>
+                {showArchivedFolder ? (
+                  <ChevronUp className="w-4 h-4 text-[#0a2e1f] dark:text-emerald-100" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-[#0a2e1f] dark:text-emerald-100" />
+                )}
+              </button>
+            )}
+
+            {displayedChats.length === 0 &&
               discoverPeople.length === 0 &&
               discoverChannels.length === 0 && (
                 <div className="px-4 py-10 text-center">
-                  <p className="text-sm font-medium text-[#0A1931]">
+                  <p className="text-sm font-medium text-[#0a2e1f] dark:text-white">
                     {t.sidebar.noConversations}
                   </p>
-                  <p className="mt-1 text-xs text-slate-600">{t.sidebar.noConversationsDesc}</p>
+                  <p className="mt-1 text-xs text-slate-600 dark:text-emerald-100/60">
+                    {t.sidebar.noConversationsDesc}
+                  </p>
                 </div>
               )}
 
-            {sortedChats.map((chat) => {
-              const disp = getChatDisplay(chat);
-              const isActive = chat.id === activeChatId;
-              const isMuted = mutedChatIds.has(chat.id);
-              const activeTypers = (typingByChat[chat.id] || []).filter(
-                (tp) => tp.uid !== currentUser.uid && tp.isTyping
-              );
-              const isLastFromMe = chat.lastMessageSenderId === currentUser.uid;
+            {displayedChats.map((chat) => renderChatRow(chat))}
 
-              return (
-                <button
-                  key={chat.id}
-                  type="button"
-                  onClick={() => onSelectChat(chat.id)}
-                  className={`w-full px-3 py-2.5 rounded-xl flex items-center gap-3 text-start transition-colors cursor-pointer ${
-                    isActive
-                      ? 'bg-[#0A1931] text-white shadow-sm'
-                      : 'hover:bg-[#E8DCC6]/80 text-[#0A1931]'
-                  }`}
-                >
-                  <Avatar
-                    src={disp.photoURL}
-                    name={disp.title}
-                    size="md"
-                    isOnline={disp.isOnline}
-                    showOnlineDot={chat.type === 'private'}
-                    chatType={chat.type}
-                  />
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        {chat.type === 'group' && (
-                          <Users
-                            className={`w-3.5 h-3.5 shrink-0 ${
-                              isActive ? 'text-[#38BDF8]' : 'text-[#0A1931]/60'
-                            }`}
-                          />
-                        )}
-                        {chat.type === 'channel' && (
-                          <Megaphone
-                            className={`w-3.5 h-3.5 shrink-0 ${
-                              isActive ? 'text-[#38BDF8]' : 'text-[#0A1931]/60'
-                            }`}
-                          />
-                        )}
-                        <span dir="auto" className="text-sm font-semibold truncate">
-                          {disp.title}
-                        </span>
-                        {chat.type === 'private' && (
-                          <UserBadges
-                            isAdmin={disp.isAdmin}
-                            isVerified={disp.isVerified}
-                            isVip={disp.isVip}
-                            size="xs"
-                          />
-                        )}
-                        {isMuted && (
-                          <BellOff
-                            className={`w-3.5 h-3.5 shrink-0 ${
-                              isActive ? 'text-slate-300' : 'text-slate-400'
-                            }`}
-                          />
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-1 shrink-0">
-                        {isLastFromMe && activeTypers.length === 0 && (
-                          <MessageStatusTicks
-                            status={chat.lastMessageStatus}
-                            onDarkBubble={isActive}
-                          />
-                        )}
-                        <span
-                          className={`text-[11px] tabular-nums ${
-                            isActive ? 'text-slate-300' : 'text-slate-500'
-                          }`}
-                        >
-                          {formatSidebarTime(chat.lastMessageAt || chat.updatedAt, language)}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="mt-0.5 flex items-center justify-between gap-2">
-                      {activeTypers.length > 0 ? (
-                        <span className="text-xs font-medium text-[#38BDF8] truncate">
-                          {chat.type === 'private'
-                            ? t.sidebar.typing
-                            : `${activeTypers[0].name.split(' ')[0]} ${t.sidebar.isTypingSuffix}`}
-                        </span>
-                      ) : (
-                        <span
-                          dir="auto"
-                          className={`text-xs truncate ${
-                            isActive ? 'text-slate-300' : 'text-slate-600'
-                          }`}
-                        >
-                          {chat.lastMessageText
-                            ? chat.type !== 'private' && chat.lastMessageSenderName
-                              ? `${
-                                  isLastFromMe
-                                    ? t.common.you
-                                    : chat.lastMessageSenderName.split(' ')[0]
-                                }: ${chat.lastMessageText}`
-                              : chat.lastMessageText
-                            : chat.type === 'private'
-                            ? t.sidebar.startChatting
-                            : `${chat.memberCount} ${t.common.members}`}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-
-            {/* Discover People (for starting 1-to-1 chats) */}
+            {/* Search-Only People Discovery (Never shown when search is empty) */}
             {discoverPeople.length > 0 && (
               <div className="pt-3">
-                <div className="px-3 pb-1.5 text-[11px] font-semibold text-[#0A1931]/65">
+                <div className="px-3 pb-1.5 text-[11px] font-semibold text-[#0a2e1f]/70 dark:text-emerald-100/70">
                   {t.sidebar.peopleOnDank}
                 </div>
                 {discoverPeople.map((person) => {
-                  const online = isUserActuallyOnline(person.isOnline, person.lastSeen);
+                  const canSeePhoto = canSeePrivacyField(
+                    currentUser.uid,
+                    person,
+                    person.privacyProfilePhoto,
+                    contactIds
+                  );
+                  const canSeeOnline = canSeePrivacyField(
+                    currentUser.uid,
+                    person,
+                    person.privacyLastSeen,
+                    contactIds,
+                    person.privacyLastSeenExceptions
+                  );
+                  const online =
+                    canSeeOnline && isUserActuallyOnline(person.isOnline, person.lastSeen);
                   return (
                     <button
                       key={person.uid}
                       type="button"
                       onClick={() => onStartPrivateChat(person)}
-                      className="w-full px-3 py-2 rounded-xl flex items-center gap-3 text-start hover:bg-[#E8DCC6]/80 transition-colors cursor-pointer"
+                      className="w-full px-3 py-2 rounded-xl flex items-center gap-3 text-start hover:bg-[#e3efe7] dark:hover:bg-white/6 transition-colors cursor-pointer"
                     >
                       <Avatar
-                        src={person.photoURL}
+                        src={canSeePhoto ? person.photoURL : ''}
                         name={person.name}
                         size="sm"
                         isOnline={online}
@@ -703,21 +988,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1 min-w-0">
-                          <span className="text-sm font-semibold text-[#0A1931] truncate">
+                          <span className="text-sm font-semibold text-[#0a2e1f] dark:text-white truncate">
                             {person.name}
                           </span>
                           <UserBadges
                             isAdmin={person.isAdmin}
                             isVerified={person.isVerified}
                             isVip={person.isVip || (person.inviteCount ?? 0) >= 5}
+                            isPlus={person.isPlus}
                             size="xs"
                           />
                         </div>
-                        <div dir="ltr" className="text-xs text-slate-600 truncate text-start">
+                        <div
+                          dir="ltr"
+                          className="text-xs text-slate-600 dark:text-emerald-100/60 truncate text-start"
+                        >
                           @{person.username}
                         </div>
                       </div>
-                      <span className="text-xs font-semibold text-[#0A1931] bg-[#38BDF8]/30 px-2.5 py-1 rounded-lg">
+                      <span className="text-xs font-bold text-[#041f14] bg-[#25D366] px-2.5 py-1 rounded-lg">
                         {t.common.chat}
                       </span>
                     </button>
@@ -729,7 +1018,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {/* Discover Public Channels */}
             {discoverChannels.length > 0 && (
               <div className="pt-3">
-                <div className="px-3 pb-1.5 text-[11px] font-semibold text-[#0A1931]/65">
+                <div className="px-3 pb-1.5 text-[11px] font-semibold text-[#0a2e1f]/70 dark:text-emerald-100/70">
                   {t.sidebar.publicChannels}
                 </div>
                 {discoverChannels.map((ch) => (
@@ -737,7 +1026,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     key={ch.id}
                     type="button"
                     onClick={() => onJoinPublicChannel(ch.id)}
-                    className="w-full px-3 py-2 rounded-xl flex items-center gap-3 text-start hover:bg-[#E8DCC6]/80 transition-colors cursor-pointer"
+                    className="w-full px-3 py-2 rounded-xl flex items-center gap-3 text-start hover:bg-[#e3efe7] dark:hover:bg-white/6 transition-colors cursor-pointer"
                   >
                     <Avatar
                       src={ch.photoURL}
@@ -746,14 +1035,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       chatType="channel"
                     />
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold text-[#0A1931] truncate">
+                      <div className="text-sm font-semibold text-[#0a2e1f] dark:text-white truncate">
                         {ch.name || t.common.channel}
                       </div>
-                      <div className="text-xs text-slate-600 truncate">
+                      <div className="text-xs text-slate-600 dark:text-emerald-100/60 truncate">
                         {ch.memberCount} {t.common.subscribers}
                       </div>
                     </div>
-                    <span className="text-xs font-semibold text-white bg-[#0A1931] px-2.5 py-1 rounded-lg">
+                    <span className="text-xs font-bold text-[#041f14] bg-[#25D366] px-2.5 py-1 rounded-lg">
                       {t.common.join}
                     </span>
                   </button>
@@ -763,6 +1052,118 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </>
         )}
       </div>
+
+      {/* Long-Press / Right-Click Context Action Sheet */}
+      {contextMenuChat && (
+        <div
+          onClick={() => setContextMenuChat(null)}
+          className="fixed inset-0 z-50 bg-black/55 backdrop-blur-[1px] flex items-end sm:items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-xs rounded-2xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/15 dark:border-white/15 shadow-2xl overflow-hidden"
+          >
+            <div className="px-4 py-3 bg-[#0a2e1f] text-white flex items-center justify-between">
+              <span dir="auto" className="text-sm font-bold truncate">
+                {contextMenuChat.title}
+              </span>
+              <button
+                type="button"
+                onClick={() => setContextMenuChat(null)}
+                className="p-1 hover:bg-white/10 rounded-lg cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-2 space-y-1">
+              {(() => {
+                const c = contextMenuChat.chat;
+                const pref = chatPrefsById[c.id];
+                const isPinned = Boolean(pref?.pinned);
+                const isMuted = Boolean(pref?.muted) || mutedChatIds.has(c.id);
+                const isArchived = Boolean(pref?.archived);
+                return (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setContextMenuChat(null);
+                        void setUserChatPref(currentUser.uid, c.id, { pinned: !isPinned });
+                      }}
+                      className="w-full px-3 py-2.5 rounded-xl flex items-center gap-3 text-sm font-medium text-[#0a2e1f] dark:text-white hover:bg-[#eef5f0] dark:hover:bg-white/10 cursor-pointer"
+                    >
+                      {isPinned ? (
+                        <PinOff className="w-4 h-4 text-[#25D366]" />
+                      ) : (
+                        <Pin className="w-4 h-4 text-[#25D366]" />
+                      )}
+                      {isPinned ? t.telegram.unpinChat : t.telegram.pinChat}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setContextMenuChat(null);
+                        void setUserChatPref(currentUser.uid, c.id, { muted: !isMuted });
+                      }}
+                      className="w-full px-3 py-2.5 rounded-xl flex items-center gap-3 text-sm font-medium text-[#0a2e1f] dark:text-white hover:bg-[#eef5f0] dark:hover:bg-white/10 cursor-pointer"
+                    >
+                      {isMuted ? (
+                        <Bell className="w-4 h-4 text-[#25D366]" />
+                      ) : (
+                        <BellOff className="w-4 h-4 text-amber-500" />
+                      )}
+                      {isMuted ? t.chat.unmuteChat : t.chat.muteChat}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setContextMenuChat(null);
+                        void setUserChatPref(currentUser.uid, c.id, { archived: !isArchived });
+                      }}
+                      className="w-full px-3 py-2.5 rounded-xl flex items-center gap-3 text-sm font-medium text-[#0a2e1f] dark:text-white hover:bg-[#eef5f0] dark:hover:bg-white/10 cursor-pointer"
+                    >
+                      {isArchived ? (
+                        <ArchiveRestore className="w-4 h-4 text-[#25D366]" />
+                      ) : (
+                        <Archive className="w-4 h-4 text-[#25D366]" />
+                      )}
+                      {isArchived ? t.telegram.unarchiveChat : t.telegram.archiveChat}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setContextMenuChat(null);
+                        void setUserChatPref(currentUser.uid, c.id, { markRead: true });
+                      }}
+                      className="w-full px-3 py-2.5 rounded-xl flex items-center gap-3 text-sm font-medium text-[#0a2e1f] dark:text-white hover:bg-[#eef5f0] dark:hover:bg-white/10 cursor-pointer"
+                    >
+                      <CheckCheck className="w-4 h-4 text-[#25D366]" />
+                      {t.telegram.markAsRead}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setContextMenuChat(null);
+                        void setUserChatPref(currentUser.uid, c.id, { deleted: true }).then(() =>
+                          onNotify(t.common.delete)
+                        );
+                      }}
+                      className="w-full px-3 py-2.5 rounded-xl flex items-center gap-3 text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      {t.telegram.deleteChat}
+                    </button>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
     </aside>
   );
 };

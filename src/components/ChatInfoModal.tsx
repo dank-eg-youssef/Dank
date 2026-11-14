@@ -1,9 +1,34 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Copy, LogOut, UserMinus, UserPlus, X } from 'lucide-react';
+import {
+  Ban,
+  Copy,
+  Lock,
+  LogOut,
+  Phone,
+  ShieldAlert,
+  ShieldCheck,
+  UserCheck,
+  UserMinus,
+  UserPlus,
+  Users,
+  Video,
+  X,
+} from 'lucide-react';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { useLanguage } from '../contexts/LanguageContext';
 import { db } from '../lib/firebase';
-import { addMemberToGroup, removeMemberFromChat } from '../services/chatService';
+import {
+  addGroupMemberByUsername,
+  addMemberToGroup,
+  addUserContact,
+  banMemberFromGroup,
+  blockUserAccount,
+  canSeePrivacyField,
+  createSecretChat,
+  removeMemberFromChat,
+  removeUserContact,
+  unblockUserAccount,
+} from '../services/chatService';
 import type { Chat, ChatMember, UserPublic } from '../types/dank';
 import { handleFirestoreError, isOfflineError, OperationType } from '../utils/firestoreErrors';
 import { formatLastSeen, isUserActuallyOnline } from '../utils/timeFormat';
@@ -15,6 +40,11 @@ interface ChatInfoModalProps {
   currentUser: UserPublic;
   allUsers: UserPublic[];
   usersMap: Record<string, UserPublic>;
+  contactIds?: Set<string>;
+  blockedUserIds?: Set<string>;
+  onStartCall?: (peer: UserPublic, chatId: string, callType: 'voice' | 'video') => void;
+  onSelectChat?: (chatId: string) => void;
+  onViewProfile?: (user: UserPublic) => void;
   onClose: () => void;
   onLeftChat: () => void;
   onNotify: (msg: string) => void;
@@ -25,6 +55,11 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
   currentUser,
   allUsers,
   usersMap,
+  contactIds = new Set<string>(),
+  blockedUserIds = new Set<string>(),
+  onStartCall,
+  onSelectChat,
+  onViewProfile,
   onClose,
   onLeftChat,
   onNotify,
@@ -32,6 +67,12 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
   const { t, language } = useLanguage();
   const [members, setMembers] = useState<ChatMember[]>([]);
   const [addingMode, setAddingMode] = useState(false);
+  const [usernameInput, setUsernameInput] = useState('');
+  const [addingByUsername, setAddingByUsername] = useState(false);
+  const [startingSecret, setStartingSecret] = useState(false);
+
+  const isSaved = chat.id === `saved_${currentUser.uid}`;
+  const isBot = chat.id === `dank_bot_${currentUser.uid}`;
 
   useEffect(() => {
     const unsub = onSnapshot(
@@ -49,19 +90,26 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
   }, [chat.id]);
 
   const myMember = members.find((m) => m.uid === currentUser.uid);
-  const isChatAdmin = myMember?.role === 'admin';
+  const isChatAdmin = myMember?.role === 'admin' || currentUser.isAdmin;
 
   const peer = useMemo(() => {
-    if (chat.type !== 'private' || !chat.dmPeerIds) return null;
+    if (chat.type !== 'private' || !chat.dmPeerIds || isSaved || isBot) return null;
     const peerId = chat.dmPeerIds.find((id) => id !== currentUser.uid);
     return peerId ? usersMap[peerId] || null : null;
-  }, [chat, currentUser.uid, usersMap]);
+  }, [chat, currentUser.uid, usersMap, isSaved, isBot]);
 
   const inviteUrl = `${window.location.origin}/?join=${chat.id}`;
-  const nonMembers = useMemo(() => {
+  const dankLink = `${t.telegram.dankLinkPrefix}${chat.id}`;
+
+  const matchingNonMembers = useMemo(() => {
+    const q = usernameInput.trim().replace(/^@+/, '').toLowerCase();
+    if (!q) return [];
     const memberSet = new Set(members.map((m) => m.uid));
-    return allUsers.filter((u) => !memberSet.has(u.uid));
-  }, [allUsers, members]);
+    return allUsers
+      .filter((u) => !memberSet.has(u.uid))
+      .filter((u) => u.name.toLowerCase().includes(q) || u.username.toLowerCase().includes(q))
+      .slice(0, 12);
+  }, [allUsers, members, usernameInput]);
 
   const handleCopyInvite = async () => {
     try {
@@ -86,6 +134,15 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
     }
   };
 
+  const handleBan = async (uid: string) => {
+    try {
+      await banMemberFromGroup(chat.id, uid);
+      onNotify(t.telegram.memberBanned);
+    } catch (err) {
+      onNotify(err instanceof Error ? err.message : t.chatInfo.couldNotRemoveMember);
+    }
+  };
+
   const handleAdd = async (uid: string) => {
     try {
       await addMemberToGroup(chat.id, chat.type, uid);
@@ -95,10 +152,93 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
     }
   };
 
+  const handleAddUsername = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!usernameInput.trim() || addingByUsername) return;
+    setAddingByUsername(true);
+    try {
+      const target = await addGroupMemberByUsername(chat.id, chat.type, usernameInput);
+      setUsernameInput('');
+      onNotify(`${t.chatInfo.memberAdded} (@${target.username})`);
+    } catch (err) {
+      if (err instanceof Error && err.message === 'USER_NOT_FOUND') {
+        onNotify(t.telegram.userNotFoundUsername);
+      } else {
+        onNotify(err instanceof Error ? err.message : t.chatInfo.couldNotAddMember);
+      }
+    } finally {
+      setAddingByUsername(false);
+    }
+  };
+
+  const isPeerContact = peer ? contactIds.has(peer.uid) : false;
+  const isPeerBlocked = peer ? blockedUserIds.has(peer.uid) : false;
+
+  const canSeePeerPhoto = peer
+    ? canSeePrivacyField(currentUser.uid, peer, peer.privacyProfilePhoto, contactIds)
+    : true;
+  const canSeePeerLastSeen = peer
+    ? canSeePrivacyField(
+        currentUser.uid,
+        peer,
+        peer.privacyLastSeen,
+        contactIds,
+        peer.privacyLastSeenExceptions
+      )
+    : false;
+  const canCallPeer = peer
+    ? canSeePrivacyField(currentUser.uid, peer, peer.privacyCall, contactIds)
+    : false;
+
+  const handleToggleContact = async () => {
+    if (!peer) return;
+    try {
+      if (isPeerContact) {
+        await removeUserContact(currentUser.uid, peer.uid);
+        onNotify(t.privacy.contactRemoved);
+      } else {
+        await addUserContact(currentUser.uid, peer);
+        onNotify(t.privacy.contactAdded);
+      }
+    } catch (err) {
+      onNotify(err instanceof Error ? err.message : t.errors.unexpected);
+    }
+  };
+
+  const handleToggleBlock = async () => {
+    if (!peer) return;
+    try {
+      if (isPeerBlocked) {
+        await unblockUserAccount(currentUser.uid, peer.uid);
+        onNotify(t.privacy.unblockedSuccess);
+      } else {
+        await blockUserAccount(currentUser.uid, peer);
+        onNotify(t.privacy.blockedSuccess);
+      }
+    } catch (err) {
+      onNotify(err instanceof Error ? err.message : t.errors.unexpected);
+    }
+  };
+
+  const handleStartSecret = async () => {
+    if (!peer || startingSecret) return;
+    setStartingSecret(true);
+    try {
+      const secretId = await createSecretChat(currentUser, peer, 30);
+      onNotify(t.telegram.secretChatCreated);
+      onClose();
+      onSelectChat?.(secretId);
+    } catch (err) {
+      onNotify(err instanceof Error ? err.message : t.errors.unexpected);
+    } finally {
+      setStartingSecret(false);
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="w-full max-w-md rounded-2xl bg-[#F5EFE6] border border-[#0A1931]/15 shadow-2xl overflow-hidden flex flex-col max-h-[88vh]">
-        <div className="bg-[#0A1931] text-white px-5 py-4 flex items-center justify-between shrink-0">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div className="w-full max-w-md rounded-2xl bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/15 dark:border-white/10 shadow-2xl overflow-hidden flex flex-col max-h-[88vh]">
+        <div className="bg-[#0a2e1f] text-white px-5 py-4 flex items-center justify-between shrink-0">
           <h3 className="text-base font-semibold">
             {chat.type === 'private'
               ? t.chatInfo.contactInfo
@@ -119,68 +259,236 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
         <div className="p-5 space-y-5 overflow-y-auto">
           <div className="flex items-center gap-4">
             <Avatar
-              src={chat.type === 'private' ? peer?.photoURL : chat.photoURL}
-              name={chat.type === 'private' ? peer?.name || t.common.user : chat.name || t.common.chat}
+              src={
+                chat.type === 'private'
+                  ? canSeePeerPhoto
+                    ? peer?.photoURL
+                    : ''
+                  : chat.photoURL
+              }
+              name={
+                isSaved
+                  ? t.drawer.savedMessages
+                  : isBot
+                  ? t.drawer.dankBot
+                  : chat.type === 'private'
+                  ? peer?.name || t.common.user
+                  : chat.name || t.common.chat
+              }
               size="lg"
-              isOnline={peer ? isUserActuallyOnline(peer.isOnline, peer.lastSeen) : false}
-              showOnlineDot={chat.type === 'private'}
+              isOnline={
+                peer && canSeePeerLastSeen
+                  ? isUserActuallyOnline(peer.isOnline, peer.lastSeen)
+                  : false
+              }
+              showOnlineDot={chat.type === 'private' && !isSaved && !isBot && canSeePeerLastSeen}
               chatType={chat.type}
+              specialType={
+                isSaved ? 'saved' : isBot ? 'bot' : chat.isSecret ? 'secret' : undefined
+              }
             />
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5 min-w-0">
-                <h4 dir="auto" className="text-lg font-bold text-[#0A1931] truncate">
-                  {chat.type === 'private' ? peer?.name || t.common.privateChat : chat.name}
+                <h4
+                  dir="auto"
+                  className="text-lg font-bold text-[#0a2e1f] dark:text-white truncate"
+                >
+                  {isSaved
+                    ? t.drawer.savedMessages
+                    : isBot
+                    ? t.drawer.dankBot
+                    : chat.type === 'private'
+                    ? peer?.name || t.common.privateChat
+                    : chat.name}
                 </h4>
                 {chat.type === 'private' && peer && (
                   <UserBadges
                     isAdmin={peer.isAdmin}
                     isVerified={peer.isVerified}
                     isVip={peer.isVip || (peer.inviteCount ?? 0) >= 5}
+                    isPlus={peer.isPlus}
+                    isBot={isBot}
                     size="sm"
                   />
                 )}
               </div>
-              <p className="text-xs text-slate-600">
-                {chat.type === 'private'
+              <p className="text-xs text-slate-600 dark:text-emerald-200/70">
+                {isSaved
+                  ? t.drawer.savedMessagesDesc
+                  : isBot
+                  ? t.drawer.dankBotDesc
+                  : chat.type === 'private'
                   ? peer
-                    ? `@${peer.username} · ${formatLastSeen(peer.isOnline, peer.lastSeen, language)}`
+                    ? `@${peer.username} · ${
+                        canSeePeerLastSeen
+                          ? formatLastSeen(peer.isOnline, peer.lastSeen, language)
+                          : t.privacy.nobody
+                      }`
                     : ''
-                  : `${members.length} ${t.common.members}`}
+                  : `${members.length} ${
+                      chat.type === 'channel' ? t.common.subscribers : t.common.members
+                    }`}
               </p>
+              {chat.type === 'group' && (
+                <p className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#25D366]/15 text-[#0a2e1f] dark:text-[#25D366] text-[10px] font-semibold">
+                  <Users className="w-3 h-3" />
+                  {t.telegram.maxMembers200k}
+                </p>
+              )}
+              {chat.isSecret && (
+                <p className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-[#25D366] text-[10px] font-semibold">
+                  <Lock className="w-3 h-3" />
+                  {t.telegram.secretChat}
+                </p>
+              )}
             </div>
           </div>
 
+          {chat.type === 'private' && peer && (
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (!canCallPeer) {
+                    onNotify(t.privacy.cannotCallPrivacy);
+                    return;
+                  }
+                  onStartCall?.(peer, chat.id, 'voice');
+                  onClose();
+                }}
+                className="p-2.5 rounded-xl bg-[#f4f7f5] dark:bg-[#071911] border border-[#0a2e1f]/10 dark:border-white/10 text-[#0a2e1f] dark:text-white hover:border-[#25D366] flex flex-col items-center gap-1 text-xs font-semibold cursor-pointer"
+              >
+                <Phone className="w-4 h-4 text-[#25D366]" />
+                <span>{t.calls.voiceCall}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!canCallPeer) {
+                    onNotify(t.privacy.cannotCallPrivacy);
+                    return;
+                  }
+                  onStartCall?.(peer, chat.id, 'video');
+                  onClose();
+                }}
+                className="p-2.5 rounded-xl bg-[#f4f7f5] dark:bg-[#071911] border border-[#0a2e1f]/10 dark:border-white/10 text-[#0a2e1f] dark:text-white hover:border-[#25D366] flex flex-col items-center gap-1 text-xs font-semibold cursor-pointer"
+              >
+                <Video className="w-4 h-4 text-[#25D366]" />
+                <span>{t.calls.videoCall}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onViewProfile?.(peer);
+                }}
+                className="p-2.5 rounded-xl bg-[#f4f7f5] dark:bg-[#071911] border border-[#0a2e1f]/10 dark:border-white/10 text-[#0a2e1f] dark:text-white hover:border-[#25D366] flex flex-col items-center gap-1 text-xs font-semibold cursor-pointer"
+              >
+                <ShieldCheck className="w-4 h-4 text-[#25D366]" />
+                <span>{t.profile.profileTitle}</span>
+              </button>
+            </div>
+          )}
+
           {chat.type === 'private' && peer?.bio && (
-            <div className="p-3 rounded-xl bg-[#E8DCC6]/70 text-xs text-[#0A1931]">
-              <span className="font-semibold block mb-0.5">{t.chatInfo.bio}</span>
+            <div className="p-3 rounded-xl bg-[#f4f7f5] dark:bg-[#071911] border border-[#0a2e1f]/10 dark:border-white/10 text-xs text-[#0a2e1f] dark:text-white">
+              <span className="font-semibold block mb-0.5 text-[#146c43] dark:text-[#25D366]">
+                {t.chatInfo.bio}
+              </span>
               <span dir="auto">{peer.bio}</span>
             </div>
           )}
 
+          {chat.type === 'private' && peer && (
+            <div className="p-3 rounded-xl bg-[#f4f7f5] dark:bg-[#071911] border border-[#0a2e1f]/10 dark:border-white/10 text-xs flex items-center justify-between gap-2">
+              <span className="font-semibold text-[#0a2e1f] dark:text-white">
+                {t.privacy.phoneNumber}
+              </span>
+              <span className="text-[11px] text-slate-600 dark:text-emerald-200/75">
+                {t.privacy.phoneHiddenNote}
+              </span>
+            </div>
+          )}
+
+          {chat.type === 'private' && peer && (
+            <div className="space-y-2">
+              {!chat.isSecret && (
+                <button
+                  type="button"
+                  disabled={startingSecret}
+                  onClick={() => void handleStartSecret()}
+                  className="w-full h-10 rounded-xl bg-[#0a2e1f] hover:bg-[#103d2a] text-white text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Lock className="w-4 h-4 text-[#25D366]" />
+                  {t.telegram.startSecretChat}
+                </button>
+              )}
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleToggleContact()}
+                  className="h-10 rounded-xl border border-[#0a2e1f]/15 dark:border-white/15 bg-[#f4f7f5] dark:bg-[#071911] text-[#0a2e1f] dark:text-white text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  {isPeerContact ? (
+                    <>
+                      <UserCheck className="w-4 h-4 text-[#25D366]" />
+                      {t.privacy.contactRemoved.replace('.', '')}
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="w-4 h-4 text-[#25D366]" />
+                      {t.privacy.contactsTitle}
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => void handleToggleBlock()}
+                  className={`h-10 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer ${
+                    isPeerBlocked
+                      ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+                      : 'border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300'
+                  }`}
+                >
+                  <Ban className="w-4 h-4" />
+                  {isPeerBlocked ? t.privacy.unblockUser : t.privacy.blockUser}
+                </button>
+              </div>
+            </div>
+          )}
+
           {chat.type !== 'private' && chat.description && (
-            <div className="p-3 rounded-xl bg-[#E8DCC6]/70 text-xs text-[#0A1931]">
-              <span className="font-semibold block mb-0.5">{t.chatInfo.description}</span>
+            <div className="p-3 rounded-xl bg-[#f4f7f5] dark:bg-[#071911] border border-[#0a2e1f]/10 dark:border-white/10 text-xs text-[#0a2e1f] dark:text-white">
+              <span className="font-semibold block mb-0.5 text-[#146c43] dark:text-[#25D366]">
+                {t.chatInfo.description}
+              </span>
               <span dir="auto">{chat.description}</span>
             </div>
           )}
 
-          {/* Shareable Invite Link */}
           {chat.type !== 'private' && (
-            <div className="p-3.5 rounded-xl bg-white border border-[#0A1931]/12 space-y-2">
-              <div className="text-xs font-semibold text-[#0A1931]">
-                {t.chatInfo.inviteLink}
+            <div className="p-3.5 rounded-xl bg-[#f4f7f5] dark:bg-[#071911] border border-[#0a2e1f]/12 dark:border-white/10 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-[#0a2e1f] dark:text-white">
+                  {t.chatInfo.inviteLink}
+                </span>
+                <span dir="ltr" className="text-[11px] font-semibold text-[#146c43] dark:text-[#25D366]">
+                  {dankLink}
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <input
                   readOnly
                   dir="ltr"
                   value={inviteUrl}
-                  className="flex-1 h-9 px-2.5 rounded-lg bg-[#F5EFE6] text-xs text-[#0A1931] border border-[#0A1931]/10 focus:outline-none text-start"
+                  className="flex-1 h-10 px-3 rounded-lg bg-white dark:bg-[#0d2218] text-base text-[#0a2e1f] dark:text-white border border-[#0a2e1f]/10 dark:border-white/10 focus:outline-none text-start"
                 />
                 <button
                   type="button"
                   onClick={handleCopyInvite}
-                  className="h-9 px-3 rounded-lg bg-[#38BDF8] hover:bg-[#0EA5E9] text-[#0A1931] text-xs font-semibold flex items-center gap-1.5 shrink-0 cursor-pointer"
+                  className="h-10 px-3 rounded-lg bg-[#25D366] hover:bg-[#1ebe5d] text-[#052014] text-xs font-bold flex items-center gap-1.5 shrink-0 cursor-pointer"
                 >
                   <Copy className="w-3.5 h-3.5" />
                   {t.common.copy}
@@ -189,18 +497,17 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
             </div>
           )}
 
-          {/* Members List */}
           {chat.type !== 'private' && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-[#0A1931]">
+                <span className="text-xs font-semibold text-[#0a2e1f] dark:text-white">
                   {t.chatInfo.membersTitle} ({members.length})
                 </span>
                 {isChatAdmin && (
                   <button
                     type="button"
                     onClick={() => setAddingMode((v) => !v)}
-                    className="text-xs font-semibold text-[#0284C7] hover:underline flex items-center gap-1 cursor-pointer"
+                    className="text-xs font-semibold text-[#146c43] dark:text-[#25D366] hover:underline flex items-center gap-1 cursor-pointer"
                   >
                     <UserPlus className="w-3.5 h-3.5" />
                     {addingMode ? t.chatInfo.doneAdding : t.chatInfo.addMember}
@@ -209,62 +516,102 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
               </div>
 
               {addingMode && isChatAdmin && (
-                <div className="rounded-xl border border-[#38BDF8] bg-white divide-y divide-[#0A1931]/8 max-h-36 overflow-y-auto">
-                  {nonMembers.length === 0 ? (
-                    <p className="p-2.5 text-xs text-slate-500 text-center">
-                      {t.chatInfo.allAlreadyMembers}
-                    </p>
-                  ) : (
-                    nonMembers.map((u) => (
-                      <div
-                        key={u.uid}
-                        className="px-3 py-2 flex items-center justify-between gap-2"
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <Avatar src={u.photoURL} name={u.name} size="xs" />
-                          <span className="text-xs font-medium text-[#0A1931] truncate">
-                            {u.name}
-                          </span>
-                          <UserBadges
-                            isAdmin={u.isAdmin}
-                            isVerified={u.isVerified}
-                            isVip={u.isVip || (u.inviteCount ?? 0) >= 5}
-                            size="xs"
-                          />
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => void handleAdd(u.uid)}
-                          className="px-2.5 py-1 rounded-lg bg-[#0A1931] text-white text-[11px] font-medium cursor-pointer"
+                <div className="rounded-xl border border-[#25D366]/60 bg-[#f4f7f5] dark:bg-[#071911] p-2.5 space-y-2">
+                  <form onSubmit={handleAddUsername} className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      dir="ltr"
+                      value={usernameInput}
+                      onChange={(e) => setUsernameInput(e.target.value)}
+                      placeholder={t.telegram.addByUsername}
+                      className="flex-1 h-10 px-3 rounded-lg bg-white dark:bg-[#0d2218] border border-[#0a2e1f]/15 dark:border-white/15 text-base text-[#0a2e1f] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#25D366]"
+                    />
+                    <button
+                      type="submit"
+                      disabled={addingByUsername || !usernameInput.trim()}
+                      className="h-10 px-3 rounded-lg bg-[#25D366] text-[#052014] text-xs font-bold disabled:opacity-50 cursor-pointer"
+                    >
+                      {t.common.add}
+                    </button>
+                  </form>
+
+                  {matchingNonMembers.length > 0 && (
+                    <div className="rounded-lg border border-[#0a2e1f]/10 dark:border-white/10 bg-white dark:bg-[#0d2218] divide-y divide-[#0a2e1f]/8 dark:divide-white/8 max-h-36 overflow-y-auto">
+                      {matchingNonMembers.map((u) => (
+                        <div
+                          key={u.uid}
+                          className="px-3 py-2 flex items-center justify-between gap-2"
                         >
-                          {t.common.add}
-                        </button>
-                      </div>
-                    ))
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Avatar src={u.photoURL} name={u.name} size="xs" />
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1 min-w-0">
+                                <span className="text-xs font-medium text-[#0a2e1f] dark:text-white truncate">
+                                  {u.name}
+                                </span>
+                                <UserBadges
+                                  isAdmin={u.isAdmin}
+                                  isVerified={u.isVerified}
+                                  isVip={u.isVip || (u.inviteCount ?? 0) >= 5}
+                                  isPlus={u.isPlus}
+                                  size="xs"
+                                />
+                              </div>
+                              <p className="text-[10px] text-slate-500 truncate">@{u.username}</p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => void handleAdd(u.uid)}
+                            className="px-2.5 py-1 rounded-lg bg-[#0a2e1f] text-white text-[11px] font-medium cursor-pointer"
+                          >
+                            {t.common.add}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
               )}
 
-              <div className="rounded-xl border border-[#0A1931]/12 bg-white divide-y divide-[#0A1931]/8 max-h-56 overflow-y-auto">
+              <div className="rounded-xl border border-[#0a2e1f]/12 dark:border-white/10 bg-[#f4f7f5] dark:bg-[#071911] divide-y divide-[#0a2e1f]/8 dark:divide-white/8 max-h-56 overflow-y-auto">
                 {members.map((m) => {
                   const u = usersMap[m.uid];
-                  const online = u ? isUserActuallyOnline(u.isOnline, u.lastSeen) : false;
+                  const canSeeStatus = u
+                    ? canSeePrivacyField(
+                        currentUser.uid,
+                        u,
+                        u.privacyLastSeen,
+                        contactIds,
+                        u.privacyLastSeenExceptions
+                      )
+                    : false;
+                  const online = u && canSeeStatus ? isUserActuallyOnline(u.isOnline, u.lastSeen) : false;
                   return (
                     <div
                       key={m.uid}
                       className="px-3 py-2.5 flex items-center justify-between gap-2"
                     >
-                      <div className="flex items-center gap-2.5 min-w-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (u && onViewProfile) {
+                            onClose();
+                            onViewProfile(u);
+                          }
+                        }}
+                        className="flex items-center gap-2.5 min-w-0 text-start cursor-pointer"
+                      >
                         <Avatar
                           src={u?.photoURL}
                           name={u?.name || t.common.member}
                           size="sm"
                           isOnline={online}
-                          showOnlineDot={true}
+                          showOnlineDot={canSeeStatus}
                         />
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5 min-w-0">
-                            <p className="text-xs font-semibold text-[#0A1931] truncate">
+                            <p className="text-xs font-semibold text-[#0a2e1f] dark:text-white truncate">
                               {u?.name || m.uid}
                               {m.uid === currentUser.uid ? ` (${t.common.you})` : ''}
                             </p>
@@ -272,24 +619,37 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                               isAdmin={u?.isAdmin}
                               isVerified={u?.isVerified}
                               isVip={u?.isVip || (u?.inviteCount ?? 0) >= 5}
+                              isPlus={u?.isPlus}
                               size="xs"
                             />
                           </div>
-                          <p className="text-[11px] text-slate-500">
+                          <p className="text-[11px] text-slate-500 dark:text-emerald-200/70">
                             {m.role === 'admin' ? t.common.admin : t.common.member}
                           </p>
                         </div>
-                      </div>
+                      </button>
 
                       {isChatAdmin && m.uid !== currentUser.uid && (
-                        <button
-                          type="button"
-                          onClick={() => void handleRemove(m.uid)}
-                          title={t.chatInfo.removeMember}
-                          className="w-8 h-8 rounded-lg hover:bg-red-50 text-red-600 flex items-center justify-center cursor-pointer"
-                        >
-                          <UserMinus className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => void handleRemove(m.uid)}
+                            title={t.chatInfo.removeMember}
+                            className="w-8 h-8 rounded-lg hover:bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center cursor-pointer"
+                          >
+                            <UserMinus className="w-4 h-4" />
+                          </button>
+                          {chat.type === 'group' && (
+                            <button
+                              type="button"
+                              onClick={() => void handleBan(m.uid)}
+                              title={t.telegram.banFromGroup}
+                              className="w-8 h-8 rounded-lg hover:bg-red-500/10 text-red-600 dark:text-red-400 flex items-center justify-center cursor-pointer"
+                            >
+                              <ShieldAlert className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
                   );
@@ -299,7 +659,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
               <button
                 type="button"
                 onClick={() => void handleRemove(currentUser.uid)}
-                className="w-full h-10 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full h-10 rounded-xl border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-950/30 hover:bg-red-100 text-red-700 dark:text-red-300 text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer"
               >
                 <LogOut className="w-4 h-4" />
                 {chat.type === 'channel' ? t.chatInfo.leaveChannel : t.chatInfo.leaveGroup}

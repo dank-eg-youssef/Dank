@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Megaphone, Users } from 'lucide-react';
+import { Bookmark, Bot, Lock, Megaphone, Users } from 'lucide-react';
 
 interface AvatarProps {
   src?: string;
@@ -8,6 +8,7 @@ interface AvatarProps {
   isOnline?: boolean;
   showOnlineDot?: boolean;
   chatType?: 'private' | 'group' | 'channel';
+  specialType?: 'saved' | 'bot' | 'secret';
   className?: string;
 }
 
@@ -20,10 +21,10 @@ const SIZE_CLASSES: Record<NonNullable<AvatarProps['size']>, string> = {
 };
 
 const BG_PALETTES = [
-  'bg-[#0A1931] text-[#38BDF8]',
-  'bg-[#132C54] text-[#F5EFE6]',
-  'bg-[#1E3A5F] text-[#38BDF8]',
-  'bg-[#2C4A6E] text-white',
+  'bg-[#0a2e1f] text-[#25D366]',
+  'bg-[#134e35] text-white',
+  'bg-[#0f3d29] text-[#6ee7b7]',
+  'bg-[#195a3f] text-white',
 ];
 
 function getInitials(name: string): string {
@@ -48,28 +49,42 @@ export const Avatar: React.FC<AvatarProps> = ({
   isOnline = false,
   showOnlineDot = false,
   chatType,
+  specialType,
   className = '',
 }) => {
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const sizeCls = SIZE_CLASSES[size];
   const cleanSrc = src?.trim() || '';
-  const hasImage = cleanSrc.length > 0 && failedSrc !== cleanSrc;
+  const hasImage = !specialType && cleanSrc.length > 0 && failedSrc !== cleanSrc;
 
   return (
     <div className={`relative inline-flex shrink-0 ${className}`}>
-      {hasImage ? (
+      {specialType === 'saved' ? (
+        <div
+          className={`${sizeCls} rounded-full bg-gradient-to-br from-[#25D366] to-[#0f7648] text-white flex items-center justify-center ring-1 ring-black/10 dark:ring-white/15`}
+        >
+          <Bookmark className="w-5 h-5" />
+        </div>
+      ) : specialType === 'bot' ? (
+        <div
+          className={`${sizeCls} rounded-full bg-gradient-to-br from-[#0a2e1f] to-[#166534] text-[#25D366] flex items-center justify-center ring-1 ring-[#25D366]/40`}
+        >
+          <Bot className="w-5 h-5" />
+        </div>
+      ) : hasImage ? (
         <img
           src={cleanSrc}
           alt={name}
+          loading="lazy"
           referrerPolicy="no-referrer"
           onError={() => setFailedSrc(cleanSrc)}
-          className={`${sizeCls} rounded-full object-cover ring-1 ring-[#0A1931]/10`}
+          className={`${sizeCls} rounded-full object-cover ring-1 ring-black/10 dark:ring-white/15`}
         />
       ) : (
         <div
           className={`${sizeCls} ${getPaletteClass(
             name
-          )} rounded-full flex items-center justify-center font-semibold tracking-wide select-none ring-1 ring-[#0A1931]/10`}
+          )} rounded-full flex items-center justify-center font-semibold tracking-wide select-none ring-1 ring-black/10 dark:ring-white/15`}
         >
           {chatType === 'channel' ? (
             <Megaphone className="w-4 h-4" />
@@ -80,10 +95,17 @@ export const Avatar: React.FC<AvatarProps> = ({
           )}
         </div>
       )}
-      {showOnlineDot && isOnline && (
+
+      {specialType === 'secret' && (
+        <span className="absolute -bottom-0.5 -end-0.5 w-4 h-4 rounded-full bg-[#25D366] text-[#041f14] flex items-center justify-center ring-2 ring-white dark:ring-[#0a2e1f]">
+          <Lock className="w-2.5 h-2.5 stroke-[2.6]" />
+        </span>
+      )}
+
+      {showOnlineDot && isOnline && !specialType && (
         <span
           aria-label="Online"
-          className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 ring-2 ring-[#F5EFE6]"
+          className="absolute bottom-0 end-0 w-3 h-3 rounded-full bg-[#25D366] ring-2 ring-white dark:ring-[#0a2e1f]"
         />
       )}
     </div>
