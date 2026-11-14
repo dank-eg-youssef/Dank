@@ -1,9 +1,12 @@
-import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage';
-import { storage } from '../lib/firebase';
 import { compressImageFile } from './imageCompress';
 import { compressStoryVideo, type VideoMetadata } from './videoCompress';
 
 const VOICE_CACHE_PREFIX = 'dank_voice_';
+
+export const CLOUDINARY_CLOUD_NAME = 'ehjqqr8v';
+export const CLOUDINARY_UPLOAD_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`;
+export const CLOUDINARY_UPLOAD_PRESET =
+  import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || 'dank_unsigned';
 
 export function dataUrlToBlob(dataUrl: string): Blob {
   const [header, base64] = dataUrl.split(',');
@@ -24,10 +27,10 @@ export function blobToDataUrl(blob: Blob): Promise<string> {
       if (typeof reader.result === 'string') {
         resolve(reader.result);
       } else {
-        reject(new Error('Failed to read audio blob'));
+        reject(new Error('Failed to read media blob'));
       }
     };
-    reader.onerror = () => reject(new Error('Failed to read audio blob'));
+    reader.onerror = () => reject(new Error('Failed to read media blob'));
     reader.readAsDataURL(blob);
   });
 }
@@ -37,7 +40,6 @@ export function saveVoiceCache(messageId: string, dataUrl: string): void {
   try {
     localStorage.setItem(`${VOICE_CACHE_PREFIX}${messageId}`, dataUrl);
   } catch {
-    // Quota exceeded — trim older cached voices
     try {
       const keysToRemove: string[] = [];
       for (let i = 0; i < localStorage.length; i += 1) {
@@ -65,82 +67,100 @@ export function getVoiceCache(messageId?: string): string | null {
   }
 }
 
-export async function uploadVoiceMessage(
-  blob: Blob,
-  chatId: string,
-  messageId: string
-): Promise<{
-  audioData: string;
-  localDataUrl: string;
-}> {
-  const localDataUrl = await blobToDataUrl(blob);
-  saveVoiceCache(messageId, localDataUrl);
+export async function uploadToCloudinary(file: Blob | File, filename: string): Promise<string> {
+  const formData = new FormData();
+  formData.append('file', file, filename);
+  formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+  formData.append('resource_type', 'auto');
 
-  const ext = blob.type.includes('mp4')
-    ? 'm4a'
-    : blob.type.includes('ogg')
-    ? 'ogg'
-    : 'webm';
-  const storageUrl = await tryUploadToFirebaseStorage(
-    `voices/${chatId}/${messageId}.${ext}`,
-    blob,
-    10_000
-  );
+  const response = await fetch(CLOUDINARY_UPLOAD_URL, {
+    method: 'POST',
+    body: formData,
+  });
 
-  return {
-    audioData: storageUrl || localDataUrl,
-    localDataUrl,
-  };
+  let payload: { secure_url?: string; error?: { message?: string } } | null = null;
+  try {
+    payload = (await response.json()) as { secure_url?: string; error?: { message?: string } };
+  } catch {
+    payload = null;
+  }
+
+  if (!response.ok || !payload?.secure_url) {
+    const details = payload?.error?.message || `HTTP ${response.status}`;
+    const errObj = new Error(
+      `Cloudinary upload failed (${CLOUDINARY_UPLOAD_PRESET}): ${details}`
+    );
+    console.error('Cloudinary upload error details:', payload || details);
+    throw errObj;
+  }
+
+  return payload.secure_url;
 }
 
-async function tryUploadToFirebaseStorage(
-  path: string,
+export async function uploadVoiceMessage(
   blob: Blob,
-  timeoutMs = 10_000
-): Promise<string | null> {
-  try {
-    const storageRef = ref(storage, path);
-    const uploadPromise = (async () => {
-      await uploadBytes(storageRef, blob, {
-        contentType: blob.type || undefined,
-      });
-      return getDownloadURL(storageRef);
-    })();
-    const timeoutPromise = new Promise<null>((resolve) => {
-      window.setTimeout(() => resolve(null), timeoutMs);
+  _chatId: string,
+  messageId: string
+): Promise<{
+  audioUrl: string;
+}> {
+  const mime = (blob.type || '').toLowerCase();
+  const ext =
+    mime.includes('mp4') || mime.includes('m4a') || mime.includes('aac')
+      ? 'm4a'
+      : mime.includes('ogg')
+      ? 'ogg'
+      : mime.includes('wav')
+      ? 'wav'
+      : 'webm';
+
+  const audioUrl = await uploadToCloudinary(blob, `voice_${messageId}.${ext}`);
+  return { audioUrl };
+}
+
+export async function uploadChatImage(file: File | Blob, messageId: string): Promise<string> {
+  let uploadBlob: Blob = file;
+  let filename = file instanceof File && file.name ? file.name : `image_${messageId}.jpg`;
+
+  if (file instanceof File && file.size > 4 * 1024 * 1024) {
+    const compressedDataUrl = await compressImageFile(file, {
+      maxDimension: 1440,
+      maxChars: 950000,
+      initialQuality: 0.85,
     });
-    return await Promise.race([uploadPromise, timeoutPromise]);
-  } catch (err) {
-    console.warn('Firebase Storage upload unavailable, using compressed Firestore fallback:', err);
-    return null;
+    uploadBlob = dataUrlToBlob(compressedDataUrl);
+    filename = `image_${messageId}.jpg`;
   }
+
+  return uploadToCloudinary(uploadBlob, filename);
 }
 
 export async function uploadPostPhoto(
   file: File,
-  uid: string,
+  _uid: string,
   postId: string,
   index: number
 ): Promise<string> {
-  const compressedDataUrl = await compressImageFile(file, {
-    maxDimension: 1080,
-    maxChars: 175000,
-    initialQuality: 0.82,
-  });
+  let uploadBlob: Blob = file;
+  let filename = file.name || `post_${postId}_${index}.jpg`;
 
-  const blob = dataUrlToBlob(compressedDataUrl);
-  const storageUrl = await tryUploadToFirebaseStorage(
-    `posts/${uid}/${postId}_${index}.jpg`,
-    blob,
-    8_000
-  );
-  return storageUrl || compressedDataUrl;
+  if (file.size > 4 * 1024 * 1024) {
+    const compressedDataUrl = await compressImageFile(file, {
+      maxDimension: 1440,
+      maxChars: 950000,
+      initialQuality: 0.85,
+    });
+    uploadBlob = dataUrlToBlob(compressedDataUrl);
+    filename = `post_${postId}_${index}.jpg`;
+  }
+
+  return uploadToCloudinary(uploadBlob, filename);
 }
 
 export async function uploadReelVideo(
   file: File,
   metadata: VideoMetadata,
-  uid: string,
+  _uid: string,
   reelId: string,
   onProgress?: (pct: number) => void
 ): Promise<{
@@ -148,6 +168,18 @@ export async function uploadReelVideo(
   dataUrlFallback: string;
   duration: number;
 }> {
+  onProgress?.(20);
+  if (file.size <= 50 * 1024 * 1024) {
+    const ext = file.name.split('.').pop()?.toLowerCase() || 'mp4';
+    const secureUrl = await uploadToCloudinary(file, `reel_${reelId}.${ext}`);
+    onProgress?.(100);
+    return {
+      storageUrl: secureUrl,
+      dataUrlFallback: '',
+      duration: metadata.duration,
+    };
+  }
+
   const compressed = await compressStoryVideo(file, {
     metadata,
     maxSeconds: 60,
@@ -155,26 +187,16 @@ export async function uploadReelVideo(
   });
 
   const ext = compressed.blob.type.includes('webm') ? 'webm' : 'mp4';
-  const storageUrl = await tryUploadToFirebaseStorage(
-    `reels/${uid}/${reelId}.${ext}`,
-    compressed.blob,
-    18_000
-  );
+  const secureUrl = await uploadToCloudinary(compressed.blob, `reel_${reelId}.${ext}`);
   onProgress?.(100);
 
   return {
-    storageUrl,
-    dataUrlFallback: compressed.dataUrl,
+    storageUrl: secureUrl,
+    dataUrlFallback: '',
     duration: compressed.duration,
   };
 }
 
-export async function deleteManagedStorageMedia(url: string): Promise<void> {
-  if (!url || !url.startsWith('http')) return;
-  try {
-    const mediaRef = ref(storage, url);
-    await deleteObject(mediaRef);
-  } catch {
-    // Ignore cleanup failures if file was already deleted or Storage unavailable
-  }
+export async function deleteManagedStorageMedia(_url: string): Promise<void> {
+  // Unsigned Cloudinary uploads do not expose client-side deletion without an API secret.
 }

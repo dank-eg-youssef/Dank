@@ -15,6 +15,7 @@ import {
   ImagePlus,
   Info,
   Link2,
+  Loader2,
   Lock,
   MapPin,
   MessageCircle,
@@ -69,8 +70,7 @@ import type {
 } from '../types/dank';
 import { getCachedChatMessages, setCachedChatMessages } from '../utils/chatCache';
 import { handleFirestoreError, isOfflineError, OperationType } from '../utils/firestoreErrors';
-import { compressImageFile } from '../utils/imageCompress';
-import { uploadVoiceMessage } from '../utils/mediaStorage';
+import { getVoiceCache, uploadChatImage, uploadVoiceMessage } from '../utils/mediaStorage';
 import { decryptSecretText } from '../utils/secretCrypto';
 import { DANK_STICKERS, getStickerById } from '../utils/stickers';
 import {
@@ -193,7 +193,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const [text, setText] = useState('');
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [editingMsg, setEditingMsg] = useState<Message | null>(null);
-  const [pendingImage, setPendingImage] = useState<string | null>(null);
+  const [pendingImage, setPendingImage] = useState<{ file: File; previewUrl: string } | null>(null);
+  const [uploadingType, setUploadingType] = useState<'image' | 'audio' | null>(null);
   const [sending, setSending] = useState(false);
 
   const [showSearchBar, setShowSearchBar] = useState(false);
@@ -256,7 +257,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       setLoadingMessages(cached.length === 0);
       setReplyTo(null);
       setEditingMsg(null);
-      setPendingImage(null);
+      setPendingImage((prev) => {
+        if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl);
+        return null;
+      });
+      setUploadingType(null);
       setShowSearchBar(false);
       setSearchQuery('');
       setActiveActionMsgId(null);
@@ -626,7 +631,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     messageId?: string;
     type: Message['type'];
     text?: string;
+    imageUrl?: string;
     imageData?: string;
+    audioUrl?: string;
     audioData?: string;
     audioDuration?: number;
     waveform?: number[];
@@ -651,8 +658,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       senderPhoto: currentUser.photoURL || '',
       type: params.type,
       text: params.text || '',
-      imageData: params.imageData || '',
-      audioData: params.audioData || '',
+      imageUrl: params.imageUrl || params.imageData || '',
+      imageData: params.imageData || params.imageUrl || '',
+      audioUrl: params.audioUrl || params.audioData || '',
+      audioData: params.audioData || params.audioUrl || '',
       audioDuration: params.audioDuration,
       waveform: params.waveform,
       fileName: params.fileName,
@@ -721,10 +730,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       return;
     }
 
-    const img = pendingImage || '';
-    setText('');
-    setPendingImage(null);
-    setReplyTo(null);
     setShowStickerPopover(false);
     setShowAttachMenu(false);
 
@@ -733,31 +738,59 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       void setTypingStatus(chat.id, currentUser, false);
     }
 
+    if (pendingImage) {
+      const msgId = createOptimisticId();
+      setSending(true);
+      setUploadingType('image');
+      try {
+        const secureUrl = await uploadChatImage(pendingImage.file, msgId);
+        URL.revokeObjectURL(pendingImage.previewUrl);
+        setPendingImage(null);
+        setText('');
+        setReplyTo(null);
+
+        await pushOptimisticAndSend({
+          messageId: msgId,
+          type: 'image',
+          text: trimmed,
+          imageUrl: secureUrl,
+          imageData: secureUrl,
+        });
+      } catch (err) {
+        onNotify(err instanceof Error ? err.message : t.chat.failedSend);
+      } finally {
+        setUploadingType(null);
+        setSending(false);
+      }
+      return;
+    }
+
+    setText('');
+    setReplyTo(null);
     try {
       await pushOptimisticAndSend({
-        type: img ? 'image' : 'text',
+        type: 'text',
         text: trimmed,
-        imageData: img,
       });
     } catch (err) {
       onNotify(err instanceof Error ? err.message : t.chat.failedSend);
     }
   };
 
-  const handleImagePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImagePick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     setShowAttachMenu(false);
     if (!file) return;
-    try {
-      const compressed = await compressImageFile(file, {
-        maxDimension: 960,
-        maxChars: 360000,
-      });
-      setPendingImage(compressed);
-    } catch (err) {
-      onNotify(err instanceof Error ? err.message : t.chat.couldNotAttachImage);
+    if (!file.type.startsWith('image/')) {
+      onNotify(t.chat.couldNotAttachImage);
+      return;
     }
+    const previewUrl = URL.createObjectURL(file);
+    setPendingImage((prev) => {
+      if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl);
+      return { file, previewUrl };
+    });
   };
 
   const handleVideoPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1004,23 +1037,22 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         }
 
         setSending(true);
+        setUploadingType('audio');
         try {
           const blob = new Blob(chunks, { type: recType });
           const voiceMsgId = createOptimisticId();
           const uploaded = await uploadVoiceMessage(blob, chat.id, voiceMsgId);
 
-          if (
-            !uploaded.audioData ||
-            (!uploaded.audioData.startsWith('http') && uploaded.audioData.length > 740000)
-          ) {
-            onNotify(t.chat.voiceTooLong);
+          if (!uploaded.audioUrl) {
+            onNotify(t.chat.failedSendVoice);
             return;
           }
 
           await pushOptimisticAndSend({
             messageId: voiceMsgId,
             type: 'audio',
-            audioData: uploaded.audioData,
+            audioUrl: uploaded.audioUrl,
+            audioData: uploaded.audioUrl,
             audioDuration: Math.round(elapsedSec),
             waveform: downsampleWaveform(rawSamples, 28),
           });
@@ -1028,6 +1060,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         } catch (err) {
           onNotify(err instanceof Error ? err.message : t.chat.failedSendVoice);
         } finally {
+          setUploadingType(null);
           setSending(false);
         }
       };
@@ -1655,16 +1688,16 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     )}
 
                     {/* Image Attachment (Lazy) */}
-                    {msg.type === 'image' && msg.imageData?.trim() && (
+                    {msg.type === 'image' && (msg.imageUrl || msg.imageData)?.trim() && (
                       <LazyMedia>
                         <div className="mb-1.5 rounded-xl overflow-hidden bg-black/10">
                           <img
-                            src={msg.imageData.trim()}
+                            src={(msg.imageUrl || msg.imageData || '').trim()}
                             alt={t.chat.photoLabel}
                             loading="lazy"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setLightboxImage(msg.imageData?.trim() || null);
+                              setLightboxImage((msg.imageUrl || msg.imageData || '').trim() || null);
                             }}
                             className="max-h-72 w-auto object-cover cursor-zoom-in"
                           />
@@ -1760,20 +1793,24 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                       </div>
                     )}
 
-                    {/* Voice Note */}
-                    {msg.type === 'audio' && (
-                      <div className="mb-1">
-                        <VoiceNotePlayer
-                          messageId={msg.id}
-                          audioData={msg.audioData || ''}
-                          duration={msg.audioDuration}
-                          waveform={msg.waveform}
-                          onDarkBubble={isMine}
-                          isListened={isVoiceListened}
-                          onPlayed={() => void markVoiceMessagePlayed(chat.id, msg.id, currentUser.uid)}
-                        />
-                      </div>
-                    )}
+                    {/* Voice Note (only rendered when audioUrl / cached audio exists) */}
+                    {msg.type === 'audio' &&
+                      Boolean((msg.audioUrl || msg.audioData || getVoiceCache(msg.id) || '').trim()) && (
+                        <div className="mb-1">
+                          <VoiceNotePlayer
+                            messageId={msg.id}
+                            audioUrl={msg.audioUrl || msg.audioData || ''}
+                            audioData={msg.audioData || ''}
+                            duration={msg.audioDuration}
+                            waveform={msg.waveform}
+                            onDarkBubble={isMine}
+                            isListened={isVoiceListened}
+                            onPlayed={() =>
+                              void markVoiceMessagePlayed(chat.id, msg.id, currentUser.uid)
+                            }
+                          />
+                        </div>
+                      )}
 
                     {/* Message Text */}
                     {displayText && (
@@ -2091,23 +2128,42 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             )}
 
             {/* Pending Image Preview */}
-            {pendingImage?.trim() && (
+            {pendingImage?.previewUrl && (
               <div className="flex items-center gap-3 px-3 py-2 rounded-xl bg-slate-100 dark:bg-[#242F3D] border border-slate-200 dark:border-[#22303F]">
                 <img
-                  src={pendingImage.trim()}
+                  src={pendingImage.previewUrl}
                   alt={t.chat.photoLabel}
                   className="w-14 h-14 rounded-lg object-cover"
                 />
-                <div className="flex-1 text-xs font-medium text-[#0E1621] dark:text-white">
-                  {t.chat.imageReady}
+                <div className="flex-1 text-xs font-medium text-[#0E1621] dark:text-white flex items-center gap-2">
+                  {uploadingType === 'image' ? (
+                    <>
+                      <Loader2 className="w-4 h-4 text-[#2AABEE] animate-spin shrink-0" />
+                      <span>{t.chat.uploading}</span>
+                    </>
+                  ) : (
+                    <span>{t.chat.imageReady}</span>
+                  )}
                 </div>
                 <button
                   type="button"
-                  onClick={() => setPendingImage(null)}
-                  className="w-8 h-8 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center text-[#0E1621] dark:text-white cursor-pointer"
+                  disabled={uploadingType === 'image'}
+                  onClick={() => {
+                    if (pendingImage.previewUrl) URL.revokeObjectURL(pendingImage.previewUrl);
+                    setPendingImage(null);
+                  }}
+                  className="w-8 h-8 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center text-[#0E1621] dark:text-white disabled:opacity-40 cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
+              </div>
+            )}
+
+            {/* Uploading Voice Indicator */}
+            {uploadingType === 'audio' && (
+              <div className="flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-[#17212B] text-white border border-[#2AABEE]/45">
+                <Loader2 className="w-4 h-4 text-[#2AABEE] animate-spin shrink-0" />
+                <span className="text-xs font-semibold">{t.chat.uploading}</span>
               </div>
             )}
 

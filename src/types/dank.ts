@@ -196,7 +196,9 @@ export interface Message {
   senderPhoto?: string;
   type: MessageType;
   text?: string;
+  imageUrl?: string;
   imageData?: string;
+  audioUrl?: string;
   audioData?: string;
   audioDuration?: number;
   waveform?: number[];

@@ -5,7 +5,8 @@ import { getVoiceCache } from '../utils/mediaStorage';
 
 interface VoiceNotePlayerProps {
   messageId?: string;
-  audioData: string;
+  audioUrl?: string;
+  audioData?: string;
   duration?: number;
   waveform?: number[];
   onDarkBubble?: boolean;
@@ -49,6 +50,7 @@ function dataUrlToBlobUrl(dataUrl: string): string | null {
 
 export const VoiceNotePlayer: React.FC<VoiceNotePlayerProps> = ({
   messageId,
+  audioUrl,
   audioData,
   duration = 0,
   waveform,
@@ -65,6 +67,8 @@ export const VoiceNotePlayer: React.FC<VoiceNotePlayerProps> = ({
   const [currentTime, setCurrentTime] = useState(0);
   const [totalDuration, setTotalDuration] = useState(duration);
   const [playbackRate, setPlaybackRate] = useState<1 | 2>(1);
+  const playbackRateRef = useRef<1 | 2>(1);
+  playbackRateRef.current = playbackRate;
   const [localListened, setLocalListened] = useState(isListened);
   const [playError, setPlayError] = useState<string | null>(null);
 
@@ -77,31 +81,29 @@ export const VoiceNotePlayer: React.FC<VoiceNotePlayerProps> = ({
   }, [duration]);
 
   const effectiveSource = useMemo(() => {
-    const raw = audioData?.trim() || '';
+    const raw = (audioUrl || audioData || '').trim();
     if (raw) return raw;
     return getVoiceCache(messageId) || '';
-  }, [audioData, messageId]);
+  }, [audioUrl, audioData, messageId]);
 
-  // Synchronously resolve Blob URL (so friend voice notes play on first tap on iOS & desktop)
-  const [blobSrc, setBlobSrc] = useState<string>('');
+  // Convert legacy base64 data URLs to Blob URLs; pass Cloudinary HTTPS audioUrl directly
+  const [legacyBlobSrc, setLegacyBlobSrc] = useState<string>('');
   useEffect(() => {
-    if (!effectiveSource) {
-      setBlobSrc('');
-      return;
-    }
-    if (!effectiveSource.startsWith('data:')) {
-      setBlobSrc(effectiveSource);
+    if (!effectiveSource || !effectiveSource.startsWith('data:')) {
+      setLegacyBlobSrc('');
       return;
     }
     const objectUrl = dataUrlToBlobUrl(effectiveSource);
     if (objectUrl) {
-      setBlobSrc(objectUrl);
+      setLegacyBlobSrc(objectUrl);
       return () => {
         URL.revokeObjectURL(objectUrl);
       };
     }
-    setBlobSrc(effectiveSource);
+    setLegacyBlobSrc(effectiveSource);
   }, [effectiveSource]);
+
+  const playbackSrc = effectiveSource.startsWith('data:') ? legacyBlobSrc : effectiveSource;
 
   const bars = useMemo(() => {
     if (waveform && waveform.length > 0) {
@@ -110,7 +112,7 @@ export const VoiceNotePlayer: React.FC<VoiceNotePlayerProps> = ({
     return DEFAULT_BARS;
   }, [waveform]);
 
-  // Global single-playback coordinator: pause other voice players when one starts
+  // Pause other voice players when one starts
   useEffect(() => {
     const handleOtherPlay = (ev: Event) => {
       const detail = (ev as CustomEvent<string>).detail;
@@ -142,6 +144,7 @@ export const VoiceNotePlayer: React.FC<VoiceNotePlayerProps> = ({
     const handlePause = () => setIsPlaying(false);
     const handlePlay = () => {
       setPlayError(null);
+      audio.playbackRate = playbackRateRef.current;
       setIsPlaying(true);
       setLocalListened(true);
       window.dispatchEvent(new CustomEvent('dank:voice-play', { detail: playerId }));
@@ -152,7 +155,7 @@ export const VoiceNotePlayer: React.FC<VoiceNotePlayerProps> = ({
     };
     const handleError = () => {
       setIsPlaying(false);
-      if (effectiveSource) {
+      if (playbackSrc) {
         setPlayError(t.chat.voicePlayError);
       }
     };
@@ -174,7 +177,7 @@ export const VoiceNotePlayer: React.FC<VoiceNotePlayerProps> = ({
       audio.removeEventListener('play', handlePlay);
       audio.removeEventListener('error', handleError);
     };
-  }, [blobSrc, effectiveSource, onPlayed, playerId, t.chat.voicePlayError]);
+  }, [playbackSrc, onPlayed, playerId, t.chat.voicePlayError]);
 
   useEffect(() => {
     if (audioRef.current) {
@@ -182,7 +185,7 @@ export const VoiceNotePlayer: React.FC<VoiceNotePlayerProps> = ({
     }
   }, [playbackRate]);
 
-  // Smooth timer fallback on iOS Safari WebKit
+  // Smooth progress timer fallback on iOS Safari WebKit
   useEffect(() => {
     if (!isPlaying) return;
     const id = window.setInterval(() => {
@@ -197,45 +200,29 @@ export const VoiceNotePlayer: React.FC<VoiceNotePlayerProps> = ({
     return () => window.clearInterval(id);
   }, [isPlaying]);
 
-  const togglePlayback = async (e: React.MouseEvent | React.TouchEvent) => {
+  const togglePlayback = async (e: React.MouseEvent) => {
     e.stopPropagation();
     setPlayError(null);
 
     const audio = audioRef.current;
     if (!audio) return;
 
-    const targetSrc = blobSrc || effectiveSource;
-    if (!targetSrc) {
+    if (!playbackSrc) {
       setPlayError(t.chat.voicePlayError);
       return;
     }
 
     if (!audio.getAttribute('src')) {
-      audio.src = targetSrc;
-      audio.load();
+      audio.src = playbackSrc;
     }
-
-    audio.playbackRate = playbackRate;
 
     if (audio.paused) {
       window.dispatchEvent(new CustomEvent('dank:voice-play', { detail: playerId }));
       try {
         await audio.play();
+        audio.playbackRate = playbackRateRef.current;
         setIsPlaying(true);
       } catch {
-        // Fallback retry using raw effectiveSource / localStorage cache
-        const fallbackRaw = effectiveSource || getVoiceCache(messageId) || '';
-        if (fallbackRaw && audio.src !== fallbackRaw) {
-          try {
-            audio.src = fallbackRaw;
-            audio.load();
-            await audio.play();
-            setIsPlaying(true);
-            return;
-          } catch {
-            // fall through to inline error
-          }
-        }
         setIsPlaying(false);
         setPlayError(t.chat.voicePlayError);
       }
@@ -272,20 +259,25 @@ export const VoiceNotePlayer: React.FC<VoiceNotePlayerProps> = ({
   return (
     <div
       onClick={(e) => e.stopPropagation()}
-      className="flex flex-col gap-1.5 min-w-[235px] sm:min-w-[268px] py-0.5 select-none"
+      className="flex flex-col gap-1 min-w-[235px] sm:min-w-[268px] py-0.5 select-none"
     >
-      {/* Telegram Waveform + Play/Pause + Speed Row */}
+      {/* Hidden native <audio> element backing this single VoicePlayer */}
+      <audio
+        ref={audioRef}
+        src={playbackSrc || undefined}
+        playsInline
+        preload="metadata"
+        className="hidden"
+      />
+
+      {/* Single Telegram Waveform VoicePlayer: Play/Pause + Waveform + Duration + 1x/2x */}
       <div className="flex items-center gap-2.5">
         <button
           type="button"
           onClick={(e) => void togglePlayback(e)}
           aria-label={isPlaying ? t.chat.pauseVoice : t.chat.playVoice}
           style={{ touchAction: 'manipulation' }}
-          className={`w-11 h-11 min-w-[44px] min-h-[44px] rounded-full flex items-center justify-center shrink-0 transition-transform active:scale-95 cursor-pointer ${
-            onDarkBubble
-              ? 'bg-[#2AABEE] text-white hover:bg-[#229ED9]'
-              : 'bg-[#2AABEE] text-white hover:bg-[#229ED9]'
-          }`}
+          className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full bg-[#2AABEE] hover:bg-[#229ED9] text-white flex items-center justify-center shrink-0 transition-transform active:scale-95 cursor-pointer"
         >
           {isPlaying ? (
             <Pause className="w-4 h-4 fill-current" />
@@ -350,16 +342,6 @@ export const VoiceNotePlayer: React.FC<VoiceNotePlayerProps> = ({
           </div>
         </div>
       </div>
-
-      {/* Native HTML5 <audio controls> element (always visible for maximum cross-browser / iOS Safari reliability) */}
-      <audio
-        ref={audioRef}
-        src={blobSrc || undefined}
-        controls
-        playsInline
-        preload="metadata"
-        className="w-full h-8 rounded-lg opacity-90"
-      />
 
       {playError && (
         <p className="text-[11px] font-medium text-red-400 px-1">{playError}</p>

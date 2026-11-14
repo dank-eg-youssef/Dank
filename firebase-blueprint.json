@@ -509,9 +509,17 @@
           "type": "string",
           "maxLength": 6000
         },
+        "imageUrl": {
+          "type": "string",
+          "maxLength": 2048
+        },
         "imageData": {
           "type": "string",
           "maxLength": 500000
+        },
+        "audioUrl": {
+          "type": "string",
+          "maxLength": 2048
         },
         "audioData": {
           "type": "string",

@@ -356,7 +356,7 @@ service cloud.firestore {
       return data.keys().hasAll(['id', 'chatId', 'senderId', 'senderName', 'type', 'status', 'createdAt', 'updatedAt'])
         && data.keys().hasOnly([
           'id', 'chatId', 'senderId', 'senderName', 'senderPhoto',
-          'type', 'text', 'imageData', 'audioData', 'audioDuration', 'waveform', 'playedBy',
+          'type', 'text', 'imageUrl', 'imageData', 'audioUrl', 'audioData', 'audioDuration', 'waveform', 'playedBy',
           'fileName', 'fileSize', 'fileData', 'videoData', 'videoDuration',
           'locationLat', 'locationLng', 'locationLabel', 'stickerId',
           'forwardedFromName', 'isEdited', 'deletedFor', 'viewCount',
@@ -373,7 +373,9 @@ service cloud.firestore {
         && isValidOptString(data, 'senderPhoto', 250000)
         && data.type in ['text', 'image', 'audio', 'video', 'file', 'location', 'sticker']
         && isValidOptString(data, 'text', 6000)
+        && isValidOptString(data, 'imageUrl', 2048)
         && isValidOptString(data, 'imageData', 500000)
+        && isValidOptString(data, 'audioUrl', 2048)
         && isValidOptString(data, 'audioData', 750000)
         && (!('audioDuration' in data) || (data.audioDuration is number && data.audioDuration >= 0 && data.audioDuration <= 300))
         && (!('waveform' in data) || (data.waveform is list && data.waveform.size() <= 40 && (data.waveform.size() == 0 || data.waveform[0] is number)))

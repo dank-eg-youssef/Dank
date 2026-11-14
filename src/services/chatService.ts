@@ -1216,7 +1216,9 @@ export async function sendMessage(params: {
   sender: UserPublic;
   type: MessageType;
   text?: string;
+  imageUrl?: string;
   imageData?: string;
+  audioUrl?: string;
   audioData?: string;
   audioDuration?: number;
   waveform?: number[];
@@ -1238,7 +1240,9 @@ export async function sendMessage(params: {
     sender,
     type,
     text = '',
+    imageUrl = '',
     imageData = '',
+    audioUrl = '',
     audioData = '',
     audioDuration = 0,
     waveform = [],
@@ -1394,7 +1398,8 @@ export async function sendMessage(params: {
       senderPhoto: (sender.photoURL || '').slice(0, 250000),
       type,
       text: storedText,
-      imageData: type === 'image' ? imageData.slice(0, 500000) : '',
+      imageUrl: type === 'image' ? (imageUrl || imageData).slice(0, 2048) : '',
+      imageData: type === 'image' ? (imageUrl || imageData).slice(0, 500000) : '',
       status: initialStatus,
       replyToId: replyTo ? replyTo.id : '',
       replyToSenderName: replyTo ? replyTo.senderName.slice(0, 80) : '',
@@ -1421,7 +1426,9 @@ export async function sendMessage(params: {
     };
 
     if (type === 'audio') {
-      msgPayload.audioData = audioData.slice(0, 740000);
+      const resolvedAudio = audioUrl || audioData;
+      msgPayload.audioUrl = resolvedAudio.slice(0, 2048);
+      msgPayload.audioData = resolvedAudio.slice(0, 740000);
       msgPayload.audioDuration = Math.min(300, Math.max(0, audioDuration));
       msgPayload.waveform = waveform.slice(0, 40);
       msgPayload.playedBy = [];
@@ -1598,7 +1605,9 @@ export async function forwardMessage(params: {
     sender,
     type: fromMsg.type,
     text: decryptedText ?? fromMsg.text ?? '',
+    imageUrl: fromMsg.imageUrl,
     imageData: fromMsg.imageData,
+    audioUrl: fromMsg.audioUrl,
     audioData: fromMsg.audioData,
     audioDuration: fromMsg.audioDuration,
     waveform: fromMsg.waveform,
