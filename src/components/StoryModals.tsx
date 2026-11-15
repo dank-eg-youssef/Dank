@@ -23,6 +23,7 @@ import {
 import type { StoryView, UserPublic } from '../types/dank';
 import { compressImageFile } from '../utils/imageCompress';
 import { formatMessageTime } from '../utils/timeFormat';
+import { RichEmojiText } from './RichEmojiText';
 import {
   compressStoryVideo,
   formatVideoDuration,
@@ -163,17 +164,17 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="w-full max-w-md rounded-2xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F] shadow-2xl overflow-hidden">
-        <div className="bg-[#17212B] text-white border-b border-[#22303F] px-5 py-4 flex items-center justify-between">
+      <div className="w-full max-w-md rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] shadow-2xl overflow-hidden">
+        <div className="bg-[var(--dank-canvas)] text-[var(--dank-text)] border-b border-[var(--dank-border)] px-5 py-4 flex items-center justify-between">
           <div>
             <h3 className="text-base font-semibold">{t.stories.modalTitle}</h3>
-            <p className="text-[11px] text-[#8C9FB1]">{t.stories.modalSubtitle}</p>
+            <p className="text-[11px] text-[var(--dank-muted)]">{t.stories.modalSubtitle}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label={t.common.close}
-            className="w-9 h-9 rounded-xl hover:bg-white/10 flex items-center justify-center cursor-pointer"
+            className="w-9 h-9 rounded-xl hover:bg-[var(--dank-hover)] flex items-center justify-center cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -189,24 +190,24 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
           />
 
           {compressing ? (
-            <div className="w-full h-52 rounded-2xl border border-[#22303F] bg-[#0E1621] text-white flex flex-col items-center justify-center gap-3 px-6">
-              <Loader2 className="w-8 h-8 text-[#2AABEE] animate-spin" />
+            <div className="w-full h-52 rounded-2xl border border-[var(--dank-border)] bg-[var(--dank-canvas)] text-[var(--dank-text)] flex flex-col items-center justify-center gap-3 px-6">
+              <Loader2 className="w-8 h-8 text-[var(--dank-accent)] animate-spin" />
               <div className="text-center">
                 <p className="text-sm font-semibold">{t.stories.optimizingVideo}</p>
-                <p className="text-xs text-[#8C9FB1] mt-0.5 tabular-nums">
+                <p className="text-xs text-[var(--dank-muted)] mt-0.5 tabular-nums">
                   {compressProgress}% · {t.stories.clipLength} {formatVideoDuration(videoDuration)}
                 </p>
               </div>
-              <div className="w-full h-2 rounded-full bg-white/15 overflow-hidden">
+              <div className="w-full h-2 rounded-full bg-[var(--dank-elevated)] overflow-hidden">
                 <div
-                  className="h-full bg-[#2AABEE] transition-all duration-150"
+                  className="h-full bg-[var(--dank-accent)] transition-all duration-150"
                   style={{ width: `${compressProgress}%` }}
                 />
               </div>
             </div>
           ) : mediaData ? (
             <div className="space-y-2.5">
-              <div className="relative rounded-2xl overflow-hidden bg-[#0E1621] aspect-[9/12] max-h-80 mx-auto flex items-center justify-center">
+              <div className="relative rounded-2xl overflow-hidden bg-black aspect-[9/12] max-h-80 mx-auto flex items-center justify-center">
                 {mediaType === 'video' ? (
                   <video
                     src={mediaData}
@@ -244,23 +245,23 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
               </div>
 
               {mediaType === 'video' && (
-                <div className="rounded-xl bg-slate-100 dark:bg-[#242F3D] border border-slate-200 dark:border-[#22303F] px-3 py-2 space-y-1.5">
-                  <div className="flex items-center justify-between text-xs font-medium text-[#0E1621] dark:text-white tabular-nums">
+                <div className="rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] px-3 py-2 space-y-1.5">
+                  <div className="flex items-center justify-between text-xs font-medium text-[var(--dank-text)] tabular-nums">
                     <span dir="ltr">
                       {formatVideoDuration(previewCurrentTime)} /{' '}
                       {formatVideoDuration(MAX_STORY_VIDEO_SECONDS)}
                     </span>
-                    <span className="text-slate-500 dark:text-[#8C9FB1]">
+                    <span className="text-[var(--dank-muted)]">
                       {t.stories.clip} {formatVideoDuration(videoDuration)}
                     </span>
                   </div>
-                  <div className="relative w-full h-2 rounded-full bg-slate-200 dark:bg-white/10 overflow-hidden">
+                  <div className="relative w-full h-2 rounded-full bg-[var(--dank-elevated)] overflow-hidden">
                     <div
-                      className="absolute inset-y-0 start-0 bg-[#2AABEE]/35 rounded-full"
+                      className="absolute inset-y-0 start-0 bg-[var(--dank-accent-soft)] rounded-full"
                       style={{ width: `${maxBarPct}%` }}
                     />
                     <div
-                      className="relative h-full bg-[#2AABEE] rounded-full transition-all duration-100"
+                      className="relative h-full bg-[var(--dank-accent)] rounded-full transition-all duration-100"
                       style={{ width: `${liveBarPct}%` }}
                     />
                   </div>
@@ -272,32 +273,32 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
-                className="w-full h-48 rounded-2xl border-2 border-dashed border-slate-300 dark:border-[#22303F] bg-slate-100 dark:bg-[#242F3D] hover:bg-slate-200 dark:hover:bg-[#2B3949] flex flex-col items-center justify-center gap-2.5 text-[#0E1621] dark:text-white transition-colors cursor-pointer"
+                className="w-full h-48 rounded-2xl border-2 border-dashed border-[var(--dank-border)] bg-[var(--dank-canvas)] hover:bg-[var(--dank-hover)] flex flex-col items-center justify-center gap-2.5 text-[var(--dank-text)] transition-colors cursor-pointer"
               >
-                <div className="flex items-center gap-2 text-[#2AABEE]">
+                <div className="flex items-center gap-2 text-[var(--dank-accent)]">
                   <ImagePlus className="w-7 h-7" />
                   <Film className="w-7 h-7" />
                 </div>
                 <span className="text-sm font-semibold">{t.stories.chooseMedia}</span>
-                <span className="text-xs text-slate-500 dark:text-[#708499]">
+                <span className="text-xs text-[var(--dank-muted)]">
                   {t.stories.autoCompressedHint}
                 </span>
               </button>
 
               <div className="space-y-1.5 px-1">
-                <div className="flex items-center justify-between text-xs text-slate-600 dark:text-[#8C9FB1]">
+                <div className="flex items-center justify-between text-xs text-[var(--dank-muted)]">
                   <span>{t.stories.maxVideoHint}</span>
-                  <span dir="ltr" className="font-medium text-[#0E1621] dark:text-white tabular-nums">
+                  <span dir="ltr" className="font-medium text-[var(--dank-text)] tabular-nums">
                     0:00 / 2:00
                   </span>
                 </div>
-                <div className="w-full h-1.5 rounded-full bg-slate-200 dark:bg-white/10 overflow-hidden">
-                  <div className="h-full bg-[#2AABEE] w-0 rounded-full" />
+                <div className="w-full h-1.5 rounded-full bg-[var(--dank-elevated)] overflow-hidden">
+                  <div className="h-full bg-[var(--dank-accent)] w-0 rounded-full" />
                 </div>
               </div>
 
               {videoError && (
-                <div className="flex items-center gap-2 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-500/30 px-3 py-2 text-xs text-red-700 dark:text-red-300">
+                <div className="flex items-center gap-2 rounded-xl bg-red-500/10 border border-red-500/30 px-3 py-2 text-xs text-red-500">
                   <AlertCircle className="w-4 h-4 shrink-0" />
                   <span>{videoError}</span>
                 </div>
@@ -313,14 +314,14 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
               value={caption}
               onChange={(e) => setCaption(e.target.value)}
               placeholder={t.stories.addCaptionPlaceholder}
-              className="w-full h-11 px-3.5 rounded-xl bg-slate-100 dark:bg-[#242F3D] border border-slate-200 dark:border-[#22303F] text-base text-[#0E1621] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#2AABEE]"
+              className="w-full h-11 px-3.5 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] text-base text-[var(--dank-text)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)]"
             />
           </div>
 
           <button
             type="submit"
             disabled={!mediaData || posting || compressing}
-            className="w-full h-11 rounded-xl bg-[#2AABEE] hover:bg-[#229ED9] text-white font-bold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50 cursor-pointer"
+            className="w-full h-11 rounded-xl bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] font-bold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50 cursor-pointer"
           >
             <Send className="w-4 h-4" />
             {posting
@@ -524,7 +525,7 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-md h-[88vh] max-h-[760px] rounded-2xl bg-[#17212B] overflow-hidden flex flex-col shadow-2xl border border-[#22303F]"
+        className="relative w-full max-w-md h-[88vh] max-h-[760px] rounded-2xl bg-[#121212] overflow-hidden flex flex-col shadow-2xl border border-white/15"
       >
         <div className="absolute top-0 inset-x-0 z-20 p-3 bg-gradient-to-b from-black/75 via-black/40 to-transparent space-y-2.5">
           <div className="flex items-center gap-1">
@@ -544,7 +545,7 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
                   className="flex-1 h-1 rounded-full bg-white/25 overflow-hidden"
                 >
                   <div
-                    className="h-full bg-[#2AABEE] transition-all duration-150"
+                    className="h-full bg-[var(--dank-accent)] transition-all duration-150"
                     style={{ width: fillWidth }}
                   />
                 </div>
@@ -570,7 +571,7 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
                     />
                   )}
                 </div>
-                <p className="text-[11px] text-sky-100/80 tabular-nums">
+                <p className="text-[11px] text-white/75 tabular-nums">
                   {formatMessageTime(currentStory.createdAt, language)}
                   {currentStory.mediaType === 'video' && effectiveTotal > 0 && (
                     <>
@@ -610,7 +611,7 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
         <div className="flex-1 relative flex items-center justify-center bg-black overflow-hidden">
           {loadingMedia ? (
             <div className="flex flex-col items-center gap-2 text-white/80">
-              <Loader2 className="w-7 h-7 text-[#2AABEE] animate-spin" />
+              <Loader2 className="w-7 h-7 text-[var(--dank-accent)] animate-spin" />
               <span className="text-xs">{t.stories.loadingVideoStory}</span>
             </div>
           ) : currentStory.mediaType === 'video' ? (
@@ -640,7 +641,7 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
             />
           ) : (
             <div className="flex flex-col items-center gap-2 text-white/80">
-              <Loader2 className="w-7 h-7 text-[#2AABEE] animate-spin" />
+              <Loader2 className="w-7 h-7 text-[var(--dank-accent)] animate-spin" />
             </div>
           )}
 
@@ -664,10 +665,10 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
           </button>
         </div>
 
-        <div className="bg-[#17212B] border-t border-[#22303F] p-3.5 space-y-2.5 shrink-0">
+        <div className="bg-[var(--dank-surface)] border-t border-[var(--dank-border)] p-3.5 space-y-2.5 shrink-0">
           {currentStory.caption && (
-            <p dir="auto" className="text-xs text-white/95 text-center leading-relaxed">
-              {currentStory.caption}
+            <p dir="auto" className="text-xs text-[var(--dank-text)] text-center leading-relaxed">
+              <RichEmojiText text={currentStory.caption} />
             </p>
           )}
 
@@ -676,22 +677,22 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
               <button
                 type="button"
                 onClick={() => setShowViewersDrawer((v) => !v)}
-                className="w-full h-10 px-3.5 rounded-xl bg-[#242F3D] hover:bg-[#2B3949] text-white text-xs font-semibold flex items-center justify-between cursor-pointer"
+                className="w-full h-10 px-3.5 rounded-xl bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] text-xs font-semibold flex items-center justify-between cursor-pointer"
               >
                 <span className="flex items-center gap-2">
-                  <Eye className="w-4 h-4 text-[#2AABEE]" />
+                  <Eye className="w-4 h-4 text-[var(--dank-accent)]" />
                   {t.stories.seenBy} {views.length}{' '}
                   {views.length === 1 ? t.stories.person : t.stories.people}
                 </span>
-                <span className="text-[#2AABEE]">
+                <span className="text-[var(--dank-accent)]">
                   {showViewersDrawer ? t.stories.hide : t.stories.viewers}
                 </span>
               </button>
 
               {showViewersDrawer && (
-                <div className="mt-2 max-h-40 overflow-y-auto rounded-xl bg-[#0E1621] divide-y divide-[#22303F]">
+                <div className="mt-2 max-h-40 overflow-y-auto rounded-xl bg-[var(--dank-canvas)] divide-y divide-[var(--dank-border)]">
                   {views.length === 0 ? (
-                    <p className="p-3 text-xs text-[#8C9FB1] text-center">
+                    <p className="p-3 text-xs text-[var(--dank-muted)] text-center">
                       {t.stories.noViewersYet}
                     </p>
                   ) : (
@@ -706,7 +707,7 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
                             <Avatar src={v.viewerPhoto} name={v.viewerName} size="xs" />
                             <div className="min-w-0">
                               <div className="flex items-center gap-1 min-w-0">
-                                <span className="text-xs font-medium text-white truncate">
+                                <span className="text-xs font-medium text-[var(--dank-text)] truncate">
                                   {v.viewerName}
                                 </span>
                                 {viewerUser && (
@@ -721,7 +722,7 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
                                   />
                                 )}
                               </div>
-                              <p className="text-[10px] text-[#708499]">
+                              <p className="text-[10px] text-[var(--dank-muted)]">
                                 {formatMessageTime(v.viewedAt, language)}
                               </p>
                             </div>
@@ -743,8 +744,8 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
                   onClick={() => void handleReact(emoji)}
                   className={`w-10 h-10 rounded-xl text-lg flex items-center justify-center transition-transform hover:scale-110 cursor-pointer ${
                     myEmoji === emoji
-                      ? 'bg-[#2AABEE] ring-2 ring-white/60'
-                      : 'bg-white/10 hover:bg-white/20'
+                      ? 'bg-[var(--dank-accent)] ring-2 ring-white/60'
+                      : 'bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)]'
                   }`}
                 >
                   {emoji}

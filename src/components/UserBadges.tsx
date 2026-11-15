@@ -1,12 +1,11 @@
 import React, { useId } from 'react';
-import { Bot, Crown, Sparkles } from 'lucide-react';
+import { Crown, Sparkles } from 'lucide-react';
 
 interface UserBadgesProps {
   isAdmin?: boolean;
   isVerified?: boolean;
   isVip?: boolean;
   isPlus?: boolean;
-  isBot?: boolean;
   size?: 'xs' | 'sm' | 'md';
   className?: string;
 }
@@ -16,13 +15,12 @@ export const UserBadges: React.FC<UserBadgesProps> = ({
   isVerified = false,
   isVip = false,
   isPlus = false,
-  isBot = false,
   size = 'sm',
   className = '',
 }) => {
   const gradId = useId();
 
-  if (!isAdmin && !isVerified && !isVip && !isPlus && !isBot) return null;
+  if (!isAdmin && !isVerified && !isVip && !isPlus) return null;
 
   const iconSize =
     size === 'xs' ? 'w-3.5 h-3.5' : size === 'md' ? 'w-5 h-5' : 'w-4 h-4';
@@ -62,10 +60,10 @@ export const UserBadges: React.FC<UserBadgesProps> = ({
           className="inline-flex items-center justify-center"
         >
           <svg viewBox="0 0 24 24" fill="none" className={iconSize}>
-            <circle cx="12" cy="12" r="10" fill="#2AABEE" />
+            <circle cx="12" cy="12" r="10" fill="#1DB954" />
             <path
               d="M8.5 12.4l2.3 2.3 4.8-5.1"
-              stroke="#FFFFFF"
+              stroke="#000000"
               strokeWidth="2.4"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -78,7 +76,7 @@ export const UserBadges: React.FC<UserBadgesProps> = ({
         <span
           title="DANK Plus"
           aria-label="DANK Plus"
-          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-[#2AABEE]/18 border border-[#2AABEE]/45 text-[#0284C7] dark:text-[#2AABEE] font-bold leading-none text-[9px] tracking-wide"
+          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-[#1DB954]/18 border border-[#1DB954]/45 text-[#1DB954] font-bold leading-none text-[9px] tracking-wide"
         >
           <Sparkles className="w-2.5 h-2.5" />
           <span>PLUS</span>
@@ -89,21 +87,10 @@ export const UserBadges: React.FC<UserBadgesProps> = ({
         <span
           title="DANK VIP (5+ Invites)"
           aria-label="DANK VIP"
-          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-[#0E1621] font-bold leading-none shadow-xs text-[9px] tracking-wide"
+          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-black font-bold leading-none shadow-xs text-[9px] tracking-wide"
         >
           <Crown className="w-2.5 h-2.5 stroke-[2.5]" />
           <span>DANK VIP</span>
-        </span>
-      )}
-
-      {isBot && (
-        <span
-          title="DANK Bot"
-          aria-label="DANK Bot"
-          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-[#17212B] text-[#2AABEE] border border-[#2AABEE]/35 font-bold leading-none text-[9px] tracking-wide"
-        >
-          <Bot className="w-2.5 h-2.5" />
-          <span>BOT</span>
         </span>
       )}
     </span>

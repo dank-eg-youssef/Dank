@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Bookmark, Bot, Lock, Megaphone, Users } from 'lucide-react';
+import { Bookmark, Lock, Megaphone, Users } from 'lucide-react';
 
 interface AvatarProps {
   src?: string;
@@ -8,23 +8,23 @@ interface AvatarProps {
   isOnline?: boolean;
   showOnlineDot?: boolean;
   chatType?: 'private' | 'group' | 'channel';
-  specialType?: 'saved' | 'bot' | 'secret';
+  specialType?: 'saved' | 'secret';
   className?: string;
 }
 
 const SIZE_CLASSES: Record<NonNullable<AvatarProps['size']>, string> = {
   xs: 'w-7 h-7 text-xs',
   sm: 'w-9 h-9 text-xs',
-  md: 'w-11 h-11 text-sm',
+  md: 'w-12 h-12 text-sm',
   lg: 'w-14 h-14 text-base',
   xl: 'w-20 h-20 text-xl',
 };
 
 const BG_PALETTES = [
-  'bg-[#2B5278] text-[#7CC7F5]',
-  'bg-[#1F3A52] text-white',
-  'bg-[#24466B] text-[#2AABEE]',
-  'bg-[#33699E] text-white',
+  'bg-[var(--dank-surface)] text-[var(--dank-accent)]',
+  'bg-[var(--dank-elevated)] text-[var(--dank-text)]',
+  'bg-[var(--dank-accent-soft)] text-[var(--dank-accent)]',
+  'bg-[var(--dank-hover)] text-[var(--dank-text)]',
 ];
 
 function getInitials(name: string): string {
@@ -61,15 +61,9 @@ export const Avatar: React.FC<AvatarProps> = ({
     <div className={`relative inline-flex shrink-0 ${className}`}>
       {specialType === 'saved' ? (
         <div
-          className={`${sizeCls} rounded-full bg-gradient-to-br from-[#2AABEE] to-[#1D7BB8] text-white flex items-center justify-center ring-1 ring-black/10 dark:ring-white/15`}
+          className={`${sizeCls} rounded-full bg-[var(--dank-accent)] text-[var(--dank-accent-fg)] flex items-center justify-center ring-1 ring-[var(--dank-border)]`}
         >
           <Bookmark className="w-5 h-5" />
-        </div>
-      ) : specialType === 'bot' ? (
-        <div
-          className={`${sizeCls} rounded-full bg-gradient-to-br from-[#17212B] to-[#2B5278] text-[#2AABEE] flex items-center justify-center ring-1 ring-[#2AABEE]/45`}
-        >
-          <Bot className="w-5 h-5" />
         </div>
       ) : hasImage ? (
         <img
@@ -78,13 +72,13 @@ export const Avatar: React.FC<AvatarProps> = ({
           loading="lazy"
           referrerPolicy="no-referrer"
           onError={() => setFailedSrc(cleanSrc)}
-          className={`${sizeCls} rounded-full object-cover ring-1 ring-black/10 dark:ring-white/15`}
+          className={`${sizeCls} rounded-full object-cover ring-1 ring-[var(--dank-border)]`}
         />
       ) : (
         <div
           className={`${sizeCls} ${getPaletteClass(
             name
-          )} rounded-full flex items-center justify-center font-semibold tracking-wide select-none ring-1 ring-black/10 dark:ring-white/15`}
+          )} rounded-full flex items-center justify-center font-semibold tracking-wide select-none ring-1 ring-[var(--dank-border)]`}
         >
           {chatType === 'channel' ? (
             <Megaphone className="w-4 h-4" />
@@ -97,7 +91,7 @@ export const Avatar: React.FC<AvatarProps> = ({
       )}
 
       {specialType === 'secret' && (
-        <span className="absolute -bottom-0.5 -end-0.5 w-4 h-4 rounded-full bg-[#2AABEE] text-white flex items-center justify-center ring-2 ring-white dark:ring-[#17212B]">
+        <span className="absolute -bottom-0.5 -end-0.5 w-4 h-4 rounded-full bg-[var(--dank-accent)] text-[var(--dank-accent-fg)] flex items-center justify-center ring-2 ring-[var(--dank-canvas)]">
           <Lock className="w-2.5 h-2.5 stroke-[2.6]" />
         </span>
       )}
@@ -105,7 +99,7 @@ export const Avatar: React.FC<AvatarProps> = ({
       {showOnlineDot && isOnline && !specialType && (
         <span
           aria-label="Online"
-          className="absolute bottom-0 end-0 w-3 h-3 rounded-full bg-[#2AABEE] ring-2 ring-white dark:ring-[#17212B]"
+          className="absolute bottom-0 end-0 w-3 h-3 rounded-full bg-[var(--dank-accent)] ring-2 ring-[var(--dank-canvas)]"
         />
       )}
     </div>

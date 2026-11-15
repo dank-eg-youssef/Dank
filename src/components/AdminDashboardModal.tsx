@@ -245,13 +245,13 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="w-full max-w-5xl rounded-2xl bg-[#f4f7fb] dark:bg-[#0E1621] border border-slate-200 dark:border-[#22303F] shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
-        <div className="bg-[#17212B] text-white px-6 py-4 flex items-center justify-between gap-3 shrink-0 border-b border-white/10">
+      <div className="w-full max-w-5xl rounded-2xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+        <div className="bg-[var(--dank-surface)] text-[var(--dank-text)] px-6 py-4 flex items-center justify-between gap-3 shrink-0 border-b border-[var(--dank-border)]">
           <div className="flex items-center gap-2.5">
-            <Shield className="w-5 h-5 text-[#2AABEE]" />
+            <Shield className="w-5 h-5 text-[var(--dank-accent)]" />
             <div>
               <h3 className="text-base font-bold">{t.admin.title}</h3>
-              <p className="text-[11px] text-[#8C9FB1]">{t.admin.restrictedTo}</p>
+              <p className="text-[11px] text-[var(--dank-muted)]">{t.admin.restrictedTo}</p>
             </div>
           </div>
 
@@ -259,7 +259,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
             <button
               type="button"
               onClick={() => void load()}
-              className="h-9 px-3 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-medium flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
+              className="h-9 px-3 rounded-xl bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] text-xs font-medium flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
               {t.common.refresh}
@@ -268,21 +268,21 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
               type="button"
               onClick={onClose}
               aria-label={t.common.close}
-              className="w-9 h-9 rounded-xl hover:bg-white/10 flex items-center justify-center cursor-pointer"
+              className="w-9 h-9 rounded-xl hover:bg-[var(--dank-hover)] flex items-center justify-center cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        <div className="px-6 pt-3 pb-2 bg-white dark:bg-[#17212B] border-b border-slate-200 dark:border-[#22303F] flex items-center gap-2 overflow-x-auto shrink-0">
+        <div className="px-6 pt-3 pb-2 bg-[var(--dank-surface)] border-b border-[var(--dank-border)] flex items-center gap-2 overflow-x-auto shrink-0">
           <button
             type="button"
             onClick={() => setActiveTab('analytics')}
             className={`h-9 px-4 rounded-xl text-xs font-semibold flex items-center gap-2 whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
               activeTab === 'analytics'
-                ? 'bg-[#2AABEE] text-white'
-                : 'text-slate-600 dark:text-[#8C9FB1] hover:bg-slate-100 dark:hover:bg-white/10'
+                ? 'bg-[var(--dank-accent)] text-[var(--dank-accent-fg)]'
+                : 'text-[var(--dank-muted)] hover:bg-[var(--dank-hover)]'
             }`}
           >
             <BarChart3 className="w-4 h-4" />
@@ -294,8 +294,8 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
             onClick={() => setActiveTab('users')}
             className={`h-9 px-4 rounded-xl text-xs font-semibold flex items-center gap-2 whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
               activeTab === 'users'
-                ? 'bg-[#2AABEE] text-white'
-                : 'text-slate-600 dark:text-[#8C9FB1] hover:bg-slate-100 dark:hover:bg-white/10'
+                ? 'bg-[var(--dank-accent)] text-[var(--dank-accent-fg)]'
+                : 'text-[var(--dank-muted)] hover:bg-[var(--dank-hover)]'
             }`}
           >
             <Users className="w-4 h-4" />
@@ -307,8 +307,8 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
             onClick={() => setActiveTab('ads')}
             className={`h-9 px-4 rounded-xl text-xs font-semibold flex items-center gap-2 whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
               activeTab === 'ads'
-                ? 'bg-[#2AABEE] text-white'
-                : 'text-slate-600 dark:text-[#8C9FB1] hover:bg-slate-100 dark:hover:bg-white/10'
+                ? 'bg-[var(--dank-accent)] text-[var(--dank-accent-fg)]'
+                : 'text-[var(--dank-muted)] hover:bg-[var(--dank-hover)]'
             }`}
           >
             <Megaphone className="w-4 h-4" />
@@ -318,7 +318,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
 
         <div className="p-6 overflow-y-auto space-y-6">
           {error && (
-            <div className="p-4 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-500/30 text-xs text-red-700 dark:text-red-300">
+            <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-xs text-red-500">
               {error}
             </div>
           )}
@@ -326,7 +326,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
           {loading && !stats ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {[0, 1, 2, 3].map((n) => (
-                <div key={n} className="h-28 rounded-xl bg-slate-200 dark:bg-[#17212B] animate-pulse" />
+                <div key={n} className="h-28 rounded-xl bg-[var(--dank-surface)] animate-pulse" />
               ))}
             </div>
           ) : stats ? (
@@ -334,57 +334,57 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
               {activeTab === 'analytics' && (
                 <div className="space-y-6">
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="p-4 rounded-xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F]">
-                      <div className="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-[#8C9FB1]">
+                    <div className="p-4 rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)]">
+                      <div className="flex items-center justify-between text-xs font-semibold text-[var(--dank-muted)]">
                         <span>{t.admin.totalUsers}</span>
-                        <Users className="w-4 h-4 text-[#2AABEE]" />
+                        <Users className="w-4 h-4 text-[var(--dank-accent)]" />
                       </div>
-                      <div className="mt-2 text-2xl font-bold text-[#0E1621] dark:text-white tabular-nums">
+                      <div className="mt-2 text-2xl font-bold text-[var(--dank-text)] tabular-nums">
                         {stats.totalUsers}
                       </div>
-                      <div className="mt-1 text-xs text-slate-600 dark:text-[#8C9FB1] tabular-nums">
+                      <div className="mt-1 text-xs text-[var(--dank-muted)] tabular-nums">
                         {onlineNow} {t.admin.onlineRightNow}
                       </div>
                     </div>
 
-                    <div className="p-4 rounded-xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F]">
-                      <div className="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-[#8C9FB1]">
+                    <div className="p-4 rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)]">
+                      <div className="flex items-center justify-between text-xs font-semibold text-[var(--dank-muted)]">
                         <span>{t.admin.newUsersToday}</span>
-                        <UserPlus className="w-4 h-4 text-[#2AABEE]" />
+                        <UserPlus className="w-4 h-4 text-[var(--dank-accent)]" />
                       </div>
-                      <div className="mt-2 text-2xl font-bold text-[#0E1621] dark:text-white tabular-nums">
+                      <div className="mt-2 text-2xl font-bold text-[var(--dank-text)] tabular-nums">
                         {stats.newUsersToday}
                       </div>
-                      <div className="mt-1 text-xs text-slate-600 dark:text-[#8C9FB1] tabular-nums">
+                      <div className="mt-1 text-xs text-[var(--dank-muted)] tabular-nums">
                         {t.admin.joinedSinceMidnight}
                       </div>
                     </div>
 
-                    <div className="p-4 rounded-xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F]">
-                      <div className="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-[#8C9FB1]">
+                    <div className="p-4 rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)]">
+                      <div className="flex items-center justify-between text-xs font-semibold text-[var(--dank-muted)]">
                         <span>{t.admin.totalMessagesToday}</span>
-                        <MessageSquare className="w-4 h-4 text-[#2AABEE]" />
+                        <MessageSquare className="w-4 h-4 text-[var(--dank-accent)]" />
                       </div>
-                      <div className="mt-2 text-2xl font-bold text-[#0E1621] dark:text-white tabular-nums">
+                      <div className="mt-2 text-2xl font-bold text-[var(--dank-text)] tabular-nums">
                         {stats.totalMessagesToday}
                       </div>
-                      <div className="mt-1 text-xs text-slate-600 dark:text-[#8C9FB1] tabular-nums">
+                      <div className="mt-1 text-xs text-[var(--dank-muted)] tabular-nums">
                         {stats.totalMessages} {t.admin.totalAllTime}
                       </div>
                     </div>
 
-                    <div className="p-4 rounded-xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F]">
-                      <div className="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-[#8C9FB1]">
+                    <div className="p-4 rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)]">
+                      <div className="flex items-center justify-between text-xs font-semibold text-[var(--dank-muted)]">
                         <span>{t.admin.mostActiveGroup}</span>
-                        <UsersRound className="w-4 h-4 text-[#2AABEE]" />
+                        <UsersRound className="w-4 h-4 text-[var(--dank-accent)]" />
                       </div>
                       <div
                         dir="auto"
-                        className="mt-2 text-lg font-bold text-[#0E1621] dark:text-white truncate"
+                        className="mt-2 text-lg font-bold text-[var(--dank-text)] truncate"
                       >
                         {topGroup ? topGroup.name : t.admin.noGroupsYet}
                       </div>
-                      <div className="mt-1 text-xs text-slate-600 dark:text-[#8C9FB1] tabular-nums">
+                      <div className="mt-1 text-xs text-[var(--dank-muted)] tabular-nums">
                         {topGroup
                           ? `${topGroup.messageCount} ${t.admin.msgsLabel} · ${topGroup.memberCount} ${t.common.members}`
                           : `${stats.totalGroups} ${t.admin.groupsTotal}`}
@@ -392,29 +392,29 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                     </div>
                   </div>
 
-                  <div className="p-5 rounded-xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F] space-y-4">
+                  <div className="p-5 rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)] space-y-4">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div>
-                        <h4 className="text-sm font-bold text-[#0E1621] dark:text-white">
+                        <h4 className="text-sm font-bold text-[var(--dank-text)]">
                           {t.admin.sevenDayTitle}
                         </h4>
-                        <p className="text-xs text-slate-500 dark:text-[#8C9FB1]">
+                        <p className="text-xs text-[var(--dank-muted)]">
                           {t.admin.sevenDayDesc}
                         </p>
                       </div>
-                      <div className="flex items-center gap-4 text-xs text-[#0E1621] dark:text-white">
+                      <div className="flex items-center gap-4 text-xs text-[var(--dank-text)]">
                         <span className="flex items-center gap-1.5 font-medium">
-                          <span className="w-3 h-3 rounded-xs bg-[#2B5278] dark:bg-[#3B77B5] inline-block" />
+                          <span className="w-3 h-3 rounded-xs bg-[var(--dank-muted)] inline-block" />
                           {t.admin.messagesLegend}
                         </span>
                         <span className="flex items-center gap-1.5 font-medium">
-                          <span className="w-3 h-3 rounded-xs bg-[#2AABEE] inline-block" />
+                          <span className="w-3 h-3 rounded-xs bg-[var(--dank-accent)] inline-block" />
                           {t.admin.newUsersLegend}
                         </span>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-7 gap-2 sm:gap-4 items-end h-44 pt-4 border-b border-slate-200 dark:border-[#22303F] pb-2">
+                    <div className="grid grid-cols-7 gap-2 sm:gap-4 items-end h-44 pt-4 border-b border-[var(--dank-border)] pb-2">
                       {stats.dailyActivity.map((day) => {
                         const msgHeight =
                           day.messages > 0
@@ -431,27 +431,27 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                           >
                             <div className="w-full flex-1 flex items-end justify-center gap-1.5">
                               <div className="flex flex-col items-center justify-end h-full flex-1 max-w-[20px]">
-                                <span className="text-[10px] font-semibold text-[#2B5278] dark:text-sky-300 tabular-nums mb-1">
+                                <span className="text-[10px] font-semibold text-[var(--dank-muted)] tabular-nums mb-1">
                                   {day.messages}
                                 </span>
                                 <div
                                   style={{ height: `${msgHeight}%` }}
-                                  className="w-full rounded-t-md bg-[#2B5278] dark:bg-[#3B77B5] transition-all"
+                                  className="w-full rounded-t-md bg-[var(--dank-muted)]/60 transition-all"
                                   title={`${day.label}: ${day.messages}`}
                                 />
                               </div>
                               <div className="flex flex-col items-center justify-end h-full flex-1 max-w-[20px]">
-                                <span className="text-[10px] font-semibold text-[#0284C7] dark:text-[#2AABEE] tabular-nums mb-1">
+                                <span className="text-[10px] font-semibold text-[var(--dank-accent)] tabular-nums mb-1">
                                   {day.newUsers}
                                 </span>
                                 <div
                                   style={{ height: `${usrHeight}%` }}
-                                  className="w-full rounded-t-md bg-[#2AABEE] transition-all"
+                                  className="w-full rounded-t-md bg-[var(--dank-accent)] transition-all"
                                   title={`${day.label}: ${day.newUsers}`}
                                 />
                               </div>
                             </div>
-                            <span className="text-[11px] font-medium text-slate-600 dark:text-[#8C9FB1] whitespace-nowrap">
+                            <span className="text-[11px] font-medium text-[var(--dank-muted)] whitespace-nowrap">
                               {day.label}
                             </span>
                           </div>
@@ -461,18 +461,18 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                   </div>
 
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    <div className="p-5 rounded-xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F] space-y-4">
+                    <div className="p-5 rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)] space-y-4">
                       <div>
-                        <h4 className="text-sm font-bold text-[#0E1621] dark:text-white">
+                        <h4 className="text-sm font-bold text-[var(--dank-text)]">
                           {t.admin.mostActiveUsers}
                         </h4>
-                        <p className="text-xs text-slate-500 dark:text-[#8C9FB1]">
+                        <p className="text-xs text-[var(--dank-muted)]">
                           {t.admin.rankedByMsgsSent}
                         </p>
                       </div>
 
                       {stats.mostActiveUsers.length === 0 ? (
-                        <p className="text-xs text-slate-500 dark:text-[#8C9FB1] py-6 text-center">
+                        <p className="text-xs text-[var(--dank-muted)] py-6 text-center">
                           {t.admin.noUserActivity}
                         </p>
                       ) : (
@@ -486,11 +486,11 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                               <div key={u.uid} className="space-y-1">
                                 <div className="flex items-center justify-between gap-2">
                                   <div className="flex items-center gap-2 min-w-0">
-                                    <span className="text-xs font-bold text-slate-400 w-4 tabular-nums">
+                                    <span className="text-xs font-bold text-[var(--dank-muted)] w-4 tabular-nums">
                                       {idx + 1}
                                     </span>
                                     <Avatar src={u.photoURL} name={u.name} size="xs" />
-                                    <span className="text-xs font-semibold text-[#0E1621] dark:text-white truncate">
+                                    <span className="text-xs font-semibold text-[var(--dank-text)] truncate">
                                       {u.name}
                                     </span>
                                     <UserBadges
@@ -500,14 +500,14 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                                       size="xs"
                                     />
                                   </div>
-                                  <span className="text-xs font-bold text-[#0E1621] dark:text-sky-200 tabular-nums shrink-0">
+                                  <span className="text-xs font-bold text-[var(--dank-text)] tabular-nums shrink-0">
                                     {u.messageCount} {t.admin.msgsLabel}
                                   </span>
                                 </div>
-                                <div className="h-2 w-full rounded-full bg-slate-100 dark:bg-white/10 overflow-hidden">
+                                <div className="h-2 w-full rounded-full bg-[var(--dank-elevated)] overflow-hidden">
                                   <div
                                     style={{ width: `${u.messageCount > 0 ? pct : 0}%` }}
-                                    className="h-full rounded-full bg-gradient-to-r from-[#2B5278] to-[#2AABEE]"
+                                    className="h-full rounded-full bg-[var(--dank-accent)]"
                                   />
                                 </div>
                               </div>
@@ -517,19 +517,19 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                       )}
                     </div>
 
-                    <div className="p-5 rounded-xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F] space-y-4">
+                    <div className="p-5 rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)] space-y-4">
                       <div>
-                        <h4 className="text-sm font-bold text-[#0E1621] dark:text-white">
+                        <h4 className="text-sm font-bold text-[var(--dank-text)]">
                           {t.admin.mostActiveGroups}
                         </h4>
-                        <p className="text-xs text-slate-500 dark:text-[#8C9FB1]">
+                        <p className="text-xs text-[var(--dank-muted)]">
                           {t.admin.rankedByVolume} ({stats.totalGroups} {t.admin.groupsLabel} ·{' '}
                           {stats.totalChannels} {t.admin.channelsLabel})
                         </p>
                       </div>
 
                       {stats.mostActiveGroups.length === 0 ? (
-                        <p className="text-xs text-slate-500 dark:text-[#8C9FB1] py-6 text-center">
+                        <p className="text-xs text-[var(--dank-muted)] py-6 text-center">
                           {t.admin.noGroupsCreated}
                         </p>
                       ) : (
@@ -543,7 +543,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                               <div key={g.id} className="space-y-1">
                                 <div className="flex items-center justify-between gap-2">
                                   <div className="flex items-center gap-2 min-w-0">
-                                    <span className="text-xs font-bold text-slate-400 w-4 tabular-nums">
+                                    <span className="text-xs font-bold text-[var(--dank-muted)] w-4 tabular-nums">
                                       {idx + 1}
                                     </span>
                                     <Avatar
@@ -554,22 +554,22 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                                     />
                                     <span
                                       dir="auto"
-                                      className="text-xs font-semibold text-[#0E1621] dark:text-white truncate"
+                                      className="text-xs font-semibold text-[var(--dank-text)] truncate"
                                     >
                                       {g.name}
                                     </span>
-                                    <span className="text-[11px] text-slate-500 dark:text-[#8C9FB1] tabular-nums shrink-0">
+                                    <span className="text-[11px] text-[var(--dank-muted)] tabular-nums shrink-0">
                                       · {g.memberCount} {t.common.members}
                                     </span>
                                   </div>
-                                  <span className="text-xs font-bold text-[#0E1621] dark:text-sky-200 tabular-nums shrink-0">
+                                  <span className="text-xs font-bold text-[var(--dank-text)] tabular-nums shrink-0">
                                     {g.messageCount} {t.admin.msgsLabel}
                                   </span>
                                 </div>
-                                <div className="h-2 w-full rounded-full bg-slate-100 dark:bg-white/10 overflow-hidden">
+                                <div className="h-2 w-full rounded-full bg-[var(--dank-elevated)] overflow-hidden">
                                   <div
                                     style={{ width: `${g.messageCount > 0 ? pct : 0}%` }}
-                                    className="h-full rounded-full bg-[#2AABEE]"
+                                    className="h-full rounded-full bg-[var(--dank-accent)]"
                                   />
                                 </div>
                               </div>
@@ -583,25 +583,25 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
               )}
 
               {activeTab === 'users' && (
-                <div className="rounded-xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F] overflow-hidden">
-                  <div className="px-4 py-3 border-b border-slate-200 dark:border-[#22303F] bg-slate-50 dark:bg-[#0E1621] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div className="text-xs font-bold text-[#0E1621] dark:text-white">
+                <div className="rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)] overflow-hidden">
+                  <div className="px-4 py-3 border-b border-[var(--dank-border)] bg-[var(--dank-canvas)] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="text-xs font-bold text-[var(--dank-text)]">
                       {t.admin.registeredUsers} ({filteredUsers.length})
                     </div>
                     <div className="relative w-full sm:w-64">
-                      <Search className="w-3.5 h-3.5 text-slate-400 absolute start-3 top-1/2 -translate-y-1/2" />
+                      <Search className="w-3.5 h-3.5 text-[var(--dank-muted)] absolute start-3 top-1/2 -translate-y-1/2" />
                       <input
                         type="text"
                         dir="auto"
                         value={userSearch}
                         onChange={(e) => setUserSearch(e.target.value)}
                         placeholder={t.admin.filterUsersPlaceholder}
-                        className="w-full h-10 ps-8 pe-3 rounded-lg bg-white dark:bg-[#242F3D] border border-slate-200 dark:border-white/15 text-base text-[#0E1621] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#2AABEE]"
+                        className="w-full h-10 ps-8 pe-3 rounded-lg bg-[var(--dank-surface)] border border-[var(--dank-border)] text-base text-[var(--dank-text)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)]"
                       />
                     </div>
                   </div>
 
-                  <div className="max-h-[58vh] overflow-y-auto divide-y divide-slate-200/80 dark:divide-white/8">
+                  <div className="max-h-[58vh] overflow-y-auto divide-y divide-[var(--dank-border)]">
                     {filteredUsers.map((u) => {
                       const online = isUserActuallyOnline(u.isOnline, u.lastSeen);
                       const isBusy = busyUid === u.uid;
@@ -625,7 +625,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                             />
                             <div className="min-w-0">
                               <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
-                                <p dir="auto" className="text-xs font-semibold text-[#0E1621] dark:text-white truncate">
+                                <p dir="auto" className="text-xs font-semibold text-[var(--dank-text)] truncate">
                                   {u.name}
                                 </p>
                                 <UserBadges
@@ -641,7 +641,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                                   </span>
                                 )}
                                 {!u.isBanned && isCurrentlyMuted && u.mutedUntil && (
-                                  <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+                                  <span className="text-[11px] font-semibold text-amber-500">
                                     · {t.admin.mutedUntil}{' '}
                                     {u.mutedUntil
                                       .toDate()
@@ -652,7 +652,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                                   </span>
                                 )}
                               </div>
-                              <p className="text-[11px] text-slate-500 dark:text-[#8C9FB1] truncate tabular-nums">
+                              <p className="text-[11px] text-[var(--dank-muted)] truncate tabular-nums">
                                 @{u.username} · {formatLastSeen(u.isOnline, u.lastSeen, language)} ·{' '}
                                 {u.inviteCount ?? 0} {t.admin.invitesLabel}
                               </p>
@@ -666,8 +666,8 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                               onClick={() => void handleToggleAdmin(u)}
                               className={`h-8 px-2.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer whitespace-nowrap ${
                                 u.isAdmin
-                                  ? 'bg-[#2B5278] text-amber-300'
-                                  : 'bg-slate-100 dark:bg-white/10 text-[#0E1621] dark:text-white'
+                                  ? 'bg-[var(--dank-accent-soft)] text-amber-400 border border-[var(--dank-accent-border)]'
+                                  : 'bg-[var(--dank-elevated)] text-[var(--dank-text)]'
                               }`}
                             >
                               {u.isAdmin ? t.admin.removeAdmin : t.admin.makeAdmin}
@@ -679,8 +679,8 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                               onClick={() => void handleToggleVerified(u)}
                               className={`h-8 px-2.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer whitespace-nowrap ${
                                 u.isVerified
-                                  ? 'bg-[#2AABEE]/15 text-[#0284C7] dark:text-[#2AABEE] border border-[#2AABEE]/40'
-                                  : 'bg-[#2AABEE] text-white'
+                                  ? 'bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] border border-[var(--dank-accent-border)]'
+                                  : 'bg-[var(--dank-accent)] text-[var(--dank-accent-fg)]'
                               }`}
                             >
                               {u.isVerified ? t.admin.unverify : t.admin.verify}
@@ -693,7 +693,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                                   disabled={isBusy}
                                   onClick={() => void handleMuteDuration(u, 1)}
                                   title={t.admin.mute1h}
-                                  className="h-8 px-2.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 text-xs font-semibold flex items-center gap-1 disabled:opacity-50 cursor-pointer whitespace-nowrap"
+                                  className="h-8 px-2.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-500 text-xs font-semibold flex items-center gap-1 disabled:opacity-50 cursor-pointer whitespace-nowrap"
                                 >
                                   <Clock className="w-3 h-3" />
                                   {t.admin.mute1h}
@@ -704,7 +704,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                                   disabled={isBusy}
                                   onClick={() => void handleMuteDuration(u, 24)}
                                   title={t.admin.mute1Day}
-                                  className="h-8 px-2.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 text-xs font-semibold flex items-center gap-1 disabled:opacity-50 cursor-pointer whitespace-nowrap"
+                                  className="h-8 px-2.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-500 text-xs font-semibold flex items-center gap-1 disabled:opacity-50 cursor-pointer whitespace-nowrap"
                                 >
                                   <VolumeX className="w-3 h-3" />
                                   {t.admin.mute1Day}
@@ -715,7 +715,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                                     type="button"
                                     disabled={isBusy}
                                     onClick={() => void handleMuteDuration(u, null)}
-                                    className="h-8 px-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold disabled:opacity-50 cursor-pointer whitespace-nowrap"
+                                    className="h-8 px-2.5 rounded-lg bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] text-xs font-semibold disabled:opacity-50 cursor-pointer whitespace-nowrap"
                                   >
                                     {t.admin.unmute}
                                   </button>
@@ -741,7 +741,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                       );
                     })}
                     {filteredUsers.length === 0 && (
-                      <p className="p-4 text-xs text-slate-500 text-center">
+                      <p className="p-4 text-xs text-[var(--dank-muted)] text-center">
                         {t.admin.noMatchingUsers}
                       </p>
                     )}
@@ -753,14 +753,14 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <form
                     onSubmit={(e) => void handleSaveAdBanner(e)}
-                    className="p-5 rounded-xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F] space-y-4"
+                    className="p-5 rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)] space-y-4"
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <h4 className="text-sm font-bold text-[#0E1621] dark:text-white">
+                        <h4 className="text-sm font-bold text-[var(--dank-text)]">
                           {t.admin.globalBannerTitle}
                         </h4>
-                        <p className="text-xs text-slate-500 dark:text-[#8C9FB1]">
+                        <p className="text-xs text-[var(--dank-muted)]">
                           {t.admin.globalBannerDesc}
                         </p>
                       </div>
@@ -771,8 +771,8 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                         disabled={savingAd}
                         className={`h-9 px-3.5 rounded-xl text-xs font-bold transition-colors cursor-pointer whitespace-nowrap ${
                           adEnabled
-                            ? 'bg-[#2AABEE] hover:bg-[#229ED9] text-white'
-                            : 'bg-slate-100 dark:bg-white/10 text-[#0E1621] dark:text-white'
+                            ? 'bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)]'
+                            : 'bg-[var(--dank-elevated)] text-[var(--dank-text)]'
                         }`}
                       >
                         {adEnabled ? t.admin.bannerOn : t.admin.bannerOff}
@@ -780,7 +780,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-[#0E1621] dark:text-[#C5D3E0] mb-1">
+                      <label className="block text-xs font-semibold text-[var(--dank-muted)] mb-1">
                         {t.admin.bannerTextLabel}
                       </label>
                       <textarea
@@ -790,12 +790,12 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                         value={adText}
                         onChange={(e) => setAdText(e.target.value)}
                         placeholder={t.admin.bannerTextPlaceholder}
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-[#242F3D] border border-slate-200 dark:border-white/15 text-base text-[#0E1621] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#2AABEE] resize-none"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] text-base text-[var(--dank-text)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)] resize-none"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-[#0E1621] dark:text-[#C5D3E0] mb-1">
+                      <label className="block text-xs font-semibold text-[var(--dank-muted)] mb-1">
                         {t.admin.destinationLinkLabel}
                       </label>
                       <input
@@ -805,12 +805,12 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                         value={adLink}
                         onChange={(e) => setAdLink(e.target.value)}
                         placeholder="https://example.com"
-                        className="w-full h-11 px-3.5 rounded-xl bg-slate-50 dark:bg-[#242F3D] border border-slate-200 dark:border-white/15 text-base text-[#0E1621] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#2AABEE] text-start"
+                        className="w-full h-11 px-3.5 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] text-base text-[var(--dank-text)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)] text-start"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-[#0E1621] dark:text-[#C5D3E0] mb-1.5">
+                      <label className="block text-xs font-semibold text-[var(--dank-muted)] mb-1.5">
                         {t.admin.bannerImageLabel}
                       </label>
                       <input
@@ -824,16 +824,16 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                         <button
                           type="button"
                           onClick={() => adFileRef.current?.click()}
-                          className="h-10 px-3.5 rounded-xl bg-slate-100 dark:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/15 text-[#0E1621] dark:text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                          className="h-10 px-3.5 rounded-xl bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
                         >
-                          <ImagePlus className="w-4 h-4 text-[#2AABEE]" />
+                          <ImagePlus className="w-4 h-4 text-[var(--dank-accent)]" />
                           {adImageData ? t.admin.changeImage : t.admin.uploadImage}
                         </button>
                         {adImageData && (
                           <button
                             type="button"
                             onClick={() => setAdImageData('')}
-                            className="h-10 px-3 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 text-xs font-semibold cursor-pointer"
+                            className="h-10 px-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 text-xs font-semibold cursor-pointer"
                           >
                             {t.admin.removeImage}
                           </button>
@@ -844,25 +844,25 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                     <button
                       type="submit"
                       disabled={savingAd}
-                      className="w-full h-11 rounded-xl bg-[#2AABEE] hover:bg-[#229ED9] text-white font-bold text-sm transition-colors disabled:opacity-50 cursor-pointer"
+                      className="w-full h-11 rounded-xl bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] font-bold text-sm transition-colors disabled:opacity-50 cursor-pointer"
                     >
                       {savingAd ? t.common.saving : t.admin.saveBannerBtn}
                     </button>
                   </form>
 
-                  <div className="p-5 rounded-xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F] space-y-3">
+                  <div className="p-5 rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)] space-y-3">
                     <div className="flex items-center justify-between">
-                      <h4 className="text-sm font-bold text-[#0E1621] dark:text-white">
+                      <h4 className="text-sm font-bold text-[var(--dank-text)]">
                         {t.admin.livePreview}
                       </h4>
-                      <span className="text-xs font-semibold text-slate-500 dark:text-[#8C9FB1]">
+                      <span className="text-xs font-semibold text-[var(--dank-muted)]">
                         {adEnabled ? t.admin.visibleToAll : t.admin.currentlyHidden}
                       </span>
                     </div>
 
-                    <div className="p-4 rounded-xl bg-slate-100 dark:bg-[#0E1621] border border-slate-200 dark:border-[#22303F]">
+                    <div className="p-4 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)]">
                       {adText || adImageData ? (
-                        <div className="rounded-xl bg-[#17212B] text-white border border-[#2AABEE]/35 overflow-hidden shadow-xs">
+                        <div className="rounded-xl bg-[var(--dank-surface)] text-[var(--dank-text)] border border-[var(--dank-accent-border)] overflow-hidden shadow-xs">
                           {adImageData.trim() && (
                             <img
                               src={adImageData.trim()}
@@ -873,25 +873,25 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                           )}
                           <div className="p-3 flex items-center justify-between gap-2">
                             <div className="min-w-0">
-                              <span className="text-[10px] font-semibold text-[#2AABEE]">
+                              <span className="text-[10px] font-semibold text-[var(--dank-accent)]">
                                 {t.common.sponsored}
                               </span>
                               {adText && (
-                                <p dir="auto" className="text-xs font-medium text-white mt-0.5">
+                                <p dir="auto" className="text-xs font-medium text-[var(--dank-text)] mt-0.5">
                                   {adText}
                                 </p>
                               )}
                               {adLink && (
-                                <p dir="ltr" className="text-[11px] text-[#8C9FB1] truncate mt-0.5 text-start">
+                                <p dir="ltr" className="text-[11px] text-[var(--dank-muted)] truncate mt-0.5 text-start">
                                   {adLink}
                                 </p>
                               )}
                             </div>
-                            {adLink && <ExternalLink className="w-4 h-4 text-[#2AABEE] shrink-0" />}
+                            {adLink && <ExternalLink className="w-4 h-4 text-[var(--dank-accent)] shrink-0" />}
                           </div>
                         </div>
                       ) : (
-                        <div className="py-10 text-center text-xs text-slate-500 dark:text-[#8C9FB1]">
+                        <div className="py-10 text-center text-xs text-[var(--dank-muted)]">
                           {t.admin.previewEmptyHint}
                         </div>
                       )}

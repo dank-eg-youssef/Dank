@@ -38,6 +38,10 @@
           "type": "string",
           "enum": ["ar", "en"]
         },
+        "theme": {
+          "type": "string",
+          "enum": ["dank-dark", "midnight-blue", "purple-neon", "light"]
+        },
         "isOnline": {
           "type": "boolean"
         },
@@ -848,6 +852,56 @@
         }
       },
       "required": ["id", "recipientUid", "actorUid", "actorName", "type", "text", "read", "createdAt"]
+    },
+    "UserSticker": {
+      "title": "UserSticker",
+      "description": "Custom or saved sticker owned by a user.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "source": { "type": "string", "enum": ["custom", "pack", "saved"] },
+        "stickerId": { "type": "string", "maxLength": 64 },
+        "packId": { "type": "string", "maxLength": 64 },
+        "imageUrl": { "type": "string", "maxLength": 2048 },
+        "label": { "type": "string", "maxLength": 80 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "uid", "source", "createdAt"]
+    },
+    "ScheduledMessage": {
+      "title": "ScheduledMessage",
+      "description": "Message scheduled to be automatically sent at a future date/time.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "chatId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "chatTitle": { "type": "string", "maxLength": 100 },
+        "text": { "type": "string", "minLength": 1, "maxLength": 4000 },
+        "scheduledAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["pending", "sent", "cancelled"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "uid", "chatId", "text", "scheduledAt", "status", "createdAt", "updatedAt"]
+    },
+    "ChatReminder": {
+      "title": "ChatReminder",
+      "description": "Personal reminder linked to a chat.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "chatId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "chatTitle": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "note": { "type": "string", "maxLength": 200 },
+        "remindAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["pending", "fired", "dismissed"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "uid", "chatId", "chatTitle", "remindAt", "status", "createdAt", "updatedAt"]
     }
   },
   "firestore": {
@@ -957,7 +1011,11 @@
     },
     "/calls/{callId}": {
       "schema": { "type": "object" },
-      "description": "Voice and video call signaling and call log records."
+      "description": "Voice call WebRTC signaling and call log records."
+    },
+    "/calls/{callId}/candidates/{candidateId}": {
+      "schema": { "type": "object" },
+      "description": "WebRTC ICE candidates exchanged between caller and callee."
     },
     "/users_private/{userId}/chat_prefs/{chatId}": {
       "schema": { "type": "object" },
@@ -986,6 +1044,18 @@
     "/notifications/{notifId}": {
       "schema": { "$ref": "#/entities/AppNotification" },
       "description": "User in-app notifications for follows, likes, comments, and DMs."
+    },
+    "/users_private/{userId}/stickers/{stickerId}": {
+      "schema": { "$ref": "#/entities/UserSticker" },
+      "description": "Custom and saved stickers belonging to a user."
+    },
+    "/users_private/{userId}/scheduled_messages/{scheduleId}": {
+      "schema": { "$ref": "#/entities/ScheduledMessage" },
+      "description": "Scheduled outgoing messages pending automatic delivery."
+    },
+    "/users_private/{userId}/chat_reminders/{reminderId}": {
+      "schema": { "$ref": "#/entities/ChatReminder" },
+      "description": "User reminders attached to specific chats."
     }
   }
 }

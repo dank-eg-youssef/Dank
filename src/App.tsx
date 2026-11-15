@@ -14,21 +14,38 @@ import { registerSW } from 'virtual:pwa-register';
 import {
   Ban,
   Bell,
-  Film,
+  Bookmark,
+  Camera,
+  Check,
+  ChevronRight,
+  CircleDot,
+  Crown,
+  Globe,
+  HardDrive,
+  HelpCircle,
   KeyRound,
   LayoutGrid,
   Lock,
   LogOut,
   Megaphone,
+  MessageCircle,
   MessageSquare,
-  Moon,
+  MessageSquarePlus,
+  Palette,
+  Phone,
+  PhoneIncoming,
+  PhoneMissed,
+  PhoneOutgoing,
+  Plus,
+  Search,
+  Settings as SettingsIcon,
   Shield,
-  Sun,
-  User,
   Users,
+  X,
 } from 'lucide-react';
 import { AdminDashboardModal } from './components/AdminDashboardModal';
 import { AuthScreen } from './components/AuthScreen';
+import { Avatar } from './components/Avatar';
 import { CallModal } from './components/CallModal';
 import { ChatInfoModal } from './components/ChatInfoModal';
 import { ChatWindow } from './components/ChatWindow';
@@ -38,65 +55,80 @@ import { DankLogo } from './components/DankLogo';
 import { DankPlusModal } from './components/DankPlusModal';
 import { DankSplash } from './components/DankSplash';
 import { JoinInviteModal } from './components/JoinInviteModal';
-import { NavigationDrawer } from './components/NavigationDrawer';
 import { NotificationsPage } from './components/NotificationsPage';
 import { PostsFeed } from './components/PostsFeed';
 import { ProfileModal } from './components/ProfileModal';
 import { ProfilePage } from './components/ProfilePage';
-import { ReelsFeed } from './components/ReelsFeed';
+import { ChatReminderModal } from './components/ScheduleModals';
 import { SettingsPrivacyModal } from './components/SettingsPrivacyModal';
 import { Sidebar } from './components/Sidebar';
-import type { StoryAuthorGroup } from './components/StoriesBar';
+import { StoriesBar, type StoryAuthorGroup } from './components/StoriesBar';
 import { CreateStoryModal, StoryViewerModal } from './components/StoryModals';
+import { UserBadges } from './components/UserBadges';
 import { useAuth } from './contexts/AuthContext';
 import { useLanguage } from './contexts/LanguageContext';
-import { useTheme } from './contexts/ThemeContext';
+import { THEME_OPTIONS, useTheme } from './contexts/ThemeContext';
 import { db } from './lib/firebase';
 import {
   ADS_BANNER_DOC_ID,
   canSeePrivacyField,
+  createChatReminder,
   createOrOpenPrivateChat,
   DANK_TEAM_CHANNEL_ID,
-  ensureDankBotChat,
+  deleteChatReminder,
   ensureSavedMessagesChat,
   ensureUserJoinedDankTeam,
   ensureUserJoinedOfficialChannel,
-  getLocalBotChat,
   initiateCall,
   joinChatById,
   markChatMessagesDelivered,
+  markChatReminderFired,
+  markScheduledMessageSent,
   OFFICIAL_CHANNEL_ID,
+  sendMessage,
   setUserChatPref,
 } from './services/chatService';
 import {
+  appendLocalNotification,
   clearAllNotifications,
   getLocalNotifications,
   markAllNotificationsRead,
   markNotificationRead,
   mergeNotifications,
 } from './services/notificationService';
-import { getLocalFollows, saveLocalFollows } from './services/socialService';
+import { getLocalFollows } from './services/socialService';
 import type {
   AdsBanner,
   AppNotification,
+  AppThemeId,
   BlockedUser,
   CallRecord,
   Chat,
+  ChatReminder,
   FollowRelation,
   Post,
-  Reel,
   SavedItem,
+  ScheduledMessage,
   Story,
   TypingState,
   UserChatPref,
   UserChatRef,
   UserContact,
   UserPublic,
+  UserSticker,
 } from './types/dank';
-import { handleFirestoreError, isOfflineError, OperationType } from './utils/firestoreErrors';
-import { timestampToMs } from './utils/timeFormat';
+import {
+  handleFirestoreError,
+  isFirestoreWritesPaused,
+  isOfflineError,
+  isQuotaExhaustedError,
+  OperationType,
+  pauseFirestoreWrites,
+  subscribeQuotaPaused,
+} from './utils/firestoreErrors';
+import { formatChatTime, timestampToMs } from './utils/timeFormat';
 
-type MainTab = 'chats' | 'groups' | 'channels' | 'reels' | 'profile' | 'posts';
+type MainTab = 'chats' | 'updates' | 'communities' | 'calls' | 'settings';
 
 export default function App() {
   const {
@@ -111,10 +143,11 @@ export default function App() {
     profileError,
     retryProfileSync,
     setActiveChatPresence,
+    updateUserProfile,
     logout,
   } = useAuth();
-  const { t } = useLanguage();
-  const { isDark, toggleTheme } = useTheme();
+  const { t, language, setLanguage } = useLanguage();
+  const { theme, setTheme, hydrateThemeFromProfile } = useTheme();
 
   const [allUsers, setAllUsers] = useState<UserPublic[]>([]);
   const [joinedChatIds, setJoinedChatIds] = useState<string[]>([]);
@@ -137,26 +170,23 @@ export default function App() {
   const [showCreateStoryModal, setShowCreateStoryModal] = useState(false);
   const [activeStoryGroup, setActiveStoryGroup] = useState<StoryAuthorGroup | null>(null);
 
-  const [mainTab, setMainTab] = useState<MainTab>(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('post')) return 'posts';
-    if (params.get('reel')) return 'reels';
-    return 'chats';
-  });
+  const [mainTab, setMainTab] = useState<MainTab>('chats');
+  const [headerSearchOpen, setHeaderSearchOpen] = useState(false);
+  const [headerSearchQuery, setHeaderSearchQuery] = useState('');
+  const [showHeaderPlusMenu, setShowHeaderPlusMenu] = useState(false);
 
+  const [showPostsModal, setShowPostsModal] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return Boolean(params.get('post'));
+  });
   const [highlightedPostId, setHighlightedPostId] = useState<string | null>(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get('post');
   });
-  const [initialReelId, setInitialReelId] = useState<string | null>(() => {
-    const params = new URLSearchParams(window.location.search);
-    return params.get('reel');
-  });
 
   const [posts, setPosts] = useState<Post[]>([]);
-  const [reels, setReels] = useState<Reel[]>([]);
-  const [follows, setFollows] = useState<FollowRelation[]>([]);
-  const [localFollowEdges, setLocalFollowEdges] = useState(() => getLocalFollows());
+  const [follows] = useState<FollowRelation[]>([]);
+  const [localFollowEdges] = useState(() => getLocalFollows());
   const [savedItems, setSavedItems] = useState<SavedItem[]>([]);
 
   const [remoteNotifications, setRemoteNotifications] = useState<AppNotification[]>([]);
@@ -167,8 +197,6 @@ export default function App() {
   const notifsInitializedRef = useRef(false);
   const livePopupTimerRef = useRef<number | null>(null);
 
-  const [localBotChat, setLocalBotChat] = useState<Chat | null>(null);
-
   const [notificationPermission, setNotificationPermission] = useState<
     NotificationPermission | 'unsupported'
   >(() => (typeof Notification !== 'undefined' ? Notification.permission : 'unsupported'));
@@ -177,7 +205,6 @@ export default function App() {
   const activeChatIdRef = useRef<string | null>(null);
   activeChatIdRef.current = activeChatId;
 
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [profileModalEditMode, setProfileModalEditMode] = useState(false);
   const [viewedProfileUser, setViewedProfileUser] = useState<UserPublic | null>(null);
@@ -188,7 +215,23 @@ export default function App() {
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [showSettingsPrivacyModal, setShowSettingsPrivacyModal] = useState(false);
   const [showDankPlusModal, setShowDankPlusModal] = useState(false);
+  const [showChatsSubSheet, setShowChatsSubSheet] = useState(false);
+  const [showAppearanceSheet, setShowAppearanceSheet] = useState(false);
+  const [showHelpSheet, setShowHelpSheet] = useState(false);
+  const [showCallPickerModal, setShowCallPickerModal] = useState(false);
+  const [callPickerSearch, setCallPickerSearch] = useState('');
   const [contactsCallsTab, setContactsCallsTab] = useState<'contacts' | 'calls' | null>(null);
+  const [cacheRevision, setCacheRevision] = useState(0);
+
+  const [userStickers, setUserStickers] = useState<UserSticker[]>([]);
+  const [scheduledMessages, setScheduledMessages] = useState<ScheduledMessage[]>([]);
+  const [chatReminders, setChatReminders] = useState<ChatReminder[]>([]);
+  const [reminderTargetChat, setReminderTargetChat] = useState<{
+    chat: Chat;
+    title: string;
+  } | null>(null);
+  const processingScheduledIdsRef = useRef<Set<string>>(new Set());
+  const processingReminderIdsRef = useRef<Set<string>>(new Set());
 
   const [twoStepInput, setTwoStepInput] = useState('');
   const [twoStepError, setTwoStepError] = useState<string | null>(null);
@@ -200,14 +243,56 @@ export default function App() {
   });
 
   const [toast, setToast] = useState<string | null>(null);
+  const [quotaPaused, setQuotaPaused] = useState<boolean>(() => isFirestoreWritesPaused());
+  const [quotaBannerDismissed, setQuotaBannerDismissed] = useState(false);
   const toastTimerRef = useRef<number | null>(null);
   const swRegRef = useRef<ServiceWorkerRegistration | null>(null);
+  const lastHydratedThemeRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    return subscribeQuotaPaused((paused) => {
+      setQuotaPaused(paused);
+      if (paused) setQuotaBannerDismissed(false);
+    });
+  }, []);
 
   const notify = useCallback((msg: string) => {
     setToast(msg);
     if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
     toastTimerRef.current = window.setTimeout(() => setToast(null), 3200);
   }, []);
+
+  useEffect(() => {
+    if (!profile?.theme) return;
+    if (lastHydratedThemeRef.current === profile.theme) return;
+    lastHydratedThemeRef.current = profile.theme;
+    hydrateThemeFromProfile(profile.theme);
+  }, [profile?.theme, hydrateThemeFromProfile]);
+
+  const handleSelectTheme = useCallback(
+    (nextTheme: AppThemeId) => {
+      lastHydratedThemeRef.current = nextTheme;
+      setTheme(nextTheme);
+      if (profile) {
+        void updateUserProfile({ theme: nextTheme });
+      }
+    },
+    [setTheme, profile, updateUserProfile]
+  );
+
+  const getThemeLabel = (id: AppThemeId) => {
+    switch (id) {
+      case 'midnight-blue':
+        return t.theme.midnightBlue;
+      case 'purple-neon':
+        return t.theme.purpleNeon;
+      case 'light':
+        return t.theme.lightMode;
+      case 'dank-dark':
+      default:
+        return t.theme.dankDark;
+    }
+  };
 
   useEffect(() => {
     registerSW({
@@ -358,7 +443,7 @@ export default function App() {
     return () => unsub();
   }, [isVerified, firebaseUser?.uid]);
 
-  // 4a. Chat preferences (Pin, Archive, Mute, Unread Cleared, Deleted)
+  // 4a. Chat preferences
   useEffect(() => {
     if (!isVerified || !firebaseUser) {
       setChatPrefsById({});
@@ -418,7 +503,7 @@ export default function App() {
     };
   }, [isVerified, firebaseUser?.uid]);
 
-  // 4a3. Calls listener (2 rule-compliant queries: callerId == uid and calleeId == uid)
+  // 4a3. Calls listener
   useEffect(() => {
     if (!isVerified || !firebaseUser) {
       setCalls([]);
@@ -547,76 +632,7 @@ export default function App() {
     return () => unsub();
   }, [isVerified, firebaseUser?.uid]);
 
-  // 4f. Reels
-  useEffect(() => {
-    if (!isVerified || !firebaseUser) {
-      setReels([]);
-      return;
-    }
-
-    const q = query(collection(db, 'reels'), orderBy('createdAt', 'desc'));
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        setReels(snap.docs.map((d) => d.data() as Reel));
-      },
-      (error) => {
-        if (!isOfflineError(error)) {
-          handleFirestoreError(error, OperationType.LIST, 'reels');
-        }
-      }
-    );
-    return () => unsub();
-  }, [isVerified, firebaseUser?.uid]);
-
-  // 4g. Follows (Firestore + localStorage cache)
-  useEffect(() => {
-    const syncLocalFollows = () => setLocalFollowEdges(getLocalFollows());
-    window.addEventListener('dank:follows-updated', syncLocalFollows);
-    if (!isVerified || !firebaseUser) {
-      setFollows([]);
-      return () => window.removeEventListener('dank:follows-updated', syncLocalFollows);
-    }
-
-    const unsub = onSnapshot(
-      collection(db, 'follows'),
-      (snap) => {
-        const list = snap.docs.map((d) => d.data() as FollowRelation);
-        setFollows(list);
-        saveLocalFollows(
-          list.map((f) => ({
-            followerUid: f.followerUid,
-            targetUid: f.targetUid,
-            createdAtMs: timestampToMs(f.createdAt) || Date.now(),
-          }))
-        );
-      },
-      (error) => {
-        if (!isOfflineError(error)) {
-          handleFirestoreError(error, OperationType.LIST, 'follows');
-        }
-      }
-    );
-    return () => {
-      unsub();
-      window.removeEventListener('dank:follows-updated', syncLocalFollows);
-    };
-  }, [isVerified, firebaseUser?.uid]);
-
-  // 4g2. Local-first DANK Bot chat sync
-  useEffect(() => {
-    if (!isVerified || !firebaseUser) {
-      setLocalBotChat(null);
-      return;
-    }
-    const uid = firebaseUser.uid;
-    setLocalBotChat(getLocalBotChat(uid));
-    const onBotUpdated = () => setLocalBotChat(getLocalBotChat(uid));
-    window.addEventListener('dank:bot-updated', onBotUpdated);
-    return () => window.removeEventListener('dank:bot-updated', onBotUpdated);
-  }, [isVerified, firebaseUser?.uid]);
-
-  // 4g3. App Notifications (Firestore + localStorage fallback)
+  // 4g3. App Notifications
   useEffect(() => {
     if (!isVerified || !firebaseUser) {
       setRemoteNotifications([]);
@@ -687,6 +703,47 @@ export default function App() {
     return () => unsub();
   }, [isVerified, firebaseUser?.uid]);
 
+  // 4i. User Stickers, Scheduled Messages & Chat Reminders
+  useEffect(() => {
+    if (!isVerified || !firebaseUser) {
+      setUserStickers([]);
+      setScheduledMessages([]);
+      setChatReminders([]);
+      return;
+    }
+
+    const uid = firebaseUser.uid;
+    const unsubStickers = onSnapshot(
+      query(collection(db, 'users_private', uid, 'stickers'), orderBy('createdAt', 'desc')),
+      (snap) => setUserStickers(snap.docs.map((d) => d.data() as UserSticker)),
+      () => {}
+    );
+
+    const unsubScheduled = onSnapshot(
+      query(
+        collection(db, 'users_private', uid, 'scheduled_messages'),
+        where('status', '==', 'pending')
+      ),
+      (snap) => setScheduledMessages(snap.docs.map((d) => d.data() as ScheduledMessage)),
+      () => {}
+    );
+
+    const unsubReminders = onSnapshot(
+      query(
+        collection(db, 'users_private', uid, 'chat_reminders'),
+        where('status', '==', 'pending')
+      ),
+      (snap) => setChatReminders(snap.docs.map((d) => d.data() as ChatReminder)),
+      () => {}
+    );
+
+    return () => {
+      unsubStickers();
+      unsubScheduled();
+      unsubReminders();
+    };
+  }, [isVerified, firebaseUser?.uid]);
+
   // Viewed story IDs
   useEffect(() => {
     if (!firebaseUser?.uid) {
@@ -722,7 +779,7 @@ export default function App() {
     [firebaseUser?.uid]
   );
 
-  // Auto-join DANK Official & DANK Team channels once they exist
+  // Auto-join DANK Official & DANK Team channels
   const autoJoinedOfficialRef = useRef(false);
   const autoJoinedTeamRef = useRef(false);
   useEffect(() => {
@@ -843,13 +900,12 @@ export default function App() {
             }
           }
 
-          const shouldSyncInitial = !deliveredCheckedRef.current.has(chatId);
           const hasNewSentFromOther =
             chat.lastMessageSenderId &&
             chat.lastMessageSenderId !== uid &&
             chat.lastMessageStatus === 'sent';
 
-          if ((shouldSyncInitial || hasNewSentFromOther) && chatId !== activeChatIdRef.current) {
+          if (hasNewSentFromOther && chatId !== activeChatIdRef.current && !isFirestoreWritesPaused()) {
             deliveredCheckedRef.current.add(chatId);
             void markChatMessagesDelivered(chat, uid);
           }
@@ -878,14 +934,6 @@ export default function App() {
     };
   }, [joinedChatIds, isVerified, firebaseUser?.uid]);
 
-  useEffect(() => {
-    if (activeChatId && joinedChatIds.length > 0 && !joinedChatIds.includes(activeChatId)) {
-      if (!chatsById[activeChatId]) {
-        setActiveChatId(null);
-      }
-    }
-  }, [activeChatId, joinedChatIds, chatsById]);
-
   const usersMap = useMemo(() => {
     const map: Record<string, UserPublic> = {};
     for (const u of allUsers) {
@@ -899,11 +947,6 @@ export default function App() {
 
   const savedPostIds = useMemo(
     () => new Set(savedItems.filter((s) => s.itemType === 'post').map((s) => s.targetId)),
-    [savedItems]
-  );
-
-  const savedReelIds = useMemo(
-    () => new Set(savedItems.filter((s) => s.itemType === 'reel').map((s) => s.targetId)),
     [savedItems]
   );
 
@@ -934,7 +977,6 @@ export default function App() {
     [notifications]
   );
 
-  // Live toast popup when a new unread notification arrives after initial load
   useEffect(() => {
     if (!isVerified || !firebaseUser) return;
     if (!notifsInitializedRef.current) {
@@ -953,18 +995,138 @@ export default function App() {
     }
   }, [notifications, isVerified, firebaseUser?.uid]);
 
-  const chats = useMemo(() => {
-    const list = Object.values(chatsById);
-    if (localBotChat && !chatsById[localBotChat.id]) {
-      return [localBotChat, ...list];
-    }
-    return list;
-  }, [chatsById, localBotChat]);
+  const chats = useMemo(() => Object.values(chatsById), [chatsById]);
+  const publicChatMap = useMemo(() => {
+    const map: Record<string, Chat> = {};
+    for (const c of publicChannels) map[c.id] = c;
+    return map;
+  }, [publicChannels]);
 
   const activeChat = activeChatId
-    ? chatsById[activeChatId] || (localBotChat?.id === activeChatId ? localBotChat : null)
+    ? chatsById[activeChatId] || publicChatMap[activeChatId] || null
     : null;
   const activeCall = activeCallId ? calls.find((c) => c.id === activeCallId) || null : null;
+
+  const remindersByChatId = useMemo(() => {
+    const map: Record<string, ChatReminder[]> = {};
+    for (const rem of chatReminders) {
+      if (rem.status !== 'pending') continue;
+      if (!map[rem.chatId]) map[rem.chatId] = [];
+      map[rem.chatId].push(rem);
+    }
+    return map;
+  }, [chatReminders]);
+
+  // Global timer: auto-send due scheduled messages & trigger due chat reminders
+  useEffect(() => {
+    if (!isVerified || !profile) return;
+
+    const processDueItems = () => {
+      if (isFirestoreWritesPaused()) return;
+      const now = Date.now();
+
+      for (const sched of scheduledMessages) {
+        if (sched.status !== 'pending') continue;
+        if (sched.scheduledAt.toMillis() > now) continue;
+        if (processingScheduledIdsRef.current.has(sched.id)) continue;
+
+        const targetChat = chatsById[sched.chatId] || publicChatMap[sched.chatId];
+        if (!targetChat) continue;
+
+        processingScheduledIdsRef.current.add(sched.id);
+        void (async () => {
+          try {
+            await markScheduledMessageSent(profile.uid, sched.id);
+            await sendMessage({
+              chat: targetChat,
+              sender: profile,
+              type: 'text',
+              text: sched.text,
+              usersMap,
+            });
+            notify(t.schedule.scheduledSentToast);
+          } catch (err) {
+            if (isQuotaExhaustedError(err)) {
+              pauseFirestoreWrites();
+              return;
+            }
+            processingScheduledIdsRef.current.delete(sched.id);
+          }
+        })();
+      }
+
+      for (const rem of chatReminders) {
+        if (rem.status !== 'pending') continue;
+        if (rem.remindAt.toMillis() > now) continue;
+        if (processingReminderIdsRef.current.has(rem.id)) continue;
+
+        processingReminderIdsRef.current.add(rem.id);
+        void (async () => {
+          try {
+            await markChatReminderFired(profile.uid, rem.id);
+            const msgText = rem.note
+              ? `${t.schedule.reminderDueTitle}: ${rem.chatTitle} — ${rem.note}`
+              : `${t.schedule.reminderDueTitle}: ${rem.chatTitle}`;
+            const notif: AppNotification = {
+              id: `rem_${rem.id}`,
+              recipientUid: profile.uid,
+              actorUid: 'dank_reminder',
+              actorName: rem.chatTitle,
+              type: 'message',
+              text: msgText.slice(0, 290),
+              targetId: rem.chatId,
+              read: false,
+              createdAt: Timestamp.now(),
+            };
+            appendLocalNotification(profile.uid, notif);
+            setLiveNotifPopup(notif);
+            if (livePopupTimerRef.current) window.clearTimeout(livePopupTimerRef.current);
+            livePopupTimerRef.current = window.setTimeout(() => setLiveNotifPopup(null), 5000);
+            notify(msgText);
+
+            if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+              try {
+                const n = new Notification(t.schedule.reminderDueTitle, {
+                  body: rem.note ? `${rem.chatTitle}: ${rem.note}` : rem.chatTitle,
+                  icon: '/icon-192.png',
+                  tag: `rem_${rem.id}`,
+                });
+                n.onclick = () => {
+                  window.focus();
+                  setMainTab('chats');
+                  setActiveChatId(rem.chatId);
+                  n.close();
+                };
+              } catch {
+                // ignore browser notification error
+              }
+            }
+          } catch (err) {
+            if (isQuotaExhaustedError(err)) {
+              pauseFirestoreWrites();
+              return;
+            }
+            processingReminderIdsRef.current.delete(rem.id);
+          }
+        })();
+      }
+    };
+
+    processDueItems();
+    const timer = window.setInterval(processDueItems, 15_000);
+    return () => window.clearInterval(timer);
+  }, [
+    isVerified,
+    profile,
+    scheduledMessages,
+    chatReminders,
+    chatsById,
+    publicChatMap,
+    usersMap,
+    notify,
+    t.schedule.reminderDueTitle,
+    t.schedule.scheduledSentToast,
+  ]);
 
   const unreadChatsCount = useMemo(() => {
     if (!profile) return 0;
@@ -1024,17 +1186,9 @@ export default function App() {
 
     const deepPostId = url.searchParams.get('post');
     if (deepPostId) {
-      setMainTab('posts');
+      setShowPostsModal(true);
       setHighlightedPostId(deepPostId);
       url.searchParams.delete('post');
-      changed = true;
-    }
-
-    const deepReelId = url.searchParams.get('reel');
-    if (deepReelId) {
-      setMainTab('reels');
-      setInitialReelId(deepReelId);
-      url.searchParams.delete('reel');
       changed = true;
     }
 
@@ -1048,7 +1202,8 @@ export default function App() {
       setShowNotificationsPage(false);
       if (!user || (profile && user.uid === profile.uid)) {
         setViewedProfileUser(null);
-        setMainTab('profile');
+        setProfileModalEditMode(false);
+        setShowProfileModal(true);
       } else {
         setViewedProfileUser(user);
       }
@@ -1080,19 +1235,12 @@ export default function App() {
         return;
       }
       if (notif.targetId) {
-        const matchingReel = reels.find((r) => r.id === notif.targetId);
-        if (matchingReel) {
-          setViewedProfileUser(null);
-          setInitialReelId(matchingReel.id);
-          setMainTab('reels');
-          return;
-        }
         setViewedProfileUser(null);
         setHighlightedPostId(notif.targetId);
-        setMainTab('posts');
+        setShowPostsModal(true);
       }
     },
-    [openProfileFor, reels, usersMap]
+    [openProfileFor, usersMap]
   );
 
   const handleStartPrivateChat = async (peer: UserPublic) => {
@@ -1118,7 +1266,6 @@ export default function App() {
     try {
       await joinChatById(chatId, profile.uid);
       setViewedProfileUser(null);
-      setMainTab('chats');
       setActiveChatId(chatId);
       notify(t.notifications.subscribedChannel);
     } catch (err) {
@@ -1138,36 +1285,18 @@ export default function App() {
     }
   };
 
-  const handleOpenDankBot = async () => {
-    if (!profile) return;
-    try {
-      const chatId = await ensureDankBotChat(profile);
-      setLocalBotChat(getLocalBotChat(profile.uid));
-      setViewedProfileUser(null);
-      setShowNotificationsPage(false);
-      setMainTab('chats');
-      setActiveChatId(chatId);
-    } catch (err) {
-      notify(err instanceof Error ? err.message : t.errors.unexpected);
-    }
-  };
-
   const handleOpenDankTeam = async () => {
     if (!profile) return;
     try {
       await ensureUserJoinedDankTeam(profile.uid);
-      setMainTab('channels');
+      setMainTab('updates');
       setActiveChatId(DANK_TEAM_CHANNEL_ID);
     } catch (err) {
       notify(err instanceof Error ? err.message : t.errors.unexpected);
     }
   };
 
-  const handleStartCall = async (
-    peer: UserPublic,
-    callType: 'voice' | 'video',
-    chatId?: string
-  ) => {
+  const handleStartCall = async (peer: UserPublic, chatId?: string) => {
     if (!profile) return;
     if (!canSeePrivacyField(profile.uid, peer, peer.privacyCall, contactIds)) {
       notify(t.privacy.cannotCallPrivacy);
@@ -1179,11 +1308,44 @@ export default function App() {
         caller: profile,
         callee: peer,
         chatId: targetChatId,
-        callType,
+        callType: 'voice',
       });
       setActiveCallId(newCallId);
     } catch (err) {
       notify(err instanceof Error ? err.message : t.errors.unexpected);
+    }
+  };
+
+  const storageCacheKb = useMemo(() => {
+    void cacheRevision;
+    try {
+      let bytes = 0;
+      for (let i = 0; i < localStorage.length; i += 1) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('dank_chat_cache_')) {
+          bytes += (localStorage.getItem(key) || '').length * 2;
+        }
+      }
+      return (bytes / 1024).toFixed(1);
+    } catch {
+      return '0.0';
+    }
+  }, [cacheRevision]);
+
+  const handleClearChatCache = () => {
+    try {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i += 1) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('dank_chat_cache_')) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach((k) => localStorage.removeItem(k));
+      setCacheRevision((c) => c + 1);
+      notify(t.whatsapp.cacheCleared);
+    } catch {
+      notify(t.whatsapp.cacheCleared);
     }
   };
 
@@ -1224,23 +1386,23 @@ export default function App() {
     };
 
     return (
-      <div className="min-h-screen bg-[#eef2f6] dark:bg-[#0E1621] flex items-center justify-center p-6">
-        <div className="max-w-md w-full rounded-2xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F] shadow-2xl p-7 text-center space-y-5">
+      <div className="dank-auth-scroll bg-[var(--dank-canvas)] flex items-center justify-center p-6">
+        <div className="max-w-md w-full rounded-3xl bg-[var(--dank-surface)] border border-[var(--dank-border)] shadow-2xl p-7 text-center space-y-5">
           <div className="flex justify-center">
             <DankLogo size="md" showText={false} />
           </div>
-          <div className="w-12 h-12 mx-auto rounded-2xl bg-[#2AABEE]/15 text-[#2AABEE] flex items-center justify-center">
+          <div className="w-12 h-12 mx-auto rounded-2xl bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] flex items-center justify-center">
             <KeyRound className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-[#0E1621] dark:text-white">
+            <h1 className="text-xl font-bold text-[var(--dank-text)]">
               {t.privacy.twoStepChallengeTitle}
             </h1>
-            <p className="mt-1.5 text-xs text-slate-600 dark:text-[#8C9FB1] leading-relaxed">
+            <p className="mt-1.5 text-xs text-[var(--dank-muted)] leading-relaxed">
               {t.privacy.twoStepChallengeDesc}
             </p>
             {privateProfile?.twoStepHint && (
-              <p className="mt-2 text-xs font-semibold text-[#2AABEE]">
+              <p className="mt-2 text-xs font-semibold text-[var(--dank-accent)]">
                 {t.privacy.hintOptional}: {privateProfile.twoStepHint}
               </p>
             )}
@@ -1254,15 +1416,13 @@ export default function App() {
               value={twoStepInput}
               onChange={(e) => setTwoStepInput(e.target.value)}
               placeholder={t.privacy.passwordPlaceholder}
-              className="w-full h-11 px-4 rounded-xl bg-[#f4f7fb] dark:bg-[#242F3D] border border-slate-200 dark:border-white/15 text-base text-[#0E1621] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#2AABEE]"
+              className="w-full h-11 px-4 rounded-xl bg-[var(--dank-elevated)] border border-[var(--dank-border)] text-base text-[var(--dank-text)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)]"
             />
-            {twoStepError && (
-              <p className="text-xs text-red-600 dark:text-red-400 text-center">{twoStepError}</p>
-            )}
+            {twoStepError && <p className="text-xs text-red-500 text-center">{twoStepError}</p>}
             <button
               type="submit"
               disabled={unlocking2FA || !twoStepInput.trim()}
-              className="w-full h-11 rounded-xl bg-[#2AABEE] hover:bg-[#229ED9] text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+              className="w-full h-11 rounded-full bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
             >
               <Lock className="w-4 h-4" />
               {t.privacy.twoStepUnlock}
@@ -1272,7 +1432,7 @@ export default function App() {
           <button
             type="button"
             onClick={() => void logout()}
-            className="text-xs font-semibold text-slate-500 dark:text-[#8C9FB1] hover:underline cursor-pointer"
+            className="text-xs font-semibold text-[var(--dank-muted)] hover:text-[var(--dank-text)] cursor-pointer"
           >
             {t.profile.logout}
           </button>
@@ -1283,25 +1443,25 @@ export default function App() {
 
   if (profile.isBanned && !isAdmin) {
     return (
-      <div className="min-h-screen bg-[#eef2f6] dark:bg-[#0E1621] flex items-center justify-center p-6">
-        <div className="max-w-md w-full rounded-2xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F] shadow-xl p-7 text-center space-y-4">
-          <div className="w-14 h-14 mx-auto rounded-2xl bg-red-100 dark:bg-red-950/50 text-red-600 dark:text-red-400 flex items-center justify-center">
+      <div className="dank-auth-scroll bg-[var(--dank-canvas)] flex items-center justify-center p-6">
+        <div className="max-w-md w-full rounded-3xl bg-[var(--dank-surface)] border border-[var(--dank-border)] shadow-xl p-7 text-center space-y-4">
+          <div className="w-14 h-14 mx-auto rounded-2xl bg-red-500/15 text-red-500 flex items-center justify-center">
             <Ban className="w-7 h-7" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-[#0E1621] dark:text-white">
+            <h1 className="text-xl font-bold text-[var(--dank-text)]">
               {t.errors.accountSuspended}
             </h1>
-            <p className="mt-2 text-sm text-slate-600 dark:text-[#8C9FB1] leading-relaxed">
+            <p className="mt-2 text-sm text-[var(--dank-muted)] leading-relaxed">
               {t.errors.accountSuspendedDesc}
             </p>
           </div>
           <button
             type="button"
             onClick={() => void logout()}
-            className="w-full h-11 rounded-xl bg-[#242F3D] hover:bg-[#2D3B4D] text-white text-sm font-semibold flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full h-11 rounded-full bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] text-sm font-semibold flex items-center justify-center gap-2 cursor-pointer"
           >
-            <LogOut className="w-4 h-4 text-[#2AABEE]" />
+            <LogOut className="w-4 h-4 text-[var(--dank-accent)]" />
             {t.profile.logout}
           </button>
         </div>
@@ -1309,9 +1469,45 @@ export default function App() {
     );
   }
 
-  const isChatViewportTab = mainTab === 'chats' || mainTab === 'groups' || mainTab === 'channels';
-  const sidebarTabScope: 'chats' | 'groups' | 'channels' =
-    mainTab === 'groups' ? 'groups' : mainTab === 'channels' ? 'channels' : 'chats';
+  const joinedChannelList = chats.filter((c) => c.type === 'channel');
+  const joinedGroupList = chats.filter((c) => c.type === 'group');
+  const joinedIdSet = new Set(joinedChatIds);
+
+  const qLower = headerSearchQuery.trim().toLowerCase();
+  const filteredJoinedChannels = joinedChannelList.filter(
+    (c) =>
+      !qLower ||
+      (c.name || '').toLowerCase().includes(qLower) ||
+      (c.description || '').toLowerCase().includes(qLower)
+  );
+  const discoverChannels = publicChannels.filter(
+    (c) =>
+      c.type === 'channel' &&
+      !joinedIdSet.has(c.id) &&
+      (!qLower ||
+        (c.name || '').toLowerCase().includes(qLower) ||
+        (c.description || '').toLowerCase().includes(qLower))
+  );
+  const filteredJoinedGroups = joinedGroupList.filter(
+    (c) =>
+      !qLower ||
+      (c.name || '').toLowerCase().includes(qLower) ||
+      (c.description || '').toLowerCase().includes(qLower)
+  );
+  const discoverGroups = publicChannels.filter(
+    (c) =>
+      c.type === 'group' &&
+      !joinedIdSet.has(c.id) &&
+      (!qLower ||
+        (c.name || '').toLowerCase().includes(qLower) ||
+        (c.description || '').toLowerCase().includes(qLower))
+  );
+  const filteredCalls = calls.filter((call) => {
+    if (!qLower) return true;
+    const isOutgoing = call.callerId === profile.uid;
+    const peerName = isOutgoing ? call.calleeName : call.callerName;
+    return peerName.toLowerCase().includes(qLower);
+  });
 
   const myFollowerUids = effectiveFollows
     .filter((f) => f.targetUid === profile.uid)
@@ -1324,211 +1520,1023 @@ export default function App() {
     ? usersMap[viewedProfileUser.uid] || viewedProfileUser
     : null;
 
-  return (
-    <div className="h-screen w-screen overflow-hidden bg-[#eef2f6] dark:bg-[#0E1621] flex flex-col">
-      <div className="flex-1 min-h-0 flex w-full overflow-hidden">
-        {isChatViewportTab && (
-          <>
-            <div
-              className={`${
-                activeChat ? 'hidden md:flex' : 'flex'
-              } w-full md:w-auto h-full`}
-            >
-              <Sidebar
-                currentUser={profile}
-                isAdmin={isAdmin}
-                chats={chats}
-                allUsers={allUsers}
-                publicChannels={publicChannels}
-                usersMap={usersMap}
-                contactIds={contactIds}
-                mutedChatIds={mutedChatIds}
-                chatPrefsById={chatPrefsById}
-                typingByChat={typingByChat}
-                stories={stories}
-                viewedStoryIds={viewedStoryIds}
-                adsBanner={adsBanner}
-                unreadNotifsCount={unreadNotifsCount}
-                notificationPermission={notificationPermission}
-                activeChatId={activeChatId}
-                tabScope={sidebarTabScope}
-                onOpenDrawer={() => setDrawerOpen(true)}
-                onSelectChat={(id) => {
-                  setActiveChatId(id);
-                  void setUserChatPref(profile.uid, id, { markRead: true });
-                }}
-                onStartPrivateChat={(peer) => void handleStartPrivateChat(peer)}
-                onJoinPublicChannel={(id) => void handleJoinPublicChannel(id)}
-                onOpenCreateModal={(type) => setCreateModalType(type)}
-                onOpenAdminModal={() => {
-                  if (isAdmin) setShowAdminModal(true);
-                }}
-                onOpenCreateStory={() => setShowCreateStoryModal(true)}
-                onOpenStoryGroup={(group) => setActiveStoryGroup(group)}
-                onOpenNotifications={() => setShowNotificationsPage(true)}
-                onOpenProfile={(user) => openProfileFor(user)}
-                onRequestNotifications={() => void handleRequestNotifications()}
-                onNotify={notify}
-              />
-            </div>
+  const showSplitChatPaneOnDesktop =
+    mainTab === 'chats' || mainTab === 'updates' || mainTab === 'communities';
 
-            <main
-              className={`${
-                activeChat ? 'flex' : 'hidden md:flex'
-              } flex-1 h-full min-w-0`}
+  const callPickerCandidates = (() => {
+    const pq = callPickerSearch.trim().toLowerCase();
+    const seen = new Set<string>([profile.uid]);
+    const list: UserPublic[] = [];
+
+    for (const c of contacts) {
+      if (seen.has(c.uid) || blockedUserIds.has(c.uid)) continue;
+      seen.add(c.uid);
+      const u = usersMap[c.uid] || {
+        uid: c.uid,
+        name: c.name,
+        username: c.username,
+        photoURL: c.photoURL || '',
+        isOnline: false,
+        lastSeen: null,
+        createdAt: null,
+        updatedAt: null,
+      };
+      list.push(u);
+    }
+
+    for (const u of allUsers) {
+      if (seen.has(u.uid) || blockedUserIds.has(u.uid)) continue;
+      seen.add(u.uid);
+      list.push(u);
+    }
+
+    if (!pq) return list;
+    const clean = pq.replace(/^@/, '');
+    return list.filter(
+      (u) => u.name.toLowerCase().includes(pq) || u.username.toLowerCase().includes(clean)
+    );
+  })();
+
+  return (
+    <div
+      onClick={() => setShowHeaderPlusMenu(false)}
+      className="h-[100dvh] w-screen overflow-hidden bg-[var(--dank-canvas)] text-[var(--dank-text)] flex flex-col"
+    >
+      {quotaPaused && !quotaBannerDismissed && (
+        <div className="bg-amber-500/15 border-b border-amber-500/40 px-4 py-2 flex items-center justify-between gap-2 text-xs text-amber-200 shrink-0 z-30">
+          <span className="truncate">
+            {language === 'ar'
+              ? 'تم الوصول للحد اليومي المجاني لكتابة Firestore — تتجدد الحصة غداً.'
+              : 'Firestore free daily write quota reached — background writes paused until quota resets tomorrow.'}
+          </span>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setQuotaBannerDismissed(true);
+            }}
+            className="p-1 rounded-full hover:bg-white/10 text-amber-200 shrink-0 cursor-pointer"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+      {/* iPhone WhatsApp Shared Top Header (hidden on mobile when ChatWindow is open fullscreen) */}
+      <header
+        className={`${
+          activeChat ? 'hidden md:flex' : 'flex'
+        } flex-col bg-[var(--dank-canvas)] border-b border-[var(--dank-border)] shrink-0 z-20`}
+      >
+        <div className="px-4 py-2.5 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <h1 className="text-[26px] font-extrabold tracking-tight text-[var(--dank-text)] leading-none">
+              {t.appName}
+            </h1>
+            <UserBadges
+              isAdmin={profile.isAdmin}
+              isVerified={profile.isVerified}
+              isVip={profile.isVip || (profile.inviteCount ?? 0) >= 5}
+              isPlus={profile.isPlus}
+              size="sm"
+            />
+          </div>
+
+          <div className="flex items-center gap-1 relative shrink-0">
+            <button
+              type="button"
+              onClick={() => setShowCreateStoryModal(true)}
+              aria-label={t.stories.postNewStory}
+              title={t.stories.postNewStory}
+              className="w-11 h-11 rounded-full hover:bg-[var(--dank-hover)] text-[var(--dank-text)] flex items-center justify-center transition-colors cursor-pointer"
             >
-              {activeChat ? (
-                <ChatWindow
-                  chat={activeChat}
-                  chats={chats}
-                  currentUser={profile}
-                  usersMap={usersMap}
-                  contactIds={contactIds}
-                  blockedUserIds={blockedUserIds}
-                  isMuted={mutedChatIds.has(activeChat.id)}
-                  onBackMobile={() => setActiveChatId(null)}
-                  onOpenChatInfo={() => setShowChatInfoModal(true)}
-                  onOpenProfile={(user) => openProfileFor(user)}
-                  onStartCall={(peer, callType, chatId) =>
-                    void handleStartCall(peer, callType, chatId)
-                  }
-                  onSelectChat={(id) => setActiveChatId(id)}
-                  onNotify={notify}
-                />
+              <Camera className="w-5 h-5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setHeaderSearchOpen((v) => !v);
+                if (headerSearchOpen) setHeaderSearchQuery('');
+              }}
+              aria-label={t.common.search}
+              title={t.common.search}
+              className={`w-11 h-11 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+                headerSearchOpen
+                  ? 'bg-[var(--dank-accent-soft)] text-[var(--dank-accent)]'
+                  : 'hover:bg-[var(--dank-hover)] text-[var(--dank-text)]'
+              }`}
+            >
+              <Search className="w-5 h-5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (mainTab === 'calls') {
+                  setCallPickerSearch('');
+                  setShowCallPickerModal(true);
+                  return;
+                }
+                setShowHeaderPlusMenu((v) => !v);
+              }}
+              aria-label={mainTab === 'calls' ? t.calls.pickContactToCall : t.common.add}
+              title={mainTab === 'calls' ? t.calls.pickContactToCall : t.common.add}
+              className="w-9 h-9 ms-1 rounded-full bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] flex items-center justify-center transition-colors cursor-pointer shadow-xs"
+            >
+              <Plus className="w-5 h-5 stroke-[2.6]" />
+            </button>
+
+            {showHeaderPlusMenu && (
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="absolute end-0 top-12 z-40 w-56 rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] shadow-2xl py-1.5 text-[var(--dank-text)]"
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowHeaderPlusMenu(false);
+                    setContactsCallsTab('contacts');
+                  }}
+                  className="w-full px-4 py-2.5 text-start text-sm font-medium hover:bg-[var(--dank-hover)] flex items-center gap-3 cursor-pointer"
+                >
+                  <MessageSquarePlus className="w-4 h-4 text-[var(--dank-accent)]" />
+                  <span>{t.whatsapp.newChat}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowHeaderPlusMenu(false);
+                    setCallPickerSearch('');
+                    setShowCallPickerModal(true);
+                  }}
+                  className="w-full px-4 py-2.5 text-start text-sm font-medium hover:bg-[var(--dank-hover)] flex items-center gap-3 cursor-pointer"
+                >
+                  <Phone className="w-4 h-4 text-[var(--dank-accent)]" />
+                  <span>{t.calls.pickContactToCall}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowHeaderPlusMenu(false);
+                    setCreateModalType('group');
+                  }}
+                  className="w-full px-4 py-2.5 text-start text-sm font-medium hover:bg-[var(--dank-hover)] flex items-center gap-3 cursor-pointer"
+                >
+                  <Users className="w-4 h-4 text-[var(--dank-accent)]" />
+                  <span>{t.sidebar.newGroup}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowHeaderPlusMenu(false);
+                    setCreateModalType('channel');
+                  }}
+                  className="w-full px-4 py-2.5 text-start text-sm font-medium hover:bg-[var(--dank-hover)] flex items-center gap-3 cursor-pointer"
+                >
+                  <Megaphone className="w-4 h-4 text-[var(--dank-accent)]" />
+                  <span>{t.sidebar.newChannel}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowHeaderPlusMenu(false);
+                    setCreateModalType('secret');
+                  }}
+                  className="w-full px-4 py-2.5 text-start text-sm font-medium hover:bg-[var(--dank-hover)] flex items-center gap-3 cursor-pointer"
+                >
+                  <Lock className="w-4 h-4 text-[var(--dank-accent)]" />
+                  <span>{t.telegram.secretChat}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowHeaderPlusMenu(false);
+                    void handleOpenSavedMessages();
+                  }}
+                  className="w-full px-4 py-2.5 text-start text-sm font-medium hover:bg-[var(--dank-hover)] flex items-center gap-3 cursor-pointer"
+                >
+                  <Bookmark className="w-4 h-4 text-[var(--dank-accent)]" />
+                  <span>{t.telegram.savedMessagesTitle}</span>
+                </button>
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowHeaderPlusMenu(false);
+                      setShowAdminModal(true);
+                    }}
+                    className="w-full px-4 py-2.5 text-start text-sm font-semibold text-[var(--dank-accent)] hover:bg-[var(--dank-hover)] flex items-center gap-3 cursor-pointer border-t border-[var(--dank-border)] mt-1 pt-2.5"
+                  >
+                    <Shield className="w-4 h-4" />
+                    <span>{t.sidebar.adminDashboard}</span>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {headerSearchOpen && (
+          <div className="px-4 pb-2.5">
+            <div className="relative">
+              <Search className="w-4 h-4 text-[var(--dank-muted)] absolute start-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                dir="auto"
+                autoFocus
+                value={headerSearchQuery}
+                onChange={(e) => setHeaderSearchQuery(e.target.value)}
+                placeholder={t.sidebar.searchPlaceholder}
+                className="w-full h-10 ps-10 pe-10 rounded-full bg-[var(--dank-elevated)] border border-[var(--dank-border)] text-base text-[var(--dank-text)] placeholder:text-[var(--dank-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)]"
+              />
+              {headerSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setHeaderSearchQuery('')}
+                  aria-label={t.sidebar.clearSearch}
+                  className="absolute end-2 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center text-[var(--dank-muted)] hover:text-[var(--dank-text)] cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </header>
+
+      {/* Main Content Viewport */}
+      <div className="flex-1 min-h-0 flex w-full overflow-hidden relative">
+        {/* TAB 1: CHATS (Chats list only — NO stories row) */}
+        {mainTab === 'chats' && (
+          <div
+            className={`${
+              activeChat ? 'hidden md:flex' : 'flex'
+            } w-full md:w-auto h-full`}
+          >
+            <Sidebar
+              currentUser={profile}
+              chats={chats}
+              allUsers={allUsers}
+              publicChannels={publicChannels}
+              usersMap={usersMap}
+              contactIds={contactIds}
+              mutedChatIds={mutedChatIds}
+              chatPrefsById={chatPrefsById}
+              typingByChat={typingByChat}
+              remindersByChatId={remindersByChatId}
+              adsBanner={adsBanner}
+              activeChatId={activeChatId}
+              searchQuery={headerSearchQuery}
+              onSelectChat={(id) => {
+                setActiveChatId(id);
+                void setUserChatPref(profile.uid, id, { markRead: true });
+              }}
+              onStartPrivateChat={(peer) => void handleStartPrivateChat(peer)}
+              onJoinPublicChannel={(id) => void handleJoinPublicChannel(id)}
+              onOpenReminderModal={(chat, title) => setReminderTargetChat({ chat, title })}
+              onOpenProfile={(user) => openProfileFor(user)}
+              onNotify={notify}
+            />
+          </div>
+        )}
+
+        {/* TAB 2: UPDATES (Stories row on top + Channels list below) */}
+        {mainTab === 'updates' && (
+          <div
+            className={`${
+              activeChat ? 'hidden md:flex' : 'flex'
+            } w-full md:w-[360px] lg:w-[390px] shrink-0 h-full flex-col bg-[var(--dank-canvas)] md:border-e md:border-[var(--dank-border)] overflow-y-auto overscroll-contain`}
+          >
+            {/* Stories / Status Row */}
+            <StoriesBar
+              currentUser={profile}
+              stories={stories}
+              usersMap={usersMap}
+              viewedStoryIds={viewedStoryIds}
+              onOpenCreateStory={() => setShowCreateStoryModal(true)}
+              onOpenStoryGroup={(group) => setActiveStoryGroup(group)}
+            />
+
+            {/* Channels Section */}
+            <div className="p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-bold text-[var(--dank-text)]">
+                  {t.whatsapp.channelsSection}
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setCreateModalType('channel')}
+                  className="h-8 px-3 rounded-full bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-xs font-bold flex items-center gap-1 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                  <span>{t.sidebar.newChannel}</span>
+                </button>
+              </div>
+
+              {filteredJoinedChannels.length === 0 ? (
+                <div className="rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] p-4 text-center">
+                  <Megaphone className="w-6 h-6 text-[var(--dank-accent)] mx-auto mb-1.5" />
+                  <p className="text-xs text-[var(--dank-muted)]">{t.whatsapp.noChannelsJoined}</p>
+                </div>
               ) : (
-                <div className="flex-1 h-full dank-chat-bg flex items-center justify-center p-8">
-                  <div className="max-w-md w-full rounded-2xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F] p-7 shadow-sm text-center space-y-5">
-                    <div className="flex items-center justify-center">
-                      <DankLogo size="lg" showText={true} />
-                    </div>
-                    <div>
-                      <h2 className="text-xl font-bold text-[#0E1621] dark:text-white">
-                        {t.welcome.title}
-                      </h2>
-                      <p className="mt-1.5 text-sm text-slate-600 dark:text-[#8C9FB1] leading-relaxed">
-                        {t.welcome.desc}
-                      </p>
-                    </div>
-                    <div className="flex items-center justify-center gap-2.5 pt-1 flex-wrap">
-                      <button
-                        type="button"
-                        onClick={() => setCreateModalType('group')}
-                        className="h-10 px-4 rounded-xl bg-[#242F3D] hover:bg-[#2D3B4D] text-white text-xs font-semibold flex items-center gap-2 cursor-pointer"
+                <div className="rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] divide-y divide-[var(--dank-border-subtle)] overflow-hidden">
+                  {filteredJoinedChannels.map((ch) => (
+                    <button
+                      key={ch.id}
+                      type="button"
+                      onClick={() => setActiveChatId(ch.id)}
+                      className={`w-full px-3.5 py-3 flex items-center gap-3 text-start transition-colors cursor-pointer ${
+                        activeChatId === ch.id
+                          ? 'bg-[var(--dank-elevated)]'
+                          : 'hover:bg-[var(--dank-hover)]'
+                      }`}
+                    >
+                      <Avatar
+                        src={ch.photoURL}
+                        name={ch.name || t.common.channel}
+                        size="md"
+                        chatType="channel"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <span dir="auto" className="text-sm font-bold text-[var(--dank-text)] truncate">
+                            {ch.name || t.common.channel}
+                          </span>
+                          <span className="text-[11px] text-[var(--dank-muted)] tabular-nums shrink-0">
+                            {formatChatTime(ch.lastMessageAt || ch.updatedAt, language)}
+                          </span>
+                        </div>
+                        <p dir="auto" className="text-xs text-[var(--dank-muted)] truncate mt-0.5">
+                          {ch.lastMessageText || `${ch.memberCount} ${t.common.subscribers}`}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Discover Public Channels */}
+              {discoverChannels.length > 0 && (
+                <div className="space-y-2 pt-2">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--dank-muted)] px-1">
+                    {t.whatsapp.exploreChannels}
+                  </h3>
+                  <div className="rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] divide-y divide-[var(--dank-border-subtle)] overflow-hidden">
+                    {discoverChannels.map((ch) => (
+                      <div
+                        key={ch.id}
+                        className="px-3.5 py-3 flex items-center gap-3"
                       >
-                        <Users className="w-4 h-4 text-[#2AABEE]" />
-                        {t.welcome.newGroup}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setCreateModalType('channel')}
-                        className="h-10 px-4 rounded-xl bg-[#2AABEE] hover:bg-[#229ED9] text-white text-xs font-bold flex items-center gap-2 cursor-pointer"
-                      >
-                        <Megaphone className="w-4 h-4" />
-                        {t.welcome.newChannel}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setMainTab('posts')}
-                        className="h-10 px-3.5 rounded-xl border border-slate-200 dark:border-[#22303F] hover:bg-black/5 dark:hover:bg-white/10 text-[#0E1621] dark:text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
-                      >
-                        <LayoutGrid className="w-4 h-4 text-[#2AABEE]" />
-                        {t.tabs.posts}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={toggleTheme}
-                        aria-label={isDark ? t.theme.switchToLight : t.theme.switchToDark}
-                        className="w-10 h-10 rounded-xl border border-slate-200 dark:border-[#22303F] hover:bg-black/5 dark:hover:bg-white/10 text-[#0E1621] dark:text-white flex items-center justify-center cursor-pointer"
-                      >
-                        {isDark ? (
-                          <Sun className="w-4 h-4 text-amber-400" />
-                        ) : (
-                          <Moon className="w-4 h-4 text-[#0E1621]" />
-                        )}
-                      </button>
-                      {isAdmin && (
+                        <Avatar
+                          src={ch.photoURL}
+                          name={ch.name || t.common.channel}
+                          size="md"
+                          chatType="channel"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p dir="auto" className="text-sm font-bold text-[var(--dank-text)] truncate">
+                            {ch.name || t.common.channel}
+                          </p>
+                          <p className="text-xs text-[var(--dank-muted)] truncate mt-0.5">
+                            {ch.memberCount} {t.common.subscribers}
+                          </p>
+                        </div>
                         <button
                           type="button"
-                          onClick={() => setShowAdminModal(true)}
-                          className="h-10 px-3.5 rounded-xl border border-slate-200 dark:border-[#22303F] hover:bg-black/5 dark:hover:bg-white/10 text-[#0E1621] dark:text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                          onClick={() => void handleJoinPublicChannel(ch.id)}
+                          className="h-8 px-4 rounded-full bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-xs font-bold shrink-0 cursor-pointer"
                         >
-                          <Shield className="w-4 h-4 text-[#2AABEE]" />
-                          {t.welcome.admin}
+                          {t.common.join}
                         </button>
-                      )}
-                    </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
-            </main>
-          </>
+            </div>
+          </div>
         )}
 
-        {mainTab === 'posts' && (
-          <PostsFeed
-            currentUser={profile}
-            posts={posts}
-            usersMap={usersMap}
-            savedPostIds={savedPostIds}
-            highlightedPostId={highlightedPostId}
-            onClearHighlightedPost={() => setHighlightedPostId(null)}
-            onOpenDrawer={() => setDrawerOpen(true)}
-            onOpenProfile={(user) => openProfileFor(user)}
-            onNotify={notify}
-          />
+        {/* TAB 3: COMMUNITIES (Groups + Public Communities + Community Feed modal button) */}
+        {mainTab === 'communities' && (
+          <div
+            className={`${
+              activeChat ? 'hidden md:flex' : 'flex'
+            } w-full md:w-[360px] lg:w-[390px] shrink-0 h-full flex-col bg-[var(--dank-canvas)] md:border-e md:border-[var(--dank-border)] overflow-y-auto overscroll-contain`}
+          >
+            <div className="p-4 space-y-4">
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="text-lg font-bold text-[var(--dank-text)]">
+                  {t.whatsapp.communitiesTitle}
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setCreateModalType('group')}
+                  className="h-8 px-3 rounded-full bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-xs font-bold flex items-center gap-1 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                  <span>{t.whatsapp.newCommunity}</span>
+                </button>
+              </div>
+
+              {/* Community Posts Feed Shortcut Card */}
+              <button
+                type="button"
+                onClick={() => setShowPostsModal(true)}
+                className="w-full p-3.5 rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] hover:border-[var(--dank-accent)] flex items-center justify-between gap-3 text-start transition-colors cursor-pointer"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-11 h-11 rounded-2xl bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] flex items-center justify-center shrink-0">
+                    <LayoutGrid className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-[var(--dank-text)] truncate">
+                      {t.whatsapp.openPostsFeed}
+                    </p>
+                    <p className="text-xs text-[var(--dank-muted)] truncate">
+                      {posts.length} {t.tabs.posts}
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-[var(--dank-muted)] rtl:rotate-180 shrink-0" />
+              </button>
+
+              {filteredJoinedGroups.length === 0 ? (
+                <div className="rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] p-6 text-center">
+                  <Users className="w-7 h-7 text-[var(--dank-accent)] mx-auto mb-2" />
+                  <p className="text-sm font-semibold text-[var(--dank-text)]">{t.sidebar.groups}</p>
+                  <p className="text-xs text-[var(--dank-muted)] mt-1">{t.sidebar.noPublicYetDesc}</p>
+                </div>
+              ) : (
+                <div className="rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] divide-y divide-[var(--dank-border-subtle)] overflow-hidden">
+                  {filteredJoinedGroups.map((grp) => (
+                    <button
+                      key={grp.id}
+                      type="button"
+                      onClick={() => setActiveChatId(grp.id)}
+                      className={`w-full px-3.5 py-3 flex items-center gap-3 text-start transition-colors cursor-pointer ${
+                        activeChatId === grp.id
+                          ? 'bg-[var(--dank-elevated)]'
+                          : 'hover:bg-[var(--dank-hover)]'
+                      }`}
+                    >
+                      <Avatar
+                        src={grp.photoURL}
+                        name={grp.name || t.common.group}
+                        size="md"
+                        chatType="group"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <span dir="auto" className="text-sm font-bold text-[var(--dank-text)] truncate">
+                            {grp.name || t.common.group}
+                          </span>
+                          <span className="text-[11px] text-[var(--dank-muted)] tabular-nums shrink-0">
+                            {formatChatTime(grp.lastMessageAt || grp.updatedAt, language)}
+                          </span>
+                        </div>
+                        <p dir="auto" className="text-xs text-[var(--dank-muted)] truncate mt-0.5">
+                          {grp.lastMessageText || `${grp.memberCount} ${t.common.members}`}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {discoverGroups.length > 0 && (
+                <div className="space-y-2 pt-1">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--dank-muted)] px-1">
+                    {t.sidebar.trending}
+                  </h3>
+                  <div className="rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] divide-y divide-[var(--dank-border-subtle)] overflow-hidden">
+                    {discoverGroups.map((grp) => (
+                      <div key={grp.id} className="px-3.5 py-3 flex items-center gap-3">
+                        <Avatar
+                          src={grp.photoURL}
+                          name={grp.name || t.common.group}
+                          size="md"
+                          chatType="group"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p dir="auto" className="text-sm font-bold text-[var(--dank-text)] truncate">
+                            {grp.name || t.common.group}
+                          </p>
+                          <p className="text-xs text-[var(--dank-muted)] truncate mt-0.5">
+                            {grp.memberCount} {t.common.members}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void handleJoinPublicChannel(grp.id)}
+                          className="h-8 px-4 rounded-full bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-xs font-bold shrink-0 cursor-pointer"
+                        >
+                          {t.common.join}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         )}
 
-        {mainTab === 'reels' && (
-          <ReelsFeed
-            currentUser={profile}
-            reels={reels}
-            usersMap={usersMap}
-            savedReelIds={savedReelIds}
-            followingIds={followingIds}
-            isTabActive={mainTab === 'reels'}
-            initialReelId={initialReelId}
-            onOpenDrawer={() => setDrawerOpen(true)}
-            onOpenProfile={(user) => openProfileFor(user)}
-            onNotify={notify}
-          />
+        {/* Active Chat Pane (Mobile Fullscreen 100dvh + Desktop Right Pane) */}
+        {(activeChat || showSplitChatPaneOnDesktop) && (
+          <main
+            className={`${
+              activeChat
+                ? 'fixed inset-0 h-[100dvh] z-30 flex md:static md:h-full md:z-auto'
+                : 'hidden md:flex'
+            } flex-1 min-w-0 bg-[var(--dank-canvas)]`}
+          >
+            {activeChat ? (
+              <ChatWindow
+                chat={activeChat}
+                chats={chats}
+                currentUser={profile}
+                usersMap={usersMap}
+                contactIds={contactIds}
+                blockedUserIds={blockedUserIds}
+                isMuted={mutedChatIds.has(activeChat.id)}
+                userStickers={userStickers}
+                scheduledMessages={scheduledMessages}
+                onBackMobile={() => setActiveChatId(null)}
+                onOpenChatInfo={() => setShowChatInfoModal(true)}
+                onOpenProfile={(user) => openProfileFor(user)}
+                onStartCall={(peer, chatId) => void handleStartCall(peer, chatId)}
+                onSelectChat={(id) => setActiveChatId(id)}
+                onNotify={notify}
+              />
+            ) : (
+              <div className="flex-1 h-full dank-chat-bg flex items-center justify-center p-8">
+                <div className="max-w-md w-full rounded-3xl bg-[var(--dank-surface)] border border-[var(--dank-border)] p-7 shadow-xl text-center space-y-5">
+                  <div className="flex items-center justify-center">
+                    <DankLogo size="lg" showText={true} />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-[var(--dank-text)]">{t.welcome.title}</h2>
+                    <p className="mt-1.5 text-sm text-[var(--dank-muted)] leading-relaxed">
+                      {t.welcome.desc}
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-center gap-2.5 pt-1 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => setCreateModalType('group')}
+                      className="h-10 px-4 rounded-full bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] text-xs font-semibold flex items-center gap-2 cursor-pointer"
+                    >
+                      <Users className="w-4 h-4 text-[var(--dank-accent)]" />
+                      {t.welcome.newGroup}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCreateModalType('channel')}
+                      className="h-10 px-4 rounded-full bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-xs font-bold flex items-center gap-2 cursor-pointer"
+                    >
+                      <Megaphone className="w-4 h-4" />
+                      {t.welcome.newChannel}
+                    </button>
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => setShowAdminModal(true)}
+                        className="h-10 px-4 rounded-full border border-[var(--dank-border)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Shield className="w-4 h-4 text-[var(--dank-accent)]" />
+                        {t.welcome.admin}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </main>
         )}
 
-        {mainTab === 'profile' && (
-          <ProfilePage
-            user={profile}
-            currentUser={profile}
-            usersMap={usersMap}
-            posts={posts}
-            reels={reels}
-            followerUids={myFollowerUids}
-            followingUids={myFollowingUids}
-            isFollowing={false}
-            allFollowEdges={effectiveFollows}
-            myFollowingSet={followingIds}
-            onOpenEditProfile={() => {
-              setProfileModalEditMode(true);
-              setShowProfileModal(true);
-            }}
-            onOpenSettings={() => setShowSettingsPrivacyModal(true)}
-            onStartChat={(u) => void handleStartPrivateChat(u)}
-            onViewProfile={(u) => openProfileFor(u)}
-            onOpenPost={(post) => {
-              setHighlightedPostId(post.id);
-              setMainTab('posts');
-            }}
-            onOpenReel={(reel) => {
-              setInitialReelId(reel.id);
-              setMainTab('reels');
-            }}
-            onNotify={notify}
-          />
+        {/* TAB 4: CALLS (Voice Calls ONLY) */}
+        {mainTab === 'calls' && (
+          <div className="flex-1 h-full overflow-y-auto overscroll-contain bg-[var(--dank-canvas)] p-4">
+            <div className="max-w-2xl mx-auto space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-bold text-[var(--dank-text)]">
+                  {t.whatsapp.callsTitle}
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCallPickerSearch('');
+                    setShowCallPickerModal(true);
+                  }}
+                  className="h-9 px-4 rounded-full bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4 stroke-[2.5]" />
+                  <Phone className="w-3.5 h-3.5" />
+                  <span>{t.whatsapp.startNewCall}</span>
+                </button>
+              </div>
+
+              {filteredCalls.length === 0 ? (
+                <div className="rounded-3xl bg-[var(--dank-surface)] border border-[var(--dank-border)] py-14 px-6 text-center space-y-2">
+                  <Phone className="w-9 h-9 text-[var(--dank-accent)] mx-auto" />
+                  <p className="text-sm font-bold text-[var(--dank-text)]">{t.calls.noCallsYet}</p>
+                  <p className="text-xs text-[var(--dank-muted)]">{t.whatsapp.recentCalls}</p>
+                </div>
+              ) : (
+                <div className="rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] divide-y divide-[var(--dank-border-subtle)] overflow-hidden">
+                  {filteredCalls.map((call) => {
+                    const isOutgoing = call.callerId === profile.uid;
+                    const peerUid = isOutgoing ? call.calleeId : call.callerId;
+                    const peerName = isOutgoing ? call.calleeName : call.callerName;
+                    const peerPhoto = isOutgoing ? call.calleePhoto : call.callerPhoto;
+                    const peerObj: UserPublic = usersMap[peerUid] || {
+                      uid: peerUid,
+                      name: peerName,
+                      username: peerName.toLowerCase().replace(/\s+/g, '') || 'user',
+                      photoURL: peerPhoto || '',
+                      isOnline: false,
+                      lastSeen: null,
+                      createdAt: null,
+                      updatedAt: null,
+                    };
+                    const isMissed =
+                      call.status === 'missed' || call.status === 'declined';
+                    const durationFormatted = call.durationSeconds
+                      ? `${Math.floor(call.durationSeconds / 60)}:${(call.durationSeconds % 60)
+                          .toString()
+                          .padStart(2, '0')}`
+                      : '';
+
+                    return (
+                      <div
+                        key={call.id}
+                        className="px-4 py-3 flex items-center justify-between gap-3 hover:bg-[var(--dank-hover)] transition-colors"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Avatar src={peerPhoto} name={peerName} size="md" />
+                          <div className="min-w-0">
+                            <p
+                              className={`text-sm font-semibold truncate ${
+                                isMissed ? 'text-red-500' : 'text-[var(--dank-text)]'
+                              }`}
+                            >
+                              {peerName}
+                            </p>
+                            <div className="flex items-center gap-1.5 text-xs text-[var(--dank-muted)] mt-0.5">
+                              {isMissed ? (
+                                <PhoneMissed className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                              ) : isOutgoing ? (
+                                <PhoneOutgoing className="w-3.5 h-3.5 text-[var(--dank-accent)] shrink-0" />
+                              ) : (
+                                <PhoneIncoming className="w-3.5 h-3.5 text-[var(--dank-accent)] shrink-0" />
+                              )}
+                              <span className={`truncate ${isMissed ? 'text-red-500 font-medium' : ''}`}>
+                                {isMissed
+                                  ? t.calls.missed
+                                  : isOutgoing
+                                  ? `${t.calls.outgoingCall} · ${t.calls.voiceCall}`
+                                  : `${t.calls.incomingLabel} · ${t.calls.voiceCall}`}
+                                {durationFormatted ? ` · ${durationFormatted}` : ''}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-[11px] text-[var(--dank-muted)] tabular-nums">
+                            {formatChatTime(call.startedAt, language)}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => void handleStartCall(peerObj, call.chatId)}
+                            aria-label={t.calls.voiceCall}
+                            className="w-10 h-10 rounded-full hover:bg-[var(--dank-elevated)] text-[var(--dank-accent)] flex items-center justify-center cursor-pointer"
+                          >
+                            <Phone className="w-4.5 h-4.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 5: SETTINGS (Exact iPhone WhatsApp Settings Layout + Appearance 4 Themes) */}
+        {mainTab === 'settings' && (
+          <div className="flex-1 h-full overflow-y-auto overscroll-contain bg-[var(--dank-canvas)] p-4 pb-8">
+            <div className="max-w-2xl mx-auto space-y-4">
+              {/* Top Profile Card: Photo + Name + About */}
+              <button
+                type="button"
+                onClick={() => {
+                  setProfileModalEditMode(false);
+                  setShowProfileModal(true);
+                }}
+                className="w-full p-4 rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] hover:border-[var(--dank-accent)] flex items-center gap-3.5 text-start transition-colors cursor-pointer"
+              >
+                <Avatar src={profile.photoURL} name={profile.name} size="lg" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <h2 className="text-base font-bold text-[var(--dank-text)] truncate">
+                      {profile.name}
+                    </h2>
+                    <UserBadges
+                      isAdmin={profile.isAdmin}
+                      isVerified={profile.isVerified}
+                      isVip={profile.isVip || (profile.inviteCount ?? 0) >= 5}
+                      isPlus={profile.isPlus}
+                      size="sm"
+                    />
+                  </div>
+                  <p dir="auto" className="text-xs text-[var(--dank-muted)] truncate mt-0.5">
+                    {profile.bio || t.errors.defaultBio}
+                  </p>
+                </div>
+                <ChevronRight className="w-5 h-5 text-[var(--dank-muted)] rtl:rotate-180 shrink-0" />
+              </button>
+
+              {/* Settings > Appearance (4 Instant Theme Preview Circles) */}
+              <div className="rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] p-4 space-y-3">
+                <button
+                  type="button"
+                  onClick={() => setShowAppearanceSheet(true)}
+                  className="w-full flex items-center justify-between gap-3 text-start cursor-pointer"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-xl bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] flex items-center justify-center shrink-0">
+                      <Palette className="w-4.5 h-4.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-[var(--dank-text)]">
+                        {t.whatsapp.appearance}
+                      </p>
+                      <p className="text-xs text-[var(--dank-muted)] truncate">
+                        {getThemeLabel(theme)}
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-[var(--dank-muted)] rtl:rotate-180 shrink-0" />
+                </button>
+
+                <div className="grid grid-cols-4 gap-2 pt-1">
+                  {THEME_OPTIONS.map((opt) => {
+                    const active = theme === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => handleSelectTheme(opt.id)}
+                        className={`p-2 rounded-2xl border flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
+                          active
+                            ? 'bg-[var(--dank-accent-soft)] border-[var(--dank-accent)] shadow-xs'
+                            : 'bg-[var(--dank-canvas)] border-[var(--dank-border)] hover:border-[var(--dank-muted)]'
+                        }`}
+                      >
+                        <span
+                          className="relative w-11 h-11 rounded-full border-2 shadow-sm overflow-hidden flex items-center justify-center transition-transform active:scale-95"
+                          style={{
+                            borderColor: active ? opt.accent : 'var(--dank-border)',
+                            background: `linear-gradient(135deg, ${opt.canvas} 50%, ${opt.accent} 50%)`,
+                          }}
+                        >
+                          {active && (
+                            <span className="w-5 h-5 rounded-full bg-black/65 text-white flex items-center justify-center">
+                              <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                            </span>
+                          )}
+                        </span>
+                        <span className="text-[11px] font-semibold text-[var(--dank-text)] text-center leading-tight line-clamp-2">
+                          {getThemeLabel(opt.id)}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Main WhatsApp Settings List */}
+              <div className="rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] divide-y divide-[var(--dank-border)] overflow-hidden">
+                {/* Account */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProfileModalEditMode(false);
+                    setShowProfileModal(true);
+                  }}
+                  className="w-full px-4 py-3.5 flex items-center gap-3.5 text-start hover:bg-[var(--dank-hover)] cursor-pointer"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] flex items-center justify-center shrink-0">
+                    <KeyRound className="w-4.5 h-4.5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-[var(--dank-text)]">
+                      {t.whatsapp.account}
+                    </p>
+                    <p className="text-xs text-[var(--dank-muted)] truncate">
+                      {t.whatsapp.accountDesc}
+                    </p>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-[var(--dank-muted)] rtl:rotate-180 shrink-0" />
+                </button>
+
+                {/* Privacy */}
+                <button
+                  type="button"
+                  onClick={() => setShowSettingsPrivacyModal(true)}
+                  className="w-full px-4 py-3.5 flex items-center gap-3.5 text-start hover:bg-[var(--dank-hover)] cursor-pointer"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] flex items-center justify-center shrink-0">
+                    <Lock className="w-4.5 h-4.5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-[var(--dank-text)]">
+                      {t.whatsapp.privacy}
+                    </p>
+                    <p className="text-xs text-[var(--dank-muted)] truncate">
+                      {t.whatsapp.privacyDesc}
+                    </p>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-[var(--dank-muted)] rtl:rotate-180 shrink-0" />
+                </button>
+
+                {/* Avatar */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProfileModalEditMode(true);
+                    setShowProfileModal(true);
+                  }}
+                  className="w-full px-4 py-3.5 flex items-center gap-3.5 text-start hover:bg-[var(--dank-hover)] cursor-pointer"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] flex items-center justify-center shrink-0">
+                    <Camera className="w-4.5 h-4.5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-[var(--dank-text)]">
+                      {t.whatsapp.avatar}
+                    </p>
+                    <p className="text-xs text-[var(--dank-muted)] truncate">
+                      {t.whatsapp.avatarDesc}
+                    </p>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-[var(--dank-muted)] rtl:rotate-180 shrink-0" />
+                </button>
+
+                {/* Chats */}
+                <button
+                  type="button"
+                  onClick={() => setShowChatsSubSheet(true)}
+                  className="w-full px-4 py-3.5 flex items-center gap-3.5 text-start hover:bg-[var(--dank-hover)] cursor-pointer"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] flex items-center justify-center shrink-0">
+                    <MessageSquare className="w-4.5 h-4.5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-[var(--dank-text)]">
+                      {t.whatsapp.chats}
+                    </p>
+                    <p className="text-xs text-[var(--dank-muted)] truncate">
+                      {t.whatsapp.chatsDesc}
+                    </p>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-[var(--dank-muted)] rtl:rotate-180 shrink-0" />
+                </button>
+
+                {/* Notifications */}
+                <button
+                  type="button"
+                  onClick={() => setShowNotificationsPage(true)}
+                  className="w-full px-4 py-3.5 flex items-center gap-3.5 text-start hover:bg-[var(--dank-hover)] cursor-pointer"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] flex items-center justify-center shrink-0">
+                    <Bell className="w-4.5 h-4.5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-[var(--dank-text)]">
+                      {t.whatsapp.notifications}
+                    </p>
+                    <p className="text-xs text-[var(--dank-muted)] truncate">
+                      {t.whatsapp.notificationsDesc}
+                    </p>
+                  </div>
+                  {unreadNotifsCount > 0 && (
+                    <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-[var(--dank-accent)] text-[var(--dank-accent-fg)] text-[11px] font-bold flex items-center justify-center tabular-nums">
+                      {unreadNotifsCount > 99 ? '99+' : unreadNotifsCount}
+                    </span>
+                  )}
+                  <ChevronRight className="w-4 h-4 text-[var(--dank-muted)] rtl:rotate-180 shrink-0" />
+                </button>
+
+                {/* Storage */}
+                <button
+                  type="button"
+                  onClick={handleClearChatCache}
+                  className="w-full px-4 py-3.5 flex items-center gap-3.5 text-start hover:bg-[var(--dank-hover)] cursor-pointer"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] flex items-center justify-center shrink-0">
+                    <HardDrive className="w-4.5 h-4.5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-[var(--dank-text)]">
+                      {t.whatsapp.storage}
+                    </p>
+                    <p className="text-xs text-[var(--dank-muted)] truncate">
+                      {t.whatsapp.storageDesc} · {storageCacheKb} KB
+                    </p>
+                  </div>
+                  <span className="text-xs font-bold text-[var(--dank-accent)] shrink-0">
+                    {t.whatsapp.clearCache}
+                  </span>
+                </button>
+
+                {/* Language */}
+                <button
+                  type="button"
+                  onClick={() => void setLanguage(language === 'ar' ? 'en' : 'ar')}
+                  className="w-full px-4 py-3.5 flex items-center gap-3.5 text-start hover:bg-[var(--dank-hover)] cursor-pointer"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] flex items-center justify-center shrink-0">
+                    <Globe className="w-4.5 h-4.5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-[var(--dank-text)]">
+                      {t.whatsapp.languageLabel}
+                    </p>
+                    <p className="text-xs text-[var(--dank-muted)] truncate">
+                      {language === 'ar' ? t.common.arabic : t.common.english}
+                    </p>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-full bg-[var(--dank-elevated)] text-xs font-bold text-[var(--dank-accent)] shrink-0">
+                    {language === 'ar' ? 'العربية' : 'English'}
+                  </span>
+                </button>
+
+                {/* Help */}
+                <button
+                  type="button"
+                  onClick={() => setShowHelpSheet(true)}
+                  className="w-full px-4 py-3.5 flex items-center gap-3.5 text-start hover:bg-[var(--dank-hover)] cursor-pointer"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] flex items-center justify-center shrink-0">
+                    <HelpCircle className="w-4.5 h-4.5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-[var(--dank-text)]">
+                      {t.whatsapp.help}
+                    </p>
+                    <p className="text-xs text-[var(--dank-muted)] truncate">
+                      {t.whatsapp.helpDesc}
+                    </p>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-[var(--dank-muted)] rtl:rotate-180 shrink-0" />
+                </button>
+              </div>
+
+              {/* Admin & Logout Group */}
+              <div className="rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] divide-y divide-[var(--dank-border)] overflow-hidden">
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAdminModal(true)}
+                    className="w-full px-4 py-3.5 flex items-center gap-3.5 text-start hover:bg-[var(--dank-hover)] cursor-pointer"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] flex items-center justify-center shrink-0">
+                      <Shield className="w-4.5 h-4.5" />
+                    </div>
+                    <span className="flex-1 text-sm font-semibold text-[var(--dank-text)]">
+                      {t.sidebar.adminDashboard}
+                    </span>
+                    <ChevronRight className="w-4 h-4 text-[var(--dank-muted)] rtl:rotate-180 shrink-0" />
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => void logout()}
+                  className="w-full px-4 py-3.5 flex items-center gap-3.5 text-start hover:bg-red-500/10 text-red-500 cursor-pointer"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-red-500/15 text-red-500 flex items-center justify-center shrink-0">
+                    <LogOut className="w-4.5 h-4.5" />
+                  </div>
+                  <span className="flex-1 text-sm font-bold">{t.profile.logout}</span>
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
 
-      {/* Persistent Telegram-style DANK 5-Tab Bottom Navigation Bar */}
+      {/* Persistent iPhone WhatsApp 5-Tab Bottom Bar */}
       <nav
         aria-label={t.tabs.chats}
-        className="h-15 shrink-0 bg-white dark:bg-[#17212B] border-t border-slate-200 dark:border-[#22303F] grid grid-cols-5 items-center px-1 z-20"
+        className={`${
+          activeChat ? 'hidden md:grid' : 'grid'
+        } grid-cols-5 items-center bg-[var(--dank-surface)] border-t border-[var(--dank-border)] min-h-[60px] pb-safe px-1 shrink-0 z-20`}
       >
         <button
           type="button"
@@ -1536,16 +2544,16 @@ export default function App() {
             setViewedProfileUser(null);
             setMainTab('chats');
           }}
-          className={`relative min-h-[44px] h-12 rounded-xl flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold transition-colors cursor-pointer ${
-            mainTab === 'chats' && !viewedProfileUser
-              ? 'text-[#2AABEE] bg-[#2AABEE]/10'
-              : 'text-slate-500 dark:text-[#8C9FB1] hover:text-[#0E1621] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'
+          className={`min-h-[48px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold transition-colors cursor-pointer ${
+            mainTab === 'chats'
+              ? 'text-[var(--dank-accent)]'
+              : 'text-[var(--dank-muted)] hover:text-[var(--dank-text)]'
           }`}
         >
           <div className="relative">
-            <MessageSquare className="w-4.5 h-4.5 shrink-0" />
+            <MessageCircle className="w-5 h-5 shrink-0" />
             {unreadChatsCount > 0 && (
-              <span className="absolute -top-1.5 -end-2.5 min-w-[16px] h-4 px-1 rounded-full bg-[#2AABEE] text-white text-[10px] font-bold flex items-center justify-center tabular-nums">
+              <span className="absolute -top-1.5 -end-2.5 min-w-[16px] h-4 px-1 rounded-full bg-[var(--dank-accent)] text-[var(--dank-accent-fg)] text-[10px] font-bold flex items-center justify-center tabular-nums">
                 {unreadChatsCount > 99 ? '99+' : unreadChatsCount}
               </span>
             )}
@@ -1557,107 +2565,375 @@ export default function App() {
           type="button"
           onClick={() => {
             setViewedProfileUser(null);
-            setMainTab('groups');
-            setActiveChatId(null);
+            setMainTab('updates');
           }}
-          className={`min-h-[44px] h-12 rounded-xl flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold transition-colors cursor-pointer ${
-            mainTab === 'groups' && !viewedProfileUser
-              ? 'text-[#2AABEE] bg-[#2AABEE]/10'
-              : 'text-slate-500 dark:text-[#8C9FB1] hover:text-[#0E1621] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'
+          className={`min-h-[48px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold transition-colors cursor-pointer ${
+            mainTab === 'updates'
+              ? 'text-[var(--dank-accent)]'
+              : 'text-[var(--dank-muted)] hover:text-[var(--dank-text)]'
           }`}
         >
-          <Users className="w-4.5 h-4.5 shrink-0" />
-          <span className="truncate max-w-full px-1">{t.tabs.groups}</span>
+          <CircleDot className="w-5 h-5 shrink-0" />
+          <span className="truncate max-w-full px-1">{t.tabs.updates}</span>
         </button>
 
         <button
           type="button"
           onClick={() => {
             setViewedProfileUser(null);
-            setMainTab('channels');
-            setActiveChatId(null);
+            setMainTab('communities');
           }}
-          className={`min-h-[44px] h-12 rounded-xl flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold transition-colors cursor-pointer ${
-            mainTab === 'channels' && !viewedProfileUser
-              ? 'text-[#2AABEE] bg-[#2AABEE]/10'
-              : 'text-slate-500 dark:text-[#8C9FB1] hover:text-[#0E1621] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'
+          className={`min-h-[48px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold transition-colors cursor-pointer ${
+            mainTab === 'communities'
+              ? 'text-[var(--dank-accent)]'
+              : 'text-[var(--dank-muted)] hover:text-[var(--dank-text)]'
           }`}
         >
-          <Megaphone className="w-4.5 h-4.5 shrink-0" />
-          <span className="truncate max-w-full px-1">{t.tabs.channels}</span>
+          <Users className="w-5 h-5 shrink-0" />
+          <span className="truncate max-w-full px-1">{t.tabs.communities}</span>
         </button>
 
         <button
           type="button"
           onClick={() => {
             setViewedProfileUser(null);
-            setMainTab('reels');
+            setMainTab('calls');
           }}
-          className={`min-h-[44px] h-12 rounded-xl flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold transition-colors cursor-pointer ${
-            mainTab === 'reels' && !viewedProfileUser
-              ? 'text-[#2AABEE] bg-[#2AABEE]/10'
-              : 'text-slate-500 dark:text-[#8C9FB1] hover:text-[#0E1621] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'
+          className={`min-h-[48px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold transition-colors cursor-pointer ${
+            mainTab === 'calls'
+              ? 'text-[var(--dank-accent)]'
+              : 'text-[var(--dank-muted)] hover:text-[var(--dank-text)]'
           }`}
         >
-          <Film className="w-4.5 h-4.5 shrink-0" />
-          <span className="truncate max-w-full px-1">{t.tabs.reels}</span>
+          <Phone className="w-5 h-5 shrink-0" />
+          <span className="truncate max-w-full px-1">{t.tabs.calls}</span>
         </button>
 
         <button
           type="button"
           onClick={() => {
             setViewedProfileUser(null);
-            setMainTab('profile');
+            setMainTab('settings');
           }}
-          className={`min-h-[44px] h-12 rounded-xl flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold transition-colors cursor-pointer ${
-            mainTab === 'profile' && !viewedProfileUser
-              ? 'text-[#2AABEE] bg-[#2AABEE]/10'
-              : 'text-slate-500 dark:text-[#8C9FB1] hover:text-[#0E1621] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'
+          className={`min-h-[48px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold transition-colors cursor-pointer ${
+            mainTab === 'settings'
+              ? 'text-[var(--dank-accent)]'
+              : 'text-[var(--dank-muted)] hover:text-[var(--dank-text)]'
           }`}
         >
-          <User className="w-4.5 h-4.5 shrink-0" />
-          <span className="truncate max-w-full px-1">{t.tabs.profile}</span>
+          <SettingsIcon className="w-5 h-5 shrink-0" />
+          <span className="truncate max-w-full px-1">{t.tabs.settings}</span>
         </button>
       </nav>
 
-      {/* Telegram-style DANK Hamburger Drawer */}
-      <NavigationDrawer
-        open={drawerOpen}
-        currentUser={profile}
-        isAdmin={isAdmin}
-        unreadNotifsCount={unreadNotifsCount}
-        onClose={() => setDrawerOpen(false)}
-        onOpenProfile={() => openProfileFor(profile)}
-        onOpenNotifications={() => setShowNotificationsPage(true)}
-        onCreateGroup={() => setCreateModalType('group')}
-        onCreateChannel={() => setCreateModalType('channel')}
-        onCreateSecretChat={() => setCreateModalType('secret')}
-        onOpenContacts={() => setContactsCallsTab('contacts')}
-        onOpenCalls={() => setContactsCallsTab('calls')}
-        onOpenSavedMessages={() => void handleOpenSavedMessages()}
-        onOpenPostsFeed={() => {
-          setViewedProfileUser(null);
-          setMainTab('posts');
-        }}
-        onOpenDankTeam={() => void handleOpenDankTeam()}
-        onOpenDankBot={() => void handleOpenDankBot()}
-        onOpenDankPlus={() => setShowDankPlusModal(true)}
-        onOpenSettings={() => setShowSettingsPrivacyModal(true)}
-        onOpenAdmin={() => {
-          if (isAdmin) setShowAdminModal(true);
-        }}
-        onLogout={() => void logout()}
-      />
+      {/* New Voice Call Contact Picker Modal */}
+      {showCallPickerModal && (
+        <div
+          onClick={() => setShowCallPickerModal(false)}
+          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-[2px] flex items-end sm:items-center justify-center p-0 sm:p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full sm:max-w-md max-h-[85vh] rounded-t-3xl sm:rounded-3xl bg-[var(--dank-surface)] border border-[var(--dank-border)] overflow-hidden shadow-2xl flex flex-col"
+          >
+            <div className="px-4 py-3.5 border-b border-[var(--dank-border)] flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2">
+                <Phone className="w-4.5 h-4.5 text-[var(--dank-accent)]" />
+                <span className="text-sm font-bold text-[var(--dank-text)]">
+                  {t.calls.pickContactToCall}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCallPickerModal(false)}
+                aria-label={t.common.close}
+                className="p-1.5 rounded-full hover:bg-[var(--dank-hover)] text-[var(--dank-muted)] hover:text-[var(--dank-text)] cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-3 border-b border-[var(--dank-border)] shrink-0">
+              <div className="relative">
+                <Search className="w-4 h-4 text-[var(--dank-muted)] absolute start-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  dir="auto"
+                  autoFocus
+                  value={callPickerSearch}
+                  onChange={(e) => setCallPickerSearch(e.target.value)}
+                  placeholder={t.calls.searchContactsToCall}
+                  className="w-full h-10 ps-10 pe-4 rounded-full bg-[var(--dank-canvas)] border border-[var(--dank-border)] text-base text-[var(--dank-text)] placeholder:text-[var(--dank-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)]"
+                />
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto divide-y divide-[var(--dank-border-subtle)]">
+              {callPickerCandidates.length === 0 ? (
+                <div className="py-12 px-4 text-center text-xs text-[var(--dank-muted)]">
+                  {t.calls.noContactsFound}
+                </div>
+              ) : (
+                callPickerCandidates.map((person) => (
+                  <button
+                    key={person.uid}
+                    type="button"
+                    onClick={() => {
+                      setShowCallPickerModal(false);
+                      void handleStartCall(person);
+                    }}
+                    className="w-full px-4 py-3 flex items-center justify-between gap-3 text-start hover:bg-[var(--dank-hover)] transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Avatar src={person.photoURL} name={person.name} size="md" />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1 min-w-0">
+                          <span className="text-sm font-semibold text-[var(--dank-text)] truncate">
+                            {person.name}
+                          </span>
+                          <UserBadges
+                            isAdmin={person.isAdmin}
+                            isVerified={person.isVerified}
+                            isVip={person.isVip || (person.inviteCount ?? 0) >= 5}
+                            isPlus={person.isPlus}
+                            size="xs"
+                          />
+                        </div>
+                        <p dir="ltr" className="text-xs text-[var(--dank-muted)] truncate text-start">
+                          @{person.username}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="w-9 h-9 rounded-full bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] flex items-center justify-center shrink-0">
+                      <Phone className="w-4 h-4" />
+                    </span>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Appearance Theme Sheet */}
+      {showAppearanceSheet && (
+        <div
+          onClick={() => setShowAppearanceSheet(false)}
+          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-[2px] flex items-end sm:items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm rounded-3xl bg-[var(--dank-surface)] border border-[var(--dank-border)] overflow-hidden shadow-2xl"
+          >
+            <div className="px-4 py-3 border-b border-[var(--dank-border)] flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Palette className="w-4.5 h-4.5 text-[var(--dank-accent)]" />
+                <span className="text-sm font-bold text-[var(--dank-text)]">
+                  {t.theme.appearanceTitle}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAppearanceSheet(false)}
+                className="p-1.5 rounded-full hover:bg-[var(--dank-hover)] text-[var(--dank-muted)] hover:text-[var(--dank-text)] cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-3 space-y-2">
+              {THEME_OPTIONS.map((opt) => {
+                const active = theme === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => {
+                      handleSelectTheme(opt.id);
+                      setShowAppearanceSheet(false);
+                    }}
+                    className={`w-full px-3.5 py-3 rounded-2xl border flex items-center justify-between gap-3 transition-colors cursor-pointer ${
+                      active
+                        ? 'bg-[var(--dank-accent-soft)] border-[var(--dank-accent)]'
+                        : 'bg-[var(--dank-canvas)] border-[var(--dank-border)] hover:border-[var(--dank-muted)]'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span
+                        className="w-9 h-9 rounded-full border border-[var(--dank-border)] shrink-0 shadow-xs"
+                        style={{
+                          background: `linear-gradient(135deg, ${opt.canvas} 50%, ${opt.accent} 50%)`,
+                        }}
+                      />
+                      <span className="text-sm font-semibold text-[var(--dank-text)] truncate">
+                        {getThemeLabel(opt.id)}
+                      </span>
+                    </div>
+                    {active && <Check className="w-4.5 h-4.5 text-[var(--dank-accent)] shrink-0" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Chats Quick Action Sheet (from Settings -> Chats) */}
+      {showChatsSubSheet && (
+        <div
+          onClick={() => setShowChatsSubSheet(false)}
+          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-[2px] flex items-end sm:items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm rounded-3xl bg-[var(--dank-surface)] border border-[var(--dank-border)] overflow-hidden shadow-2xl"
+          >
+            <div className="px-4 py-3 border-b border-[var(--dank-border)] flex items-center justify-between">
+              <span className="text-sm font-bold text-[var(--dank-text)]">{t.whatsapp.chats}</span>
+              <button
+                type="button"
+                onClick={() => setShowChatsSubSheet(false)}
+                className="p-1.5 rounded-full hover:bg-[var(--dank-hover)] text-[var(--dank-muted)] hover:text-[var(--dank-text)] cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-2 space-y-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowChatsSubSheet(false);
+                  void handleOpenSavedMessages();
+                }}
+                className="w-full px-3.5 py-3 rounded-xl hover:bg-[var(--dank-hover)] flex items-center gap-3 text-sm font-medium text-[var(--dank-text)] cursor-pointer"
+              >
+                <Bookmark className="w-4.5 h-4.5 text-[var(--dank-accent)]" />
+                <span>{t.telegram.savedMessagesTitle}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowChatsSubSheet(false);
+                  setCreateModalType('secret');
+                }}
+                className="w-full px-3.5 py-3 rounded-xl hover:bg-[var(--dank-hover)] flex items-center gap-3 text-sm font-medium text-[var(--dank-text)] cursor-pointer"
+              >
+                <Lock className="w-4.5 h-4.5 text-[var(--dank-accent)]" />
+                <span>{t.telegram.secretChat}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowChatsSubSheet(false);
+                  setShowAppearanceSheet(true);
+                }}
+                className="w-full px-3.5 py-3 rounded-xl hover:bg-[var(--dank-hover)] flex items-center justify-between text-sm font-medium text-[var(--dank-text)] cursor-pointer"
+              >
+                <span className="flex items-center gap-3">
+                  <Palette className="w-4.5 h-4.5 text-[var(--dank-accent)]" />
+                  <span>{t.whatsapp.appearance}</span>
+                </span>
+                <span className="text-xs font-bold text-[var(--dank-accent)]">
+                  {getThemeLabel(theme)}
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Help Sheet (from Settings -> Help) */}
+      {showHelpSheet && (
+        <div
+          onClick={() => setShowHelpSheet(false)}
+          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-[2px] flex items-end sm:items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm rounded-3xl bg-[var(--dank-surface)] border border-[var(--dank-border)] overflow-hidden shadow-2xl"
+          >
+            <div className="px-4 py-3 border-b border-[var(--dank-border)] flex items-center justify-between">
+              <span className="text-sm font-bold text-[var(--dank-text)]">{t.whatsapp.help}</span>
+              <button
+                type="button"
+                onClick={() => setShowHelpSheet(false)}
+                className="p-1.5 rounded-full hover:bg-[var(--dank-hover)] text-[var(--dank-muted)] hover:text-[var(--dank-text)] cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-2 space-y-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowHelpSheet(false);
+                  void handleOpenDankTeam();
+                }}
+                className="w-full px-3.5 py-3 rounded-xl hover:bg-[var(--dank-hover)] flex items-center gap-3 text-sm font-medium text-[var(--dank-text)] cursor-pointer"
+              >
+                <Megaphone className="w-4.5 h-4.5 text-[var(--dank-accent)]" />
+                <span>{t.telegram.dankTeamTitle}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowHelpSheet(false);
+                  setShowDankPlusModal(true);
+                }}
+                className="w-full px-3.5 py-3 rounded-xl hover:bg-[var(--dank-hover)] flex items-center gap-3 text-sm font-medium text-[var(--dank-text)] cursor-pointer"
+              >
+                <Crown className="w-4.5 h-4.5 text-[var(--dank-accent)]" />
+                <span>{t.plus.title}</span>
+              </button>
+              <div className="px-3.5 py-3 text-[11px] text-[var(--dank-muted)] border-t border-[var(--dank-border)] mt-1">
+                {t.brand.footerCopyright}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Community Posts Feed Overlay Modal */}
+      {showPostsModal && (
+        <div className="fixed inset-0 z-40 flex flex-col bg-[var(--dank-canvas)]">
+          <div className="bg-[var(--dank-surface)] border-b border-[var(--dank-border)] px-4 py-2.5 flex items-center justify-between shrink-0">
+            <span className="text-sm font-bold text-[var(--dank-text)]">
+              {t.whatsapp.openPostsFeed}
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowPostsModal(false)}
+              className="w-9 h-9 rounded-full hover:bg-[var(--dank-hover)] text-[var(--dank-text)] flex items-center justify-center cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+            <PostsFeed
+              currentUser={profile}
+              posts={posts}
+              usersMap={usersMap}
+              savedPostIds={savedPostIds}
+              highlightedPostId={highlightedPostId}
+              onClearHighlightedPost={() => setHighlightedPostId(null)}
+              onOpenDrawer={() => setShowPostsModal(false)}
+              onOpenProfile={(user) => {
+                setShowPostsModal(false);
+                openProfileFor(user);
+              }}
+              onNotify={notify}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Overlay ProfilePage for viewing other users' profiles */}
       {liveViewedUser && (
-        <div className="fixed inset-0 z-40 flex flex-col bg-[#eef2f6] dark:bg-[#0E1621]">
+        <div className="fixed inset-0 z-40 flex flex-col bg-[var(--dank-canvas)]">
           <ProfilePage
             user={liveViewedUser}
             currentUser={profile}
             usersMap={usersMap}
             posts={posts}
-            reels={reels}
             followerUids={effectiveFollows
               .filter((f) => f.targetUid === liveViewedUser.uid)
               .map((f) => f.followerUid)}
@@ -1678,12 +2954,7 @@ export default function App() {
             onOpenPost={(post) => {
               setViewedProfileUser(null);
               setHighlightedPostId(post.id);
-              setMainTab('posts');
-            }}
-            onOpenReel={(reel) => {
-              setViewedProfileUser(null);
-              setInitialReelId(reel.id);
-              setMainTab('reels');
+              setShowPostsModal(true);
             }}
             onNotify={notify}
           />
@@ -1708,18 +2979,12 @@ export default function App() {
         <ProfileModal
           targetUser={profile}
           posts={posts}
-          reels={reels}
           follows={effectiveFollows}
           initialEditMode={profileModalEditMode}
           onOpenPost={(postId) => {
             setShowProfileModal(false);
             setHighlightedPostId(postId);
-            setMainTab('posts');
-          }}
-          onOpenReel={(reelId) => {
-            setShowProfileModal(false);
-            setInitialReelId(reelId);
-            setMainTab('reels');
+            setShowPostsModal(true);
           }}
           onStartChat={(user) => {
             setShowProfileModal(false);
@@ -1761,9 +3026,7 @@ export default function App() {
           usersMap={usersMap}
           contactIds={contactIds}
           blockedUserIds={blockedUserIds}
-          onStartCall={(peer, chatId, callType) =>
-            void handleStartCall(peer, callType, chatId)
-          }
+          onStartCall={(peer, chatId) => void handleStartCall(peer, chatId)}
           onSelectChat={(id) => {
             setMainTab('chats');
             setActiveChatId(id);
@@ -1821,9 +3084,9 @@ export default function App() {
             setContactsCallsTab(null);
             void handleStartPrivateChat(peer);
           }}
-          onCallUser={(peer, callType) => {
+          onCallUser={(peer) => {
             setContactsCallsTab(null);
-            void handleStartCall(peer, callType);
+            void handleStartCall(peer);
           }}
           onClose={() => setContactsCallsTab(null)}
           onNotify={notify}
@@ -1866,6 +3129,29 @@ export default function App() {
         />
       )}
 
+      {reminderTargetChat && (
+        <ChatReminderModal
+          chatTitle={reminderTargetChat.title}
+          existingReminders={remindersByChatId[reminderTargetChat.chat.id] || []}
+          onSave={async ({ remindAtMs, note }) => {
+            await createChatReminder({
+              uid: profile.uid,
+              chatId: reminderTargetChat.chat.id,
+              chatTitle: reminderTargetChat.title,
+              note,
+              remindAtMs,
+            });
+            notify(t.schedule.reminderSaved);
+          }}
+          onDeleteReminder={async (remId) => {
+            await deleteChatReminder(profile.uid, remId);
+            notify(t.schedule.reminderCancelled);
+          }}
+          onClose={() => setReminderTargetChat(null)}
+          onNotify={notify}
+        />
+      )}
+
       {liveNotifPopup && (
         <button
           type="button"
@@ -1875,9 +3161,9 @@ export default function App() {
             void markNotificationRead(profile.uid, current.id);
             handleNotificationNavigation(current);
           }}
-          className="fixed top-4 left-1/2 -translate-x-1/2 z-[60] max-w-sm w-[92vw] px-3.5 py-2.5 rounded-2xl bg-[#17212B]/95 backdrop-blur-md text-white shadow-2xl border border-[#2AABEE]/45 flex items-center gap-3 text-start cursor-pointer"
+          className="fixed top-4 left-1/2 -translate-x-1/2 z-[60] max-w-sm w-[92vw] px-3.5 py-2.5 rounded-2xl bg-[var(--dank-surface)]/95 backdrop-blur-md text-[var(--dank-text)] shadow-2xl border border-[var(--dank-accent-border)] flex items-center gap-3 text-start cursor-pointer"
         >
-          <span className="w-8 h-8 rounded-full bg-[#2AABEE]/20 text-[#2AABEE] flex items-center justify-center shrink-0">
+          <span className="w-8 h-8 rounded-full bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] flex items-center justify-center shrink-0">
             <Bell className="w-4 h-4" />
           </span>
           <span className="flex-1 min-w-0 text-xs font-semibold truncate" dir="auto">
@@ -1887,7 +3173,7 @@ export default function App() {
       )}
 
       {toast && (
-        <div className="fixed bottom-18 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl bg-[#17212B] text-white text-xs font-medium shadow-xl border border-[#2AABEE]/45">
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-full bg-[var(--dank-surface)] text-[var(--dank-accent)] text-xs font-semibold shadow-2xl border border-[var(--dank-accent-border)]">
           {toast}
         </div>
       )}

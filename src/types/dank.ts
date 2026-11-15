@@ -12,6 +12,7 @@ export type MessageType =
 export type MessageStatus = 'sent' | 'delivered' | 'seen';
 export type MemberRole = 'admin' | 'member';
 export type AppLanguage = 'ar' | 'en';
+export type AppThemeId = 'dank-dark' | 'midnight-blue' | 'purple-neon' | 'light';
 export type PrivacyVisibility = 'everyone' | 'contacts' | 'nobody';
 
 export interface UserPublic {
@@ -22,6 +23,7 @@ export interface UserPublic {
   coverURL?: string;
   bio?: string;
   language?: AppLanguage;
+  theme?: AppThemeId;
   isOnline: boolean;
   lastSeen: Timestamp | null;
   activeChatId?: string;
@@ -106,9 +108,18 @@ export interface CallRecord {
   chatId: string;
   callType: 'voice' | 'video';
   status: 'ringing' | 'connected' | 'ended' | 'declined' | 'missed';
+  offerSdp?: string;
+  answerSdp?: string;
   startedAt: Timestamp | null;
   endedAt?: Timestamp | null;
   durationSeconds?: number;
+}
+
+export interface CallIceCandidate {
+  id: string;
+  senderId: string;
+  candidate: string;
+  createdAt: Timestamp | null;
 }
 
 export interface ChannelComment {
@@ -170,6 +181,12 @@ export interface Chat {
   messages24hWindowStart?: Timestamp | null;
   createdAt: Timestamp | null;
   updatedAt: Timestamp | null;
+  unreadCount?: number;
+  isOfficial?: boolean;
+  isBot?: boolean;
+  isOnline?: boolean;
+  bio?: string;
+  username?: string;
 }
 
 export interface ChatMember {
@@ -317,27 +334,6 @@ export interface Post {
   updatedAt: Timestamp | null;
 }
 
-export interface Reel {
-  id: string;
-  authorId: string;
-  authorName: string;
-  authorUsername: string;
-  authorPhoto?: string;
-  authorIsAdmin?: boolean;
-  authorIsVerified?: boolean;
-  authorIsVip?: boolean;
-  videoUrl: string;
-  chunkCount?: number;
-  videoDuration?: number;
-  caption?: string;
-  musicName?: string;
-  hashtags?: string[];
-  likeCount: number;
-  commentCount: number;
-  createdAt: Timestamp | null;
-  updatedAt: Timestamp | null;
-}
-
 export interface FeedComment {
   id: string;
   targetId: string;
@@ -364,7 +360,7 @@ export interface FollowRelation {
 
 export interface SavedItem {
   id: string;
-  itemType: 'post' | 'reel';
+  itemType: 'post';
   targetId: string;
   createdAt: Timestamp | null;
 }
@@ -382,5 +378,40 @@ export interface AppNotification {
   targetId?: string;
   read: boolean;
   createdAt: Timestamp | null;
+}
+
+export interface UserSticker {
+  id: string;
+  uid: string;
+  source: 'custom' | 'pack' | 'saved';
+  stickerId?: string;
+  packId?: string;
+  imageUrl?: string;
+  label?: string;
+  createdAt: Timestamp | null;
+}
+
+export interface ScheduledMessage {
+  id: string;
+  uid: string;
+  chatId: string;
+  chatTitle?: string;
+  text: string;
+  scheduledAt: Timestamp;
+  status: 'pending' | 'sent' | 'cancelled';
+  createdAt: Timestamp | null;
+  updatedAt: Timestamp | null;
+}
+
+export interface ChatReminder {
+  id: string;
+  uid: string;
+  chatId: string;
+  chatTitle: string;
+  note?: string;
+  remindAt: Timestamp;
+  status: 'pending' | 'fired' | 'dismissed';
+  createdAt: Timestamp | null;
+  updatedAt: Timestamp | null;
 }
 

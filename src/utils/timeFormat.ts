@@ -19,8 +19,8 @@ export function isUserActuallyOnline(
   if (!isOnline) return false;
   const ms = timestampToMs(lastSeen);
   if (!ms) return isOnline;
-  // Consider stale after 2.5 minutes without heartbeat
-  return Date.now() - ms < 150_000;
+  // Consider stale after 5.5 minutes without heartbeat
+  return Date.now() - ms < 330_000;
 }
 
 export function formatMessageTime(

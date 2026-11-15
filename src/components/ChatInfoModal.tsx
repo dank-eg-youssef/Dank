@@ -11,7 +11,6 @@ import {
   UserMinus,
   UserPlus,
   Users,
-  Video,
   X,
 } from 'lucide-react';
 import { collection, onSnapshot } from 'firebase/firestore';
@@ -42,7 +41,7 @@ interface ChatInfoModalProps {
   usersMap: Record<string, UserPublic>;
   contactIds?: Set<string>;
   blockedUserIds?: Set<string>;
-  onStartCall?: (peer: UserPublic, chatId: string, callType: 'voice' | 'video') => void;
+  onStartCall?: (peer: UserPublic, chatId: string) => void;
   onSelectChat?: (chatId: string) => void;
   onViewProfile?: (user: UserPublic) => void;
   onClose: () => void;
@@ -72,7 +71,6 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
   const [startingSecret, setStartingSecret] = useState(false);
 
   const isSaved = chat.id === `saved_${currentUser.uid}`;
-  const isBot = chat.id === `dank_bot_${currentUser.uid}`;
 
   useEffect(() => {
     const unsub = onSnapshot(
@@ -93,10 +91,10 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
   const isChatAdmin = myMember?.role === 'admin' || currentUser.isAdmin;
 
   const peer = useMemo(() => {
-    if (chat.type !== 'private' || !chat.dmPeerIds || isSaved || isBot) return null;
+    if (chat.type !== 'private' || !chat.dmPeerIds || isSaved) return null;
     const peerId = chat.dmPeerIds.find((id) => id !== currentUser.uid);
     return peerId ? usersMap[peerId] || null : null;
-  }, [chat, currentUser.uid, usersMap, isSaved, isBot]);
+  }, [chat, currentUser.uid, usersMap, isSaved]);
 
   const inviteUrl = `${window.location.origin}/?join=${chat.id}`;
   const dankLink = `${t.telegram.dankLinkPrefix}${chat.id}`;
@@ -237,8 +235,8 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="w-full max-w-md rounded-2xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F] shadow-2xl overflow-hidden flex flex-col max-h-[88vh]">
-        <div className="bg-[#17212B] text-white px-5 py-4 flex items-center justify-between shrink-0 border-b border-[#22303F]">
+      <div className="w-full max-w-md rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] shadow-2xl overflow-hidden flex flex-col max-h-[88vh]">
+        <div className="bg-[var(--dank-canvas)] text-[var(--dank-text)] px-5 py-4 flex items-center justify-between shrink-0 border-b border-[var(--dank-border)]">
           <h3 className="text-base font-semibold">
             {chat.type === 'private'
               ? t.chatInfo.contactInfo
@@ -250,7 +248,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
             type="button"
             onClick={onClose}
             aria-label={t.common.close}
-            className="w-9 h-9 rounded-xl hover:bg-white/10 flex items-center justify-center cursor-pointer"
+            className="w-9 h-9 rounded-xl hover:bg-[var(--dank-hover)] flex items-center justify-center cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -269,8 +267,6 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
               name={
                 isSaved
                   ? t.drawer.savedMessages
-                  : isBot
-                  ? t.drawer.dankBot
                   : chat.type === 'private'
                   ? peer?.name || t.common.user
                   : chat.name || t.common.chat
@@ -281,22 +277,20 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                   ? isUserActuallyOnline(peer.isOnline, peer.lastSeen)
                   : false
               }
-              showOnlineDot={chat.type === 'private' && !isSaved && !isBot && canSeePeerLastSeen}
+              showOnlineDot={chat.type === 'private' && !isSaved && canSeePeerLastSeen}
               chatType={chat.type}
               specialType={
-                isSaved ? 'saved' : isBot ? 'bot' : chat.isSecret ? 'secret' : undefined
+                isSaved ? 'saved' : chat.isSecret ? 'secret' : undefined
               }
             />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5 min-w-0">
                 <h4
                   dir="auto"
-                  className="text-lg font-bold text-[#0E1621] dark:text-white truncate"
+                  className="text-lg font-bold text-[var(--dank-text)] truncate"
                 >
                   {isSaved
                     ? t.drawer.savedMessages
-                    : isBot
-                    ? t.drawer.dankBot
                     : chat.type === 'private'
                     ? peer?.name || t.common.privateChat
                     : chat.name}
@@ -307,16 +301,13 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                     isVerified={peer.isVerified}
                     isVip={peer.isVip || (peer.inviteCount ?? 0) >= 5}
                     isPlus={peer.isPlus}
-                    isBot={isBot}
                     size="sm"
                   />
                 )}
               </div>
-              <p className="text-xs text-slate-600 dark:text-[#8C9FB1]">
+              <p className="text-xs text-[var(--dank-muted)]">
                 {isSaved
                   ? t.drawer.savedMessagesDesc
-                  : isBot
-                  ? t.drawer.dankBotDesc
                   : chat.type === 'private'
                   ? peer
                     ? `@${peer.username} · ${
@@ -330,13 +321,13 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                     }`}
               </p>
               {chat.type === 'group' && (
-                <p className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#2AABEE]/15 text-[#2AABEE] text-[10px] font-semibold">
+                <p className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] text-[10px] font-semibold">
                   <Users className="w-3 h-3" />
                   {t.telegram.maxMembers200k}
                 </p>
               )}
               {chat.isSecret && (
-                <p className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 text-[10px] font-semibold">
+                <p className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] text-[10px] font-semibold">
                   <Lock className="w-3 h-3" />
                   {t.telegram.secretChat}
                 </p>
@@ -345,7 +336,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
           </div>
 
           {chat.type === 'private' && peer && (
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => {
@@ -353,28 +344,13 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                     onNotify(t.privacy.cannotCallPrivacy);
                     return;
                   }
-                  onStartCall?.(peer, chat.id, 'voice');
+                  onStartCall?.(peer, chat.id);
                   onClose();
                 }}
-                className="p-2.5 rounded-xl bg-[#f4f7fb] dark:bg-[#0E1621] border border-slate-200 dark:border-[#22303F] text-[#0E1621] dark:text-white hover:border-[#2AABEE] flex flex-col items-center gap-1 text-xs font-semibold cursor-pointer"
+                className="p-2.5 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] text-[var(--dank-text)] hover:border-[var(--dank-accent)] flex flex-col items-center gap-1 text-xs font-semibold cursor-pointer"
               >
-                <Phone className="w-4 h-4 text-[#2AABEE]" />
+                <Phone className="w-4 h-4 text-[var(--dank-accent)]" />
                 <span>{t.calls.voiceCall}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (!canCallPeer) {
-                    onNotify(t.privacy.cannotCallPrivacy);
-                    return;
-                  }
-                  onStartCall?.(peer, chat.id, 'video');
-                  onClose();
-                }}
-                className="p-2.5 rounded-xl bg-[#f4f7fb] dark:bg-[#0E1621] border border-slate-200 dark:border-[#22303F] text-[#0E1621] dark:text-white hover:border-[#2AABEE] flex flex-col items-center gap-1 text-xs font-semibold cursor-pointer"
-              >
-                <Video className="w-4 h-4 text-[#2AABEE]" />
-                <span>{t.calls.videoCall}</span>
               </button>
               <button
                 type="button"
@@ -382,17 +358,17 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                   onClose();
                   onViewProfile?.(peer);
                 }}
-                className="p-2.5 rounded-xl bg-[#f4f7fb] dark:bg-[#0E1621] border border-slate-200 dark:border-[#22303F] text-[#0E1621] dark:text-white hover:border-[#2AABEE] flex flex-col items-center gap-1 text-xs font-semibold cursor-pointer"
+                className="p-2.5 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] text-[var(--dank-text)] hover:border-[var(--dank-accent)] flex flex-col items-center gap-1 text-xs font-semibold cursor-pointer"
               >
-                <ShieldCheck className="w-4 h-4 text-[#2AABEE]" />
+                <ShieldCheck className="w-4 h-4 text-[var(--dank-accent)]" />
                 <span>{t.profile.profileTitle}</span>
               </button>
             </div>
           )}
 
           {chat.type === 'private' && peer?.bio && (
-            <div className="p-3 rounded-xl bg-[#f4f7fb] dark:bg-[#0E1621] border border-slate-200 dark:border-[#22303F] text-xs text-[#0E1621] dark:text-white">
-              <span className="font-semibold block mb-0.5 text-[#2AABEE]">
+            <div className="p-3 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] text-xs text-[var(--dank-text)]">
+              <span className="font-semibold block mb-0.5 text-[var(--dank-accent)]">
                 {t.chatInfo.bio}
               </span>
               <span dir="auto">{peer.bio}</span>
@@ -400,11 +376,11 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
           )}
 
           {chat.type === 'private' && peer && (
-            <div className="p-3 rounded-xl bg-[#f4f7fb] dark:bg-[#0E1621] border border-slate-200 dark:border-[#22303F] text-xs flex items-center justify-between gap-2">
-              <span className="font-semibold text-[#0E1621] dark:text-white">
+            <div className="p-3 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] text-xs flex items-center justify-between gap-2">
+              <span className="font-semibold text-[var(--dank-text)]">
                 {t.privacy.phoneNumber}
               </span>
-              <span className="text-[11px] text-slate-600 dark:text-[#8C9FB1]">
+              <span className="text-[11px] text-[var(--dank-muted)]">
                 {t.privacy.phoneHiddenNote}
               </span>
             </div>
@@ -417,9 +393,9 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                   type="button"
                   disabled={startingSecret}
                   onClick={() => void handleStartSecret()}
-                  className="w-full h-10 rounded-xl bg-[#242F3D] hover:bg-[#2D3B4D] text-white text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer"
+                  className="w-full h-10 rounded-xl bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] border border-[var(--dank-border)] text-[var(--dank-text)] text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <Lock className="w-4 h-4 text-[#2AABEE]" />
+                  <Lock className="w-4 h-4 text-[var(--dank-accent)]" />
                   {t.telegram.startSecretChat}
                 </button>
               )}
@@ -428,16 +404,16 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                 <button
                   type="button"
                   onClick={() => void handleToggleContact()}
-                  className="h-10 rounded-xl border border-slate-200 dark:border-[#22303F] bg-[#f4f7fb] dark:bg-[#0E1621] text-[#0E1621] dark:text-white text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
+                  className="h-10 rounded-xl border border-[var(--dank-border)] bg-[var(--dank-canvas)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   {isPeerContact ? (
                     <>
-                      <UserCheck className="w-4 h-4 text-[#2AABEE]" />
+                      <UserCheck className="w-4 h-4 text-[var(--dank-accent)]" />
                       {t.privacy.contactRemoved.replace('.', '')}
                     </>
                   ) : (
                     <>
-                      <UserPlus className="w-4 h-4 text-[#2AABEE]" />
+                      <UserPlus className="w-4 h-4 text-[var(--dank-accent)]" />
                       {t.privacy.contactsTitle}
                     </>
                   )}
@@ -448,8 +424,8 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                   onClick={() => void handleToggleBlock()}
                   className={`h-10 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer ${
                     isPeerBlocked
-                      ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
-                      : 'border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300'
+                      ? 'border-[var(--dank-accent-border)] bg-[var(--dank-accent-soft)] text-[var(--dank-accent)]'
+                      : 'border-red-500/30 bg-red-500/10 text-red-500'
                   }`}
                 >
                   <Ban className="w-4 h-4" />
@@ -460,8 +436,8 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
           )}
 
           {chat.type !== 'private' && chat.description && (
-            <div className="p-3 rounded-xl bg-[#f4f7fb] dark:bg-[#0E1621] border border-slate-200 dark:border-[#22303F] text-xs text-[#0E1621] dark:text-white">
-              <span className="font-semibold block mb-0.5 text-[#2AABEE]">
+            <div className="p-3 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] text-xs text-[var(--dank-text)]">
+              <span className="font-semibold block mb-0.5 text-[var(--dank-accent)]">
                 {t.chatInfo.description}
               </span>
               <span dir="auto">{chat.description}</span>
@@ -469,12 +445,12 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
           )}
 
           {chat.type !== 'private' && (
-            <div className="p-3.5 rounded-xl bg-[#f4f7fb] dark:bg-[#0E1621] border border-slate-200 dark:border-[#22303F] space-y-2">
+            <div className="p-3.5 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-[#0E1621] dark:text-white">
+                <span className="text-xs font-semibold text-[var(--dank-text)]">
                   {t.chatInfo.inviteLink}
                 </span>
-                <span dir="ltr" className="text-[11px] font-semibold text-[#2AABEE]">
+                <span dir="ltr" className="text-[11px] font-semibold text-[var(--dank-accent)]">
                   {dankLink}
                 </span>
               </div>
@@ -483,12 +459,12 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                   readOnly
                   dir="ltr"
                   value={inviteUrl}
-                  className="flex-1 h-10 px-3 rounded-lg bg-white dark:bg-[#17212B] text-base text-[#0E1621] dark:text-white border border-slate-200 dark:border-white/10 focus:outline-none text-start"
+                  className="flex-1 h-10 px-3 rounded-lg bg-[var(--dank-surface)] text-base text-[var(--dank-text)] border border-[var(--dank-border)] focus:outline-none text-start"
                 />
                 <button
                   type="button"
                   onClick={handleCopyInvite}
-                  className="h-10 px-3 rounded-lg bg-[#2AABEE] hover:bg-[#229ED9] text-white text-xs font-bold flex items-center gap-1.5 shrink-0 cursor-pointer"
+                  className="h-10 px-3 rounded-lg bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-xs font-bold flex items-center gap-1.5 shrink-0 cursor-pointer"
                 >
                   <Copy className="w-3.5 h-3.5" />
                   {t.common.copy}
@@ -500,14 +476,14 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
           {chat.type !== 'private' && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-[#0E1621] dark:text-white">
+                <span className="text-xs font-semibold text-[var(--dank-text)]">
                   {t.chatInfo.membersTitle} ({members.length})
                 </span>
                 {isChatAdmin && (
                   <button
                     type="button"
                     onClick={() => setAddingMode((v) => !v)}
-                    className="text-xs font-semibold text-[#2AABEE] hover:underline flex items-center gap-1 cursor-pointer"
+                    className="text-xs font-semibold text-[var(--dank-accent)] hover:underline flex items-center gap-1 cursor-pointer"
                   >
                     <UserPlus className="w-3.5 h-3.5" />
                     {addingMode ? t.chatInfo.doneAdding : t.chatInfo.addMember}
@@ -516,7 +492,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
               </div>
 
               {addingMode && isChatAdmin && (
-                <div className="rounded-xl border border-[#2AABEE]/50 bg-[#f4f7fb] dark:bg-[#0E1621] p-2.5 space-y-2">
+                <div className="rounded-xl border border-[var(--dank-accent-border)] bg-[var(--dank-canvas)] p-2.5 space-y-2">
                   <form onSubmit={handleAddUsername} className="flex items-center gap-2">
                     <input
                       type="text"
@@ -524,19 +500,19 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                       value={usernameInput}
                       onChange={(e) => setUsernameInput(e.target.value)}
                       placeholder={t.telegram.addByUsername}
-                      className="flex-1 h-10 px-3 rounded-lg bg-white dark:bg-[#17212B] border border-slate-200 dark:border-white/15 text-base text-[#0E1621] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#2AABEE]"
+                      className="flex-1 h-10 px-3 rounded-lg bg-[var(--dank-surface)] border border-[var(--dank-border)] text-base text-[var(--dank-text)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)]"
                     />
                     <button
                       type="submit"
                       disabled={addingByUsername || !usernameInput.trim()}
-                      className="h-10 px-3 rounded-lg bg-[#2AABEE] text-white text-xs font-bold disabled:opacity-50 cursor-pointer"
+                      className="h-10 px-3 rounded-lg bg-[var(--dank-accent)] text-[var(--dank-accent-fg)] text-xs font-bold disabled:opacity-50 cursor-pointer"
                     >
                       {t.common.add}
                     </button>
                   </form>
 
                   {matchingNonMembers.length > 0 && (
-                    <div className="rounded-lg border border-slate-200 dark:border-[#22303F] bg-white dark:bg-[#17212B] divide-y divide-slate-100 dark:divide-[#22303F] max-h-36 overflow-y-auto">
+                    <div className="rounded-lg border border-[var(--dank-border)] bg-[var(--dank-surface)] divide-y divide-[var(--dank-border)] max-h-36 overflow-y-auto">
                       {matchingNonMembers.map((u) => (
                         <div
                           key={u.uid}
@@ -546,7 +522,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                             <Avatar src={u.photoURL} name={u.name} size="xs" />
                             <div className="min-w-0">
                               <div className="flex items-center gap-1 min-w-0">
-                                <span className="text-xs font-medium text-[#0E1621] dark:text-white truncate">
+                                <span className="text-xs font-medium text-[var(--dank-text)] truncate">
                                   {u.name}
                                 </span>
                                 <UserBadges
@@ -557,13 +533,13 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                                   size="xs"
                                 />
                               </div>
-                              <p className="text-[10px] text-slate-500 truncate">@{u.username}</p>
+                              <p className="text-[10px] text-[var(--dank-muted)] truncate">@{u.username}</p>
                             </div>
                           </div>
                           <button
                             type="button"
                             onClick={() => void handleAdd(u.uid)}
-                            className="px-2.5 py-1 rounded-lg bg-[#2AABEE] text-white text-[11px] font-medium cursor-pointer"
+                            className="px-2.5 py-1 rounded-lg bg-[var(--dank-accent)] text-[var(--dank-accent-fg)] text-[11px] font-medium cursor-pointer"
                           >
                             {t.common.add}
                           </button>
@@ -574,7 +550,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                 </div>
               )}
 
-              <div className="rounded-xl border border-slate-200 dark:border-[#22303F] bg-[#f4f7fb] dark:bg-[#0E1621] divide-y divide-slate-200/70 dark:divide-[#22303F] max-h-56 overflow-y-auto">
+              <div className="rounded-xl border border-[var(--dank-border)] bg-[var(--dank-canvas)] divide-y divide-[var(--dank-border)] max-h-56 overflow-y-auto">
                 {members.map((m) => {
                   const u = usersMap[m.uid];
                   const canSeeStatus = u
@@ -611,7 +587,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                         />
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5 min-w-0">
-                            <p className="text-xs font-semibold text-[#0E1621] dark:text-white truncate">
+                            <p className="text-xs font-semibold text-[var(--dank-text)] truncate">
                               {u?.name || m.uid}
                               {m.uid === currentUser.uid ? ` (${t.common.you})` : ''}
                             </p>
@@ -623,7 +599,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                               size="xs"
                             />
                           </div>
-                          <p className="text-[11px] text-slate-500 dark:text-[#8C9FB1]">
+                          <p className="text-[11px] text-[var(--dank-muted)]">
                             {m.role === 'admin' ? t.common.admin : t.common.member}
                           </p>
                         </div>
@@ -635,7 +611,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                             type="button"
                             onClick={() => void handleRemove(m.uid)}
                             title={t.chatInfo.removeMember}
-                            className="w-8 h-8 rounded-lg hover:bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center cursor-pointer"
+                            className="w-8 h-8 rounded-lg hover:bg-amber-500/10 text-amber-500 flex items-center justify-center cursor-pointer"
                           >
                             <UserMinus className="w-4 h-4" />
                           </button>
@@ -644,7 +620,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                               type="button"
                               onClick={() => void handleBan(m.uid)}
                               title={t.telegram.banFromGroup}
-                              className="w-8 h-8 rounded-lg hover:bg-red-500/10 text-red-600 dark:text-red-400 flex items-center justify-center cursor-pointer"
+                              className="w-8 h-8 rounded-lg hover:bg-red-500/10 text-red-500 flex items-center justify-center cursor-pointer"
                             >
                               <ShieldAlert className="w-4 h-4" />
                             </button>
@@ -659,7 +635,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
               <button
                 type="button"
                 onClick={() => void handleRemove(currentUser.uid)}
-                className="w-full h-10 rounded-xl border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-950/30 hover:bg-red-100 text-red-700 dark:text-red-300 text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full h-10 rounded-xl border border-red-500/30 bg-red-500/10 hover:bg-red-500/15 text-red-500 text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer"
               >
                 <LogOut className="w-4 h-4" />
                 {chat.type === 'channel' ? t.chatInfo.leaveChannel : t.chatInfo.leaveGroup}

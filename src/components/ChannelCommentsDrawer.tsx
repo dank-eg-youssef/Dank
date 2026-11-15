@@ -7,6 +7,7 @@ import { addChannelComment, deleteChannelComment } from '../services/chatService
 import type { ChannelComment, Message, UserPublic } from '../types/dank';
 import { formatChatTime } from '../utils/timeFormat';
 import { Avatar } from './Avatar';
+import { RichEmojiText } from './RichEmojiText';
 
 interface ChannelCommentsDrawerProps {
   chatId: string;
@@ -62,31 +63,31 @@ export const ChannelCommentsDrawer: React.FC<ChannelCommentsDrawerProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-[2px] flex items-end sm:items-center justify-center sm:p-4">
-      <div className="w-full sm:max-w-md h-[78vh] sm:h-[600px] rounded-t-2xl sm:rounded-2xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F] shadow-2xl flex flex-col overflow-hidden">
-        <div className="px-4 py-3 bg-[#17212B] text-white flex items-center justify-between border-b border-white/10">
+      <div className="w-full sm:max-w-md h-[78vh] sm:h-[600px] rounded-t-2xl sm:rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] shadow-2xl flex flex-col overflow-hidden">
+        <div className="px-4 py-3 bg-[var(--dank-canvas)] text-[var(--dank-text)] flex items-center justify-between border-b border-[var(--dank-border)]">
           <div>
             <h3 className="text-sm font-bold">{t.telegram.channelComments}</h3>
-            <p className="text-[11px] text-[#8C9FB1] truncate max-w-[260px]">
-              {message.text || t.common.channel}
+            <p className="text-[11px] text-[var(--dank-muted)] truncate max-w-[260px]">
+              <RichEmojiText text={message.text || t.common.channel} />
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label={t.common.close}
-            className="w-8 h-8 rounded-lg hover:bg-white/10 flex items-center justify-center cursor-pointer"
+            className="w-8 h-8 rounded-lg hover:bg-[var(--dank-hover)] flex items-center justify-center cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-3 space-y-2.5 bg-slate-50/50 dark:bg-[#0E1621]">
+        <div className="flex-1 overflow-y-auto p-3 space-y-2.5 bg-[var(--dank-canvas)]">
           {comments.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center px-6">
-              <p className="text-sm font-semibold text-[#0E1621] dark:text-white">
+              <p className="text-sm font-semibold text-[var(--dank-text)]">
                 {t.comments.noCommentsYet}
               </p>
-              <p className="text-xs text-slate-500 dark:text-[#8C9FB1] mt-1">
+              <p className="text-xs text-[var(--dank-muted)] mt-1">
                 {t.comments.firstThoughtHint}
               </p>
             </div>
@@ -96,23 +97,23 @@ export const ChannelCommentsDrawer: React.FC<ChannelCommentsDrawerProps> = ({
               return (
                 <div
                   key={c.id}
-                  className="p-2.5 rounded-xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F] flex items-start gap-2.5"
+                  className="p-2.5 rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)] flex items-start gap-2.5"
                 >
                   <Avatar src={c.authorPhoto} name={c.authorName} size="xs" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-semibold text-[#0E1621] dark:text-white truncate">
+                      <span className="text-xs font-semibold text-[var(--dank-text)] truncate">
                         {c.authorName}
                       </span>
-                      <span className="text-[10px] text-slate-400">
+                      <span className="text-[10px] text-[var(--dank-muted)]">
                         {formatChatTime(c.createdAt)}
                       </span>
                     </div>
                     <p
                       dir="auto"
-                      className="mt-1 text-xs text-slate-700 dark:text-[#C5D3E0] whitespace-pre-wrap break-words"
+                      className="mt-1 text-xs text-[var(--dank-text)] opacity-90 whitespace-pre-wrap break-words"
                     >
-                      {c.text}
+                      <RichEmojiText text={c.text} />
                     </p>
                   </div>
                   {canDel && (
@@ -120,7 +121,7 @@ export const ChannelCommentsDrawer: React.FC<ChannelCommentsDrawerProps> = ({
                       type="button"
                       onClick={() => void deleteChannelComment(chatId, message.id, c.id)}
                       aria-label={t.common.delete}
-                      className="p-1 text-slate-400 hover:text-red-500 cursor-pointer"
+                      className="p-1 text-[var(--dank-muted)] hover:text-red-500 cursor-pointer"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -133,7 +134,7 @@ export const ChannelCommentsDrawer: React.FC<ChannelCommentsDrawerProps> = ({
 
         <form
           onSubmit={handleSubmit}
-          className="p-3 border-t border-slate-200 dark:border-[#22303F] bg-white dark:bg-[#17212B] flex items-center gap-2"
+          className="p-3 border-t border-[var(--dank-border)] bg-[var(--dank-surface)] flex items-center gap-2"
         >
           <input
             type="text"
@@ -142,12 +143,12 @@ export const ChannelCommentsDrawer: React.FC<ChannelCommentsDrawerProps> = ({
             maxLength={600}
             onChange={(e) => setText(e.target.value)}
             placeholder={t.telegram.addChannelComment}
-            className="flex-1 h-10 px-3.5 rounded-xl bg-slate-50 dark:bg-[#242F3D] border border-slate-200 dark:border-white/15 text-base text-[#0E1621] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#2AABEE]"
+            className="flex-1 h-10 px-3.5 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] text-base text-[var(--dank-text)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)]"
           />
           <button
             type="submit"
             disabled={!text.trim() || sending}
-            className="w-10 h-10 rounded-xl bg-[#2AABEE] hover:bg-[#229ED9] disabled:opacity-50 text-white flex items-center justify-center cursor-pointer"
+            className="w-10 h-10 rounded-xl bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] disabled:opacity-50 text-[var(--dank-accent-fg)] flex items-center justify-center cursor-pointer"
           >
             <Send className="w-4 h-4 rtl:-scale-x-100" />
           </button>

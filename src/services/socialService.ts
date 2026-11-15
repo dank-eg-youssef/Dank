@@ -11,8 +11,15 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { getTranslations } from '../i18n';
-import type { Post, Reel, UserPublic } from '../types/dank';
-import { handleFirestoreError, isOfflineError, OperationType } from '../utils/firestoreErrors';
+import type { Post, UserPublic } from '../types/dank';
+import {
+  handleFirestoreError,
+  isFirestoreWritesPaused,
+  isOfflineError,
+  isQuotaExhaustedError,
+  OperationType,
+  pauseFirestoreWrites,
+} from '../utils/firestoreErrors';
 import { deleteManagedStorageMedia } from '../utils/mediaStorage';
 import { createAppNotification } from './notificationService';
 
@@ -91,6 +98,9 @@ export async function createPost(params: {
   caption: string;
   hashtags: string[];
 }): Promise<void> {
+  if (isFirestoreWritesPaused()) {
+    throw new Error('Firestore write quota exceeded. Quota resets tomorrow.');
+  }
   const { id, author, images, caption, hashtags } = params;
   const isVip = Boolean(author.isVip || (author.inviteCount ?? 0) >= 5);
 
@@ -203,154 +213,10 @@ export async function togglePostLike(
   }
 }
 
-export async function createReel(params: {
-  id: string;
-  author: UserPublic;
-  storageUrl: string | null;
-  dataUrlFallback: string;
-  duration: number;
-  caption: string;
-  musicName: string;
-  hashtags: string[];
-}): Promise<void> {
-  const { id, author, storageUrl, dataUrlFallback, duration, caption, musicName, hashtags } = params;
-  const isVip = Boolean(author.isVip || (author.inviteCount ?? 0) >= 5);
 
-  const useChunks = !storageUrl && dataUrlFallback.length > SINGLE_DOC_MAX_CHARS;
-  const chunks: string[] = [];
-  if (useChunks) {
-    for (let i = 0; i < dataUrlFallback.length; i += CHUNK_CHARS) {
-      chunks.push(dataUrlFallback.slice(i, i + CHUNK_CHARS));
-    }
-    if (chunks.length >= 20) {
-      throw new Error('Reel video is too large. Please upload a shorter clip.');
-    }
-  }
-
-  const storedVideoUrl = storageUrl || (useChunks ? 'chunked' : dataUrlFallback);
-
-  try {
-    await setDoc(doc(db, 'reels', id), {
-      id,
-      authorId: author.uid,
-      authorName: author.name.slice(0, 80),
-      authorUsername: author.username.slice(0, 40),
-      authorPhoto: (author.photoURL || '').slice(0, 250000),
-      authorIsAdmin: Boolean(author.isAdmin),
-      authorIsVerified: Boolean(author.isVerified),
-      authorIsVip: isVip,
-      videoUrl: storedVideoUrl,
-      chunkCount: useChunks ? chunks.length : 0,
-      videoDuration: Math.min(60, Math.max(0, Number(duration) || 0)),
-      caption: caption.trim().slice(0, 500),
-      musicName: (musicName.trim() || `Original Sound - ${author.name}`).slice(0, 120),
-      hashtags: hashtags.slice(0, 20),
-      likeCount: 0,
-      commentCount: 0,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-
-    if (useChunks) {
-      const batch = writeBatch(db);
-      chunks.forEach((chunkData, index) => {
-        batch.set(doc(db, 'reels', id, 'chunks', String(index)), {
-          index,
-          data: chunkData,
-        });
-      });
-      await batch.commit();
-    }
-  } catch (error) {
-    handleFirestoreError(error, OperationType.CREATE, `reels/${id}`);
-  }
-}
-
-export async function loadReelVideoSrc(reel: Reel): Promise<string> {
-  if (reel.videoUrl !== 'chunked') {
-    return reel.videoUrl;
-  }
-  try {
-    const snap = await getDocs(collection(db, 'reels', reel.id, 'chunks'));
-    const sorted = snap.docs
-      .map((d) => d.data() as { index: number; data: string })
-      .sort((a, b) => a.index - b.index);
-    return sorted.map((c) => c.data).join('');
-  } catch (error) {
-    handleFirestoreError(error, OperationType.LIST, `reels/${reel.id}/chunks`);
-  }
-}
-
-export async function deleteReel(reel: Reel): Promise<void> {
-  try {
-    const chunksSnap = await getDocs(collection(db, 'reels', reel.id, 'chunks'));
-    const likesSnap = await getDocs(collection(db, 'reels', reel.id, 'likes'));
-    const commentsSnap = await getDocs(collection(db, 'reels', reel.id, 'comments'));
-
-    const batch = writeBatch(db);
-    chunksSnap.docs.forEach((d) => batch.delete(d.ref));
-    likesSnap.docs.forEach((d) => batch.delete(d.ref));
-    commentsSnap.docs.forEach((d) => batch.delete(d.ref));
-    await batch.commit();
-
-    await deleteDoc(doc(db, 'reels', reel.id));
-    await deleteManagedStorageMedia(reel.videoUrl);
-  } catch (error) {
-    handleFirestoreError(error, OperationType.DELETE, `reels/${reel.id}`);
-  }
-}
-
-export async function toggleReelLike(
-  reelId: string,
-  uid: string,
-  currentlyLiked: boolean,
-  actor?: UserPublic,
-  reelAuthorUid?: string
-): Promise<void> {
-  const likeRef = doc(db, 'reels', reelId, 'likes', uid);
-  const reelRef = doc(db, 'reels', reelId);
-  try {
-    const existing = await getDoc(likeRef);
-    const exists = existing.exists();
-    if (currentlyLiked && !exists) return;
-    if (!currentlyLiked && exists) return;
-
-    const batch = writeBatch(db);
-    if (exists) {
-      batch.delete(likeRef);
-      batch.update(reelRef, {
-        likeCount: increment(-1),
-        updatedAt: serverTimestamp(),
-      });
-    } else {
-      batch.set(likeRef, {
-        uid,
-        createdAt: serverTimestamp(),
-      });
-      batch.update(reelRef, {
-        likeCount: increment(1),
-        updatedAt: serverTimestamp(),
-      });
-    }
-    await batch.commit();
-
-    if (!exists && actor && reelAuthorUid && reelAuthorUid !== actor.uid) {
-      const tr = getTranslations(actor.language || 'ar');
-      void createAppNotification({
-        recipientUid: reelAuthorUid,
-        actor,
-        type: 'like',
-        text: tr.notifications.likedPost(actor.name),
-        targetId: reelId,
-      });
-    }
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, `reels/${reelId}/likes/${uid}`);
-  }
-}
 
 export async function addFeedComment(params: {
-  collectionName: 'posts' | 'reels';
+  collectionName?: 'posts';
   targetId: string;
   targetAuthorUid?: string;
   author: UserPublic;
@@ -359,7 +225,7 @@ export async function addFeedComment(params: {
   replyToAuthorName?: string;
 }): Promise<void> {
   const {
-    collectionName,
+    collectionName = 'posts',
     targetId,
     targetAuthorUid,
     author,
@@ -417,7 +283,7 @@ export async function addFeedComment(params: {
 }
 
 export async function deleteFeedComment(
-  collectionName: 'posts' | 'reels',
+  collectionName: 'posts',
   targetId: string,
   commentId: string
 ): Promise<void> {
@@ -443,7 +309,7 @@ export async function deleteFeedComment(
 }
 
 export async function toggleFeedCommentLike(
-  collectionName: 'posts' | 'reels',
+  collectionName: 'posts',
   targetId: string,
   commentId: string,
   uid: string
@@ -489,7 +355,7 @@ export async function toggleFeedCommentLike(
 
 export async function toggleSaveItem(
   uid: string,
-  itemType: 'post' | 'reel',
+  itemType: 'post',
   targetId: string
 ): Promise<boolean> {
   const itemId = `${itemType}_${targetId}`;

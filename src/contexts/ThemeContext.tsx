@@ -1,73 +1,153 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import type { AppThemeId } from '../types/dank';
 
-export type AppTheme = 'light' | 'dark';
+export type AppTheme = AppThemeId;
+
+export interface ThemePresetMeta {
+  id: AppThemeId;
+  canvas: string;
+  surface: string;
+  accent: string;
+  isDark: boolean;
+}
+
+export const THEME_OPTIONS: ThemePresetMeta[] = [
+  {
+    id: 'dank-dark',
+    canvas: '#121212',
+    surface: '#1E1E1E',
+    accent: '#1DB954',
+    isDark: true,
+  },
+  {
+    id: 'midnight-blue',
+    canvas: '#0A1628',
+    surface: '#11223D',
+    accent: '#2E86FF',
+    isDark: true,
+  },
+  {
+    id: 'purple-neon',
+    canvas: '#121212',
+    surface: '#1E1E1E',
+    accent: '#A855F7',
+    isDark: true,
+  },
+  {
+    id: 'light',
+    canvas: '#FFFFFF',
+    surface: '#F4F5F7',
+    accent: '#1DB954',
+    isDark: false,
+  },
+];
+
+const VALID_THEME_IDS = new Set<AppThemeId>([
+  'dank-dark',
+  'midnight-blue',
+  'purple-neon',
+  'light',
+]);
 
 const THEME_STORAGE_KEY = 'dank_theme';
 
+export function normalizeThemeId(raw: unknown): AppThemeId | null {
+  if (raw === 'dark') return 'dank-dark';
+  if (typeof raw === 'string' && VALID_THEME_IDS.has(raw as AppThemeId)) {
+    return raw as AppThemeId;
+  }
+  return null;
+}
+
 interface ThemeContextValue {
-  theme: AppTheme;
+  theme: AppThemeId;
   isDark: boolean;
-  setTheme: (next: AppTheme) => void;
+  setTheme: (next: AppThemeId) => void;
+  hydrateThemeFromProfile: (serverTheme?: AppThemeId | string | null) => void;
   toggleTheme: () => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
-function resolveInitialTheme(): AppTheme {
+function resolveInitialTheme(): AppThemeId {
   try {
     const saved = localStorage.getItem(THEME_STORAGE_KEY);
-    if (saved === 'dark' || saved === 'light') {
-      return saved;
+    const normalized = normalizeThemeId(saved);
+    if (normalized) {
+      if (saved === 'dark') {
+        localStorage.setItem(THEME_STORAGE_KEY, normalized);
+      }
+      return normalized;
     }
   } catch {
     // ignore storage access issues
   }
-  return 'dark';
+  return 'dank-dark';
 }
 
-function applyThemeToDocument(theme: AppTheme): void {
+function applyThemeToDocument(theme: AppThemeId): void {
   if (typeof document === 'undefined') return;
   const html = document.documentElement;
-  if (theme === 'dark') {
+  html.dataset.theme = theme;
+  const isDark = theme !== 'light';
+  if (isDark) {
     html.classList.add('dark');
   } else {
     html.classList.remove('dark');
   }
   const metaTheme = document.querySelector('meta[name="theme-color"]');
   if (metaTheme) {
-    metaTheme.setAttribute('content', theme === 'dark' ? '#17212B' : '#2AABEE');
+    const preset = THEME_OPTIONS.find((t) => t.id === theme) || THEME_OPTIONS[0];
+    metaTheme.setAttribute('content', preset.canvas);
   }
 }
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [theme, setThemeState] = useState<AppTheme>(() => resolveInitialTheme());
+  const [theme, setThemeState] = useState<AppThemeId>(() => resolveInitialTheme());
 
   useEffect(() => {
     applyThemeToDocument(theme);
   }, [theme]);
 
-  const setTheme = (next: AppTheme) => {
-    setThemeState(next);
-    applyThemeToDocument(next);
+  const setTheme = useCallback((next: AppThemeId) => {
+    const normalized = normalizeThemeId(next) || 'dank-dark';
+    setThemeState(normalized);
+    applyThemeToDocument(normalized);
     try {
-      localStorage.setItem(THEME_STORAGE_KEY, next);
+      localStorage.setItem(THEME_STORAGE_KEY, normalized);
     } catch {
       // ignore storage errors
     }
-  };
+  }, []);
 
-  const toggleTheme = () => {
-    setTheme(theme === 'dark' ? 'light' : 'dark');
-  };
+  const hydrateThemeFromProfile = useCallback(
+    (serverTheme?: AppThemeId | string | null) => {
+      const normalized = normalizeThemeId(serverTheme);
+      if (!normalized) return;
+      setThemeState(normalized);
+      applyThemeToDocument(normalized);
+      try {
+        localStorage.setItem(THEME_STORAGE_KEY, normalized);
+      } catch {
+        // ignore storage errors
+      }
+    },
+    []
+  );
+
+  const toggleTheme = useCallback(() => {
+    setTheme(theme === 'light' ? 'dank-dark' : 'light');
+  }, [setTheme, theme]);
 
   const value = useMemo<ThemeContextValue>(
     () => ({
       theme,
-      isDark: theme === 'dark',
+      isDark: theme !== 'light',
       setTheme,
+      hydrateThemeFromProfile,
       toggleTheme,
     }),
-    [theme]
+    [theme, setTheme, hydrateThemeFromProfile, toggleTheme]
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

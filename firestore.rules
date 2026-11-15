@@ -100,7 +100,7 @@ service cloud.firestore {
     function isValidUserPublic(data, userId) {
       return data.keys().hasAll(['uid', 'name', 'username', 'isOnline', 'lastSeen', 'createdAt', 'updatedAt'])
         && data.keys().hasOnly([
-          'uid', 'name', 'username', 'photoURL', 'coverURL', 'bio', 'language', 'isOnline', 'lastSeen',
+          'uid', 'name', 'username', 'photoURL', 'coverURL', 'bio', 'language', 'theme', 'isOnline', 'lastSeen',
           'activeChatId', 'isAdmin', 'isVerified', 'isBot', 'isPlus',
           'inviteCode', 'invitedBy', 'inviteCount', 'isVip', 'isBanned', 'mutedUntil',
           'hasPhone', 'privacyPhone', 'privacyLastSeen', 'privacyLastSeenExceptions',
@@ -115,6 +115,7 @@ service cloud.firestore {
         && isValidOptString(data, 'coverURL', 350000)
         && isValidOptString(data, 'bio', 240)
         && (!('language' in data) || data.language in ['ar', 'en'])
+        && (!('theme' in data) || data.theme in ['dank-dark', 'midnight-blue', 'purple-neon', 'light'])
         && isValidOptString(data, 'activeChatId', 128)
         && isValidOptString(data, 'inviteCode', 16)
         && isValidOptString(data, 'invitedBy', 128)
@@ -428,7 +429,8 @@ service cloud.firestore {
         && data.keys().hasOnly([
           'id', 'callerId', 'callerName', 'callerPhoto',
           'calleeId', 'calleeName', 'calleePhoto',
-          'chatId', 'callType', 'status', 'startedAt', 'endedAt', 'durationSeconds'
+          'chatId', 'callType', 'status', 'offerSdp', 'answerSdp',
+          'startedAt', 'endedAt', 'durationSeconds'
         ])
         && isValidId(data.id) && data.id == callId
         && isValidId(data.callerId)
@@ -440,9 +442,20 @@ service cloud.firestore {
         && isValidId(data.chatId)
         && data.callType in ['voice', 'video']
         && data.status in ['ringing', 'connected', 'ended', 'declined', 'missed']
+        && isValidOptString(data, 'offerSdp', 32000)
+        && isValidOptString(data, 'answerSdp', 32000)
         && data.startedAt is timestamp
         && (!('endedAt' in data) || data.endedAt == null || data.endedAt is timestamp)
         && (!('durationSeconds' in data) || (data.durationSeconds is int && data.durationSeconds >= 0 && data.durationSeconds <= 86400));
+    }
+
+    function isValidCallCandidate(data, candidateId) {
+      return data.keys().hasAll(['id', 'senderId', 'candidate', 'createdAt'])
+        && data.keys().hasOnly(['id', 'senderId', 'candidate', 'createdAt'])
+        && isValidId(data.id) && data.id == candidateId
+        && isValidId(data.senderId)
+        && data.candidate is string && data.candidate.size() >= 1 && data.candidate.size() <= 4000
+        && data.createdAt is timestamp;
     }
 
     function isValidReaction(data, chatId) {
@@ -613,6 +626,47 @@ service cloud.firestore {
         && data.createdAt is timestamp;
     }
 
+    function isValidUserSticker(data, userId, stickerDocId) {
+      return data.keys().hasAll(['id', 'uid', 'source', 'createdAt'])
+        && data.keys().hasOnly(['id', 'uid', 'source', 'stickerId', 'packId', 'imageUrl', 'label', 'createdAt'])
+        && isValidId(data.id) && data.id == stickerDocId
+        && isValidId(data.uid) && data.uid == userId
+        && data.source in ['custom', 'pack', 'saved']
+        && isValidOptString(data, 'stickerId', 64)
+        && isValidOptString(data, 'packId', 64)
+        && isValidOptString(data, 'imageUrl', 2048)
+        && isValidOptString(data, 'label', 80)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidScheduledMessage(data, userId, scheduleId) {
+      return data.keys().hasAll(['id', 'uid', 'chatId', 'text', 'scheduledAt', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'uid', 'chatId', 'chatTitle', 'text', 'scheduledAt', 'status', 'createdAt', 'updatedAt'])
+        && isValidId(data.id) && data.id == scheduleId
+        && isValidId(data.uid) && data.uid == userId
+        && isValidId(data.chatId)
+        && isValidOptString(data, 'chatTitle', 100)
+        && data.text is string && data.text.size() >= 1 && data.text.size() <= 4000
+        && data.scheduledAt is timestamp
+        && data.status in ['pending', 'sent', 'cancelled']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidChatReminder(data, userId, reminderId) {
+      return data.keys().hasAll(['id', 'uid', 'chatId', 'chatTitle', 'remindAt', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'uid', 'chatId', 'chatTitle', 'note', 'remindAt', 'status', 'createdAt', 'updatedAt'])
+        && isValidId(data.id) && data.id == reminderId
+        && isValidId(data.uid) && data.uid == userId
+        && isValidId(data.chatId)
+        && data.chatTitle is string && data.chatTitle.size() >= 1 && data.chatTitle.size() <= 100
+        && isValidOptString(data, 'note', 200)
+        && data.remindAt is timestamp
+        && data.status in ['pending', 'fired', 'dismissed']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
     // --- Collection Rules ---
 
     // 1. Public User Profiles (No PII)
@@ -650,7 +704,7 @@ service cloud.firestore {
             isAdmin()
             && incoming().diff(existing()).affectedKeys().hasOnly([
               'isAdmin', 'isVerified', 'isVip', 'isPlus', 'isBanned', 'mutedUntil',
-              'name', 'username', 'photoURL', 'coverURL', 'bio', 'language',
+              'name', 'username', 'photoURL', 'coverURL', 'bio', 'language', 'theme',
               'isOnline', 'lastSeen', 'activeChatId', 'inviteCode', 'updatedAt'
             ])
             && (
@@ -662,7 +716,7 @@ service cloud.firestore {
             isOwner(userId)
             && incoming().lastSeen == request.time
             && incoming().diff(existing()).affectedKeys().hasOnly([
-              'name', 'username', 'photoURL', 'coverURL', 'bio', 'language', 'isOnline', 'lastSeen',
+              'name', 'username', 'photoURL', 'coverURL', 'bio', 'language', 'theme', 'isOnline', 'lastSeen',
               'activeChatId', 'inviteCode', 'invitedBy', 'isPlus', 'hasPhone',
               'privacyPhone', 'privacyLastSeen', 'privacyLastSeenExceptions',
               'privacyProfilePhoto', 'privacyGroupAdd', 'privacyCall', 'privacyMessages',
@@ -799,6 +853,76 @@ service cloud.firestore {
 
         allow delete: if isOwner(userId) && isValidId(userId) && isValidId(itemId);
       }
+
+      // User custom & saved stickers subcollection
+      match /stickers/{stickerDocId} {
+        allow get: if (isOwner(userId) || isAdmin()) && isValidId(userId) && isValidId(stickerDocId);
+        allow list: if isOwner(userId) || isAdmin();
+
+        allow create: if isOwner(userId)
+          && isValidId(userId)
+          && isValidId(stickerDocId)
+          && isValidUserSticker(incoming(), userId, stickerDocId)
+          && incoming().createdAt == request.time;
+
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(stickerDocId);
+      }
+
+      // Scheduled messages subcollection
+      match /scheduled_messages/{scheduleId} {
+        allow get: if (isOwner(userId) || isAdmin()) && isValidId(userId) && isValidId(scheduleId);
+        allow list: if isOwner(userId) || isAdmin();
+
+        allow create: if isOwner(userId)
+          && isValidId(userId)
+          && isValidId(scheduleId)
+          && isValidScheduledMessage(incoming(), userId, scheduleId)
+          && incoming().status == 'pending'
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+
+        allow update: if isOwner(userId)
+          && isValidId(userId)
+          && isValidId(scheduleId)
+          && isValidScheduledMessage(incoming(), userId, scheduleId)
+          && existing().status == 'pending'
+          && incoming().id == existing().id
+          && incoming().uid == existing().uid
+          && incoming().chatId == existing().chatId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['text', 'scheduledAt', 'status', 'updatedAt']);
+
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(scheduleId);
+      }
+
+      // Chat reminders subcollection
+      match /chat_reminders/{reminderId} {
+        allow get: if (isOwner(userId) || isAdmin()) && isValidId(userId) && isValidId(reminderId);
+        allow list: if isOwner(userId) || isAdmin();
+
+        allow create: if isOwner(userId)
+          && isValidId(userId)
+          && isValidId(reminderId)
+          && isValidChatReminder(incoming(), userId, reminderId)
+          && incoming().status == 'pending'
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+
+        allow update: if isOwner(userId)
+          && isValidId(userId)
+          && isValidId(reminderId)
+          && isValidChatReminder(incoming(), userId, reminderId)
+          && existing().status == 'pending'
+          && incoming().id == existing().id
+          && incoming().uid == existing().uid
+          && incoming().chatId == existing().chatId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['note', 'remindAt', 'status', 'updatedAt']);
+
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(reminderId);
+      }
     }
 
     // 2b. Invite Codes Lookup
@@ -898,6 +1022,45 @@ service cloud.firestore {
       allow delete: if isVerified()
         && isValidId(callId)
         && (existing().callerId == request.auth.uid || existing().calleeId == request.auth.uid || isAdmin());
+
+      match /candidates/{candidateId} {
+        allow get: if isVerified()
+          && isValidId(callId)
+          && isValidId(candidateId)
+          && (
+            get(/databases/$(database)/documents/calls/$(callId)).data.callerId == request.auth.uid
+            || get(/databases/$(database)/documents/calls/$(callId)).data.calleeId == request.auth.uid
+            || isAdmin()
+          );
+
+        allow list: if isVerified()
+          && isValidId(callId)
+          && (
+            get(/databases/$(database)/documents/calls/$(callId)).data.callerId == request.auth.uid
+            || get(/databases/$(database)/documents/calls/$(callId)).data.calleeId == request.auth.uid
+            || isAdmin()
+          );
+
+        allow create: if isVerified()
+          && isValidId(callId)
+          && isValidId(candidateId)
+          && isValidCallCandidate(incoming(), candidateId)
+          && incoming().senderId == request.auth.uid
+          && incoming().createdAt == request.time
+          && (
+            get(/databases/$(database)/documents/calls/$(callId)).data.callerId == request.auth.uid
+            || get(/databases/$(database)/documents/calls/$(callId)).data.calleeId == request.auth.uid
+          );
+
+        allow delete: if isVerified()
+          && isValidId(callId)
+          && isValidId(candidateId)
+          && (
+            get(/databases/$(database)/documents/calls/$(callId)).data.callerId == request.auth.uid
+            || get(/databases/$(database)/documents/calls/$(callId)).data.calleeId == request.auth.uid
+            || isAdmin()
+          );
+      }
     }
 
     // 3. User Chat Index (Query-enforced personal inbox list)

@@ -42,26 +42,26 @@ export const NotificationsPage: React.FC<NotificationsPageProps> = ({
     switch (type) {
       case 'follow':
         return (
-          <span className="w-5 h-5 rounded-full bg-[#2AABEE] text-white flex items-center justify-center ring-2 ring-white dark:ring-[#17212B]">
+          <span className="w-5 h-5 rounded-full bg-[var(--dank-accent)] text-[var(--dank-accent-fg)] flex items-center justify-center ring-2 ring-[var(--dank-surface)]">
             <UserPlus className="w-2.5 h-2.5" />
           </span>
         );
       case 'like':
         return (
-          <span className="w-5 h-5 rounded-full bg-rose-500 text-white flex items-center justify-center ring-2 ring-white dark:ring-[#17212B]">
+          <span className="w-5 h-5 rounded-full bg-rose-500 text-white flex items-center justify-center ring-2 ring-[var(--dank-surface)]">
             <Heart className="w-2.5 h-2.5 fill-current" />
           </span>
         );
       case 'comment':
         return (
-          <span className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center ring-2 ring-white dark:ring-[#17212B]">
+          <span className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center ring-2 ring-[var(--dank-surface)]">
             <MessageCircle className="w-2.5 h-2.5" />
           </span>
         );
       case 'message':
       default:
         return (
-          <span className="w-5 h-5 rounded-full bg-[#2AABEE] text-white flex items-center justify-center ring-2 ring-white dark:ring-[#17212B]">
+          <span className="w-5 h-5 rounded-full bg-[var(--dank-accent)] text-[var(--dank-accent-fg)] flex items-center justify-center ring-2 ring-[var(--dank-surface)]">
             <Send className="w-2.5 h-2.5" />
           </span>
         );
@@ -69,21 +69,21 @@ export const NotificationsPage: React.FC<NotificationsPageProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#eef2f6] dark:bg-[#0E1621] flex flex-col">
+    <div className="fixed inset-0 z-50 bg-[var(--dank-canvas)] flex flex-col">
       {/* Header */}
-      <header className="h-14 shrink-0 bg-white dark:bg-[#17212B] border-b border-slate-200 dark:border-[#22303F] px-3 sm:px-5 flex items-center justify-between gap-2">
+      <header className="h-14 shrink-0 bg-[var(--dank-surface)] border-b border-[var(--dank-border)] px-3 sm:px-5 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <button
             type="button"
             onClick={onClose}
             aria-label={t.common.close}
-            className="w-10 h-10 rounded-xl hover:bg-slate-100 dark:hover:bg-[#242F3D] text-[#0E1621] dark:text-white flex items-center justify-center cursor-pointer"
+            className="w-10 h-10 rounded-xl hover:bg-[var(--dank-hover)] text-[var(--dank-text)] flex items-center justify-center cursor-pointer"
           >
             <ArrowLeft className="w-5 h-5 rtl:rotate-180" />
           </button>
           <div className="flex items-center gap-2 min-w-0">
-            <Bell className="w-5 h-5 text-[#2AABEE] shrink-0" />
-            <h1 className="text-base font-bold text-[#0E1621] dark:text-white truncate">
+            <Bell className="w-5 h-5 text-[var(--dank-accent)] shrink-0" />
+            <h1 className="text-base font-bold text-[var(--dank-text)] truncate">
               {t.notifications.title}
             </h1>
             {unreadCount > 0 && (
@@ -99,7 +99,7 @@ export const NotificationsPage: React.FC<NotificationsPageProps> = ({
             <button
               type="button"
               onClick={onMarkAllRead}
-              className="h-9 px-2.5 sm:px-3 rounded-xl bg-[#2AABEE]/15 hover:bg-[#2AABEE]/25 text-[#2AABEE] text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+              className="h-9 px-2.5 sm:px-3 rounded-xl bg-[var(--dank-accent-soft)] hover:opacity-90 text-[var(--dank-accent)] text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
             >
               <CheckCheck className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">{t.notifications.markAllRead}</span>
@@ -109,7 +109,7 @@ export const NotificationsPage: React.FC<NotificationsPageProps> = ({
             <button
               type="button"
               onClick={onClearAll}
-              className="h-9 px-2.5 sm:px-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 dark:text-red-400 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+              className="h-9 px-2.5 sm:px-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">{t.notifications.clearAll}</span>
@@ -122,18 +122,18 @@ export const NotificationsPage: React.FC<NotificationsPageProps> = ({
       <div className="flex-1 overflow-y-auto">
         {notifications.length === 0 ? (
           <div className="max-w-md mx-auto py-20 px-6 text-center space-y-3">
-            <div className="w-16 h-16 mx-auto rounded-2xl bg-white dark:bg-[#17212B] border border-slate-200 dark:border-[#22303F] flex items-center justify-center text-[#2AABEE]">
+            <div className="w-16 h-16 mx-auto rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] flex items-center justify-center text-[var(--dank-accent)]">
               <Bell className="w-8 h-8" />
             </div>
-            <h2 className="text-base font-bold text-[#0E1621] dark:text-white">
+            <h2 className="text-base font-bold text-[var(--dank-text)]">
               {t.notifications.emptyTitle}
             </h2>
-            <p className="text-xs text-slate-500 dark:text-[#8C9FB1] leading-relaxed">
+            <p className="text-xs text-[var(--dank-muted)] leading-relaxed">
               {t.notifications.emptyDesc}
             </p>
           </div>
         ) : (
-          <div className="max-w-2xl mx-auto divide-y divide-slate-200/80 dark:divide-[#22303F] bg-white dark:bg-[#17212B] sm:my-4 sm:rounded-2xl sm:border sm:border-slate-200 sm:dark:border-[#22303F] overflow-hidden">
+          <div className="max-w-2xl mx-auto divide-y divide-[var(--dank-border)] bg-[var(--dank-surface)] sm:my-4 sm:rounded-2xl sm:border sm:border-[var(--dank-border)] overflow-hidden">
             {notifications.map((notif) => {
               const actorUser = usersMap[notif.actorUid];
               return (
@@ -145,8 +145,8 @@ export const NotificationsPage: React.FC<NotificationsPageProps> = ({
                   }}
                   className={`px-4 py-3.5 flex items-center gap-3.5 cursor-pointer transition-colors ${
                     notif.read
-                      ? 'hover:bg-slate-50 dark:hover:bg-[#202B36]'
-                      : 'bg-[#2AABEE]/8 dark:bg-[#2AABEE]/12 hover:bg-[#2AABEE]/14'
+                      ? 'hover:bg-[var(--dank-hover)]'
+                      : 'bg-[var(--dank-accent-soft)] hover:bg-[var(--dank-hover)]'
                   }`}
                 >
                   <button
@@ -173,13 +173,13 @@ export const NotificationsPage: React.FC<NotificationsPageProps> = ({
                       dir="auto"
                       className={`text-sm leading-snug break-words ${
                         notif.read
-                          ? 'text-[#0E1621] dark:text-[#DCE6F0]'
-                          : 'font-semibold text-[#0E1621] dark:text-white'
+                          ? 'text-[var(--dank-text)] opacity-85'
+                          : 'font-semibold text-[var(--dank-text)]'
                       }`}
                     >
                       {notif.text}
                     </p>
-                    <p className="text-[11px] text-slate-500 dark:text-[#8C9FB1] mt-0.5 tabular-nums">
+                    <p className="text-[11px] text-[var(--dank-muted)] mt-0.5 tabular-nums">
                       {notif.createdAt
                         ? formatMessageTime(notif.createdAt, language)
                         : t.notifications.justNow}
@@ -189,7 +189,7 @@ export const NotificationsPage: React.FC<NotificationsPageProps> = ({
                   {!notif.read && (
                     <span
                       aria-label={t.notifications.unreadLabel}
-                      className="w-2.5 h-2.5 rounded-full bg-[#2AABEE] shrink-0"
+                      className="w-2.5 h-2.5 rounded-full bg-[var(--dank-accent)] shrink-0"
                     />
                   )}
                 </div>

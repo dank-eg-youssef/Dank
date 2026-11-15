@@ -4,8 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>DANK — تواصل بحرية</title>
-    <meta name="description" content="DANK - تواصل بحرية. Real-time private messaging, groups, broadcast channels, stories, posts, and reels." />
-    <meta name="theme-color" content="#0E1621" />
+    <meta name="description" content="DANK - تواصل بحرية. Real-time private messaging, communities, channels, updates, and calls." />
+    <meta name="theme-color" content="#121212" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -16,7 +16,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta property="og:site_name" content="DANK" />
     <meta property="og:title" content="DANK — تواصل بحرية" />
-    <meta property="og:description" content="DANK - تواصل بحرية. Real-time messaging for private chats, groups, channels, stories, posts, and reels." />
+    <meta property="og:description" content="DANK - تواصل بحرية. Real-time private messaging, communities, channels, updates, and calls." />
     <meta property="og:type" content="website" />
     <meta property="og:image" content="/pwa-512x512.png" />
     <meta name="twitter:card" content="summary_large_image" />
@@ -30,7 +30,7 @@
         min-height: 100vh;
         min-height: 100dvh;
         width: 100%;
-        background-color: #0E1621;
+        background-color: #121212;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -44,7 +44,7 @@
         height: 88px;
         border-radius: 22px;
         overflow: hidden;
-        box-shadow: 0 18px 42px rgba(0, 0, 0, 0.45), 0 0 0 2px rgba(42, 171, 238, 0.4);
+        box-shadow: 0 18px 42px rgba(0, 0, 0, 0.55), 0 0 0 2px rgba(29, 185, 84, 0.45);
       }
       #dank-boot-title {
         margin: 0;
@@ -57,7 +57,7 @@
       }
       #dank-boot-tagline {
         margin: -6px 0 6px;
-        color: #2AABEE;
+        color: #1DB954;
         font-family: 'Cairo', 'Poppins', system-ui, -apple-system, sans-serif;
         font-size: 15px;
         font-weight: 600;
@@ -67,8 +67,8 @@
         width: 34px;
         height: 34px;
         border-radius: 9999px;
-        border: 3px solid rgba(42, 171, 238, 0.25);
-        border-top-color: #2AABEE;
+        border: 3px solid rgba(29, 185, 84, 0.25);
+        border-top-color: #1DB954;
         animation: dank-boot-spin 0.8s linear infinite;
       }
     </style>
@@ -83,12 +83,7 @@
           document.documentElement.dir = 'rtl';
         }
         var storedTheme = localStorage.getItem('dank_theme');
-        var useDark =
-          storedTheme === 'dark'
-            ? true
-            : storedTheme === 'light'
-            ? false
-            : !(window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches);
+        var useDark = storedTheme === 'light' ? false : true;
         if (useDark) {
           document.documentElement.classList.add('dark');
         } else {
@@ -98,18 +93,18 @@
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   </head>
-  <body class="bg-[#f4f7fb] text-slate-900 dark:bg-[#0E1621] dark:text-slate-100 antialiased selection:bg-[#2AABEE]/30">
+  <body class="bg-[#121212] text-white antialiased selection:bg-[#1DB954]/30">
     <div id="root">
       <div id="dank-boot-splash" aria-label="DANK">
         <div id="dank-boot-logo-wrap">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none" width="88" height="88">
-            <rect width="512" height="512" fill="#17212B" />
-            <circle cx="256" cy="256" r="184" fill="#1E2C3A" stroke="#2AABEE" stroke-width="14" stroke-opacity="0.35" />
-            <path d="M256 108c-81.7 0-148 66.3-148 148 0 31.3 9.7 60.4 26.3 84.3L116 396l57.7-17.8c23.7 15.1 51.9 23.8 82.3 23.8 81.7 0 148-66.3 148-148S337.7 108 256 108Z" stroke="#2AABEE" stroke-width="22" stroke-linejoin="round" />
-            <path d="M342 184L174 252l63 22 25 65 80-155Z" fill="#2AABEE" />
-            <path d="M237 274l105-90-80 155-25-65Z" fill="#229ED9" />
+            <rect width="512" height="512" fill="#1E1E1E" />
+            <circle cx="256" cy="256" r="184" fill="#121212" stroke="#1DB954" stroke-width="14" stroke-opacity="0.4" />
+            <path d="M256 108c-81.7 0-148 66.3-148 148 0 31.3 9.7 60.4 26.3 84.3L116 396l57.7-17.8c23.7 15.1 51.9 23.8 82.3 23.8 81.7 0 148-66.3 148-148S337.7 108 256 108Z" stroke="#1DB954" stroke-width="22" stroke-linejoin="round" />
+            <path d="M342 184L174 252l63 22 25 65 80-155Z" fill="#1DB954" />
+            <path d="M237 274l105-90-80 155-25-65Z" fill="#169C46" />
           </svg>
         </div>
         <h1 id="dank-boot-title">DANK</h1>

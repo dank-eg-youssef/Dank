@@ -24,17 +24,27 @@ import type {
   AdminDailyStat,
   AdminStatsData,
   AppLanguage,
+  CallRecord,
   Chat,
+  ChatReminder,
   ChatType,
   Message,
   MessageStatus,
   MessageType,
   PrivacyVisibility,
+  ScheduledMessage,
   Story,
   UserChatPref,
   UserPublic,
+  UserSticker,
 } from '../types/dank';
-import { handleFirestoreError, OperationType } from '../utils/firestoreErrors';
+import {
+  handleFirestoreError,
+  isFirestoreWritesPaused,
+  isQuotaExhaustedError,
+  OperationType,
+  pauseFirestoreWrites,
+} from '../utils/firestoreErrors';
 import { encryptSecretText } from '../utils/secretCrypto';
 import { isUserActuallyOnline, sanitizeUsername } from '../utils/timeFormat';
 import { getTranslations } from '../i18n';
@@ -42,24 +52,7 @@ import { createAppNotification } from './notificationService';
 
 export const OFFICIAL_CHANNEL_ID = 'dank_official';
 export const DANK_TEAM_CHANNEL_ID = 'dank_team';
-export const DANK_BOT_UID = 'dank_bot';
 export const ADS_BANNER_DOC_ID = 'ads_banner';
-
-export const DANK_BOT_USER: UserPublic = {
-  uid: DANK_BOT_UID,
-  name: 'DANK Bot',
-  username: 'dank_bot',
-  photoURL: '',
-  bio: 'Official interactive assistant & smart helper on DANK.',
-  language: 'ar',
-  isOnline: true,
-  lastSeen: null,
-  isAdmin: false,
-  isVerified: true,
-  isBot: true,
-  createdAt: null,
-  updatedAt: null,
-};
 
 export function getEffective24hCount(chat: Chat): number {
   const count = chat.messages24hCount ?? 0;
@@ -402,309 +395,6 @@ export async function ensureSavedMessagesChat(user: UserPublic): Promise<string>
   }
 }
 
-const BOT_CHAT_KEY_PREFIX = 'dank_bot_chat_';
-const BOT_MSGS_KEY_PREFIX = 'dank_bot_msgs_';
-
-interface StoredBotChat {
-  id: string;
-  lastMessageText: string;
-  lastMessageSenderId: string;
-  lastMessageSenderName: string;
-  lastMessageAtMs: number;
-  createdAtMs: number;
-  updatedAtMs: number;
-}
-
-interface StoredBotMsg {
-  id: string;
-  chatId: string;
-  senderId: string;
-  senderName: string;
-  text: string;
-  createdAtMs: number;
-}
-
-function buildBotWelcomeText(user: UserPublic): string {
-  const isAr = (user.language || 'ar') === 'ar';
-  return isAr
-    ? `أهلاً بيك في DANK Bot 🤖\nمرحباً يا ${user.name}! أنا مساعدك الذكي داخل DANK.\n\nجرّب إرسال:\n• /help لعرض الأوامر\n• /vip لمعرفة شارة DANK VIP\n• /privacy لنصائح الخصوصية\n• /plus لمعرفة مزايا DANK Plus`
-    : `Hello ${user.name}! Welcome to DANK Bot! 🤖\nI'm your smart helper inside DANK.\n\nTry sending:\n• /help — Show commands\n• /vip — Learn about DANK VIP badge\n• /privacy — Privacy & Secret Chat tips\n• /plus — DANK Plus features`;
-}
-
-export function getLocalBotChat(uid: string): Chat | null {
-  try {
-    const raw = localStorage.getItem(`${BOT_CHAT_KEY_PREFIX}${uid}`);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as StoredBotChat;
-    if (!parsed || !parsed.id) return null;
-    return {
-      id: parsed.id,
-      type: 'private',
-      name: 'DANK Bot',
-      description: 'Interactive DANK Assistant',
-      photoURL: '',
-      isPublic: false,
-      createdBy: uid,
-      dmPeerIds: [uid, DANK_BOT_UID],
-      lastMessageText: parsed.lastMessageText || '',
-      lastMessageType: 'text',
-      lastMessageSenderId: parsed.lastMessageSenderId || DANK_BOT_UID,
-      lastMessageSenderName: parsed.lastMessageSenderName || 'DANK Bot',
-      lastMessageStatus: 'seen',
-      lastMessageAt: Timestamp.fromMillis(parsed.lastMessageAtMs || Date.now()),
-      memberCount: 1,
-      createdAt: Timestamp.fromMillis(parsed.createdAtMs || Date.now()),
-      updatedAt: Timestamp.fromMillis(parsed.updatedAtMs || Date.now()),
-    };
-  } catch {
-    return null;
-  }
-}
-
-export function getLocalBotMessages(uid: string): Message[] {
-  try {
-    const raw = localStorage.getItem(`${BOT_MSGS_KEY_PREFIX}${uid}`);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as StoredBotMsg[];
-    if (!Array.isArray(parsed)) return [];
-    return parsed.map((m) => ({
-      id: m.id,
-      chatId: m.chatId,
-      senderId: m.senderId,
-      senderName: m.senderName,
-      senderPhoto: '',
-      type: 'text',
-      text: m.text,
-      imageData: '',
-      status: 'seen',
-      createdAt: Timestamp.fromMillis(m.createdAtMs || Date.now()),
-      updatedAt: Timestamp.fromMillis(m.createdAtMs || Date.now()),
-    }));
-  } catch {
-    return [];
-  }
-}
-
-function saveLocalBotState(uid: string, chat: StoredBotChat, msgs: StoredBotMsg[]): void {
-  try {
-    localStorage.setItem(`${BOT_CHAT_KEY_PREFIX}${uid}`, JSON.stringify(chat));
-    localStorage.setItem(`${BOT_MSGS_KEY_PREFIX}${uid}`, JSON.stringify(msgs.slice(-150)));
-    window.dispatchEvent(new CustomEvent('dank:bot-updated', { detail: chat.id }));
-  } catch {
-    // ignore storage errors
-  }
-}
-
-export async function ensureDankBotChat(user: UserPublic): Promise<string> {
-  const chatId = `dank_bot_${user.uid}`;
-  const welcomeText = buildBotWelcomeText(user);
-  const now = Date.now();
-
-  let existingMsgs = getLocalBotMessages(user.uid);
-  let existingChat = getLocalBotChat(user.uid);
-
-  if (!existingChat || existingMsgs.length === 0) {
-    const welcomeId = `bot_welcome_${now}`;
-    const storedChat: StoredBotChat = {
-      id: chatId,
-      lastMessageText: welcomeText.slice(0, 120),
-      lastMessageSenderId: DANK_BOT_UID,
-      lastMessageSenderName: 'DANK Bot',
-      lastMessageAtMs: now,
-      createdAtMs: now,
-      updatedAtMs: now,
-    };
-    const storedMsgs: StoredBotMsg[] = [
-      {
-        id: welcomeId,
-        chatId,
-        senderId: DANK_BOT_UID,
-        senderName: 'DANK Bot',
-        text: welcomeText,
-        createdAtMs: now,
-      },
-    ];
-    saveLocalBotState(user.uid, storedChat, storedMsgs);
-    existingMsgs = getLocalBotMessages(user.uid);
-    existingChat = getLocalBotChat(user.uid);
-  }
-
-  // Best-effort Firestore sync: NEVER throw to prevent raw error banners
-  try {
-    const refSnap = await getDoc(doc(db, 'user_chats', `${user.uid}_${chatId}`));
-    if (refSnap.exists()) return chatId;
-
-    const welcomeMsgId = existingMsgs[0]?.id || generateId();
-    const batch = writeBatch(db);
-
-    batch.set(doc(db, 'chats', chatId), {
-      id: chatId,
-      type: 'private',
-      name: 'DANK Bot',
-      description: 'Interactive DANK Assistant',
-      photoURL: '',
-      isPublic: false,
-      createdBy: user.uid,
-      dmPeerIds: [user.uid, DANK_BOT_UID],
-      lastMessageText: welcomeText.slice(0, 120),
-      lastMessageType: 'text',
-      lastMessageSenderId: DANK_BOT_UID,
-      lastMessageSenderName: 'DANK Bot',
-      lastMessageStatus: 'seen',
-      lastMessageAt: serverTimestamp(),
-      pinnedMessageId: '',
-      pinnedMessageText: '',
-      pinnedMessageSenderName: '',
-      memberCount: 1,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-
-    batch.set(doc(db, 'chats', chatId, 'members', user.uid), {
-      uid: user.uid,
-      chatId,
-      role: 'admin',
-      joinedAt: serverTimestamp(),
-      lastReadAt: serverTimestamp(),
-    });
-
-    batch.set(doc(db, 'user_chats', `${user.uid}_${chatId}`), {
-      uid: user.uid,
-      chatId,
-      chatType: 'private',
-      joinedAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-
-    batch.set(doc(db, 'chats', chatId, 'messages', welcomeMsgId), {
-      id: welcomeMsgId,
-      chatId,
-      senderId: DANK_BOT_UID,
-      senderName: 'DANK Bot',
-      senderPhoto: '',
-      type: 'text',
-      text: welcomeText,
-      imageData: '',
-      status: 'seen',
-      replyToId: '',
-      replyToSenderName: '',
-      replyToText: '',
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-
-    await batch.commit();
-  } catch (err) {
-    console.warn('DANK Bot synced locally (Firestore offline/restricted):', err);
-  }
-
-  return chatId;
-}
-
-function buildBotReply(prompt: string, user: UserPublic): string {
-  const lower = prompt.trim().toLowerCase();
-  const isAr = (user.language || 'ar') === 'ar';
-  const invites = user.inviteCount || 0;
-
-  if (lower.startsWith('/vip') || lower.includes('vip')) {
-    return isAr
-      ? `👑 شارة DANK VIP الذهبية:\nكود الدعوة الخاص بك هو: ${user.inviteCode || 'متاح في ملفك'}\nعدد دعواتك الحالية: ${invites}/5.\nعند دعوة 5 أصدقاء ستحصل على شارة DANK VIP تلقائياً!`
-      : `👑 DANK VIP Badge:\nYour invite code: ${user.inviteCode || 'Available in Profile'}\nConfirmed invites: ${invites}/5.\nInvite 5 friends to automatically unlock the gold DANK VIP badge!`;
-  }
-
-  if (lower.startsWith('/privacy') || lower.includes('خصوص') || lower.includes('secret')) {
-    return isAr
-      ? `🔒 الخصوصية والأمان في DANK:\n• رقم هاتفك مخفي عن الغرباء افتراضياً.\n• يمكنك تفعيل التحقق بخطوتين (2FA) من الإعدادات والخصوصية.\n• استخدم "محادثة سرية" للتشفير والمؤقت الذاتي للتدمير!`
-      : `🔒 DANK Privacy & Security:\n• Your phone number is hidden from strangers by default.\n• Enable Two-Step Verification (2FA) in Settings & Privacy.\n• Start a Secret Chat for E2E encryption & self-destruct timers!`;
-  }
-
-  if (lower.startsWith('/plus') || lower.includes('plus')) {
-    return isAr
-      ? `⭐ DANK Plus:\n• شارة DANK Plus المميزة بجانب اسمك.\n• تثبيت محادثات إضافية ومعالجة أسرع للوسائط.\n• افتح القائمة الجانبية واضغط على DANK Plus للتفعيل!`
-      : `⭐ DANK Plus:\n• Exclusive DANK Plus emerald star badge next to your name.\n• Extended pinned chats & priority media processing.\n• Open the side menu and tap DANK Plus to activate!`;
-  }
-
-  if (lower.startsWith('/start') || lower.startsWith('/help') || lower.includes('مساعد') || lower.includes('help')) {
-    return isAr
-      ? `🤖 أوامر DANK Bot:\n• /vip — كود الدعوة وتقدم VIP\n• /privacy — إعدادات الخصوصية والمحادثات السرية\n• /plus — مزايا DANK Plus\n• اسألني أي شيء عن مجموعات وقنوات ومكالمات DANK!`
-      : `🤖 DANK Bot Commands:\n• /vip — Invite code & VIP progress\n• /privacy — Privacy settings & Secret Chats\n• /plus — DANK Plus benefits\n• Ask me anything about DANK groups, channels, or calls!`;
-  }
-
-  return isAr
-    ? `تم استلام رسالتك "${prompt.slice(0, 60)}" ✅\nأنا DANK Bot في خدمتك! اكتب /help لعرض جميع الأوامر السريعة.`
-    : `Got your message "${prompt.slice(0, 60)}" ✅\nI'm DANK Bot! Send /help to see quick commands.`;
-}
-
-async function sendBotAutoReply(chatId: string, user: UserPublic, promptText: string): Promise<void> {
-  const replyText = buildBotReply(promptText, user);
-  const botMsgId = `bot_reply_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-  const now = Date.now();
-
-  // Save reply locally right away so DANK Bot always works
-  const existingMsgs = getLocalBotMessages(user.uid).map((m) => ({
-    id: m.id,
-    chatId: m.chatId,
-    senderId: m.senderId,
-    senderName: m.senderName,
-    text: m.text || '',
-    createdAtMs: m.createdAt?.toMillis?.() ?? now,
-  }));
-  existingMsgs.push({
-    id: botMsgId,
-    chatId,
-    senderId: DANK_BOT_UID,
-    senderName: 'DANK Bot',
-    text: replyText,
-    createdAtMs: now,
-  });
-  const prevChat = getLocalBotChat(user.uid);
-  saveLocalBotState(
-    user.uid,
-    {
-      id: chatId,
-      lastMessageText: replyText.slice(0, 140),
-      lastMessageSenderId: DANK_BOT_UID,
-      lastMessageSenderName: 'DANK Bot',
-      lastMessageAtMs: now,
-      createdAtMs: prevChat?.createdAt?.toMillis?.() ?? now,
-      updatedAtMs: now,
-    },
-    existingMsgs
-  );
-
-  try {
-    const batch = writeBatch(db);
-    batch.set(doc(db, 'chats', chatId, 'messages', botMsgId), {
-      id: botMsgId,
-      chatId,
-      senderId: DANK_BOT_UID,
-      senderName: 'DANK Bot',
-      senderPhoto: '',
-      type: 'text',
-      text: replyText,
-      imageData: '',
-      status: 'seen',
-      replyToId: '',
-      replyToSenderName: '',
-      replyToText: '',
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-    batch.update(doc(db, 'chats', chatId), {
-      lastMessageText: replyText.slice(0, 140),
-      lastMessageType: 'text',
-      lastMessageSenderId: DANK_BOT_UID,
-      lastMessageSenderName: 'DANK Bot',
-      lastMessageStatus: 'seen',
-      lastMessageAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-    await batch.commit();
-  } catch {
-    // Local reply already stored
-  }
-}
-
 const STORY_SINGLE_DOC_MAX_CHARS = 720000;
 const STORY_CHUNK_CHARS = 500000;
 
@@ -827,9 +517,6 @@ export async function createOrOpenPrivateChat(
   currentUser: UserPublic,
   peerUser: UserPublic
 ): Promise<string> {
-  if (peerUser.uid === DANK_BOT_UID) {
-    return ensureDankBotChat(currentUser);
-  }
   if (peerUser.uid === currentUser.uid) {
     return ensureSavedMessagesChat(currentUser);
   }
@@ -1235,6 +922,9 @@ export async function sendMessage(params: {
   replyTo?: Message | null;
   usersMap: Record<string, UserPublic>;
 }): Promise<string> {
+  if (isFirestoreWritesPaused()) {
+    throw new Error('Firestore write quota exceeded. Quota resets tomorrow.');
+  }
   const {
     chat,
     sender,
@@ -1263,7 +953,7 @@ export async function sendMessage(params: {
   const messageId = params.messageId || generateId();
 
   let initialStatus: MessageStatus = 'sent';
-  if (chat.id === `saved_${sender.uid}` || chat.id === `dank_bot_${sender.uid}`) {
+  if (chat.id === `saved_${sender.uid}`) {
     initialStatus = 'seen';
   } else if (chat.type === 'private' && chat.dmPeerIds && chat.dmPeerIds.length === 2) {
     const peerId = chat.dmPeerIds.find((id) => id !== sender.uid);
@@ -1314,82 +1004,17 @@ export async function sendMessage(params: {
     ? 'Sticker'
     : trimmedText;
 
-  if (chat.id === `dank_bot_${sender.uid}`) {
-    const now = Date.now();
-    const existingMsgs = getLocalBotMessages(sender.uid).map((m) => ({
-      id: m.id,
-      chatId: m.chatId,
-      senderId: m.senderId,
-      senderName: m.senderName,
-      text: m.text || '',
-      createdAtMs: m.createdAt?.toMillis?.() ?? now,
-    }));
-    const userText = previewText || trimmedText || 'Message';
-    existingMsgs.push({
-      id: messageId,
-      chatId: chat.id,
-      senderId: sender.uid,
-      senderName: sender.name.slice(0, 80),
-      text: userText,
-      createdAtMs: now,
-    });
-    const prevChat = getLocalBotChat(sender.uid);
-    saveLocalBotState(
-      sender.uid,
-      {
-        id: chat.id,
-        lastMessageText: userText.slice(0, 140),
-        lastMessageSenderId: sender.uid,
-        lastMessageSenderName: sender.name.slice(0, 80),
-        lastMessageAtMs: now,
-        createdAtMs: prevChat?.createdAt?.toMillis?.() ?? now,
-        updatedAtMs: now,
-      },
-      existingMsgs
-    );
-
-    // Best-effort Firestore write for bot chat; never crash
-    try {
-      const botRef = doc(db, 'chats', chat.id);
-      const batch = writeBatch(db);
-      batch.set(doc(db, 'chats', chat.id, 'messages', messageId), {
-        id: messageId,
-        chatId: chat.id,
-        senderId: sender.uid,
-        senderName: sender.name.slice(0, 80),
-        senderPhoto: (sender.photoURL || '').slice(0, 250000),
-        type: 'text',
-        text: userText,
-        imageData: '',
-        status: 'seen',
-        replyToId: '',
-        replyToSenderName: '',
-        replyToText: '',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-      batch.update(botRef, {
-        lastMessageText: userText.slice(0, 140),
-        lastMessageType: 'text',
-        lastMessageSenderId: sender.uid,
-        lastMessageSenderName: sender.name.slice(0, 80),
-        lastMessageStatus: 'seen',
-        lastMessageAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-      await batch.commit();
-    } catch {
-      // Handled gracefully in local mode
-    }
-
-    window.setTimeout(() => {
-      void sendBotAutoReply(chat.id, sender, userText);
-    }, 300);
-    return messageId;
-  }
-
   try {
     const batch = writeBatch(db);
+    const resolvedMedia = imageUrl || imageData;
+    const isMediaType = type === 'image' || type === 'sticker';
+    const safeHttpOrShortUrl =
+      isMediaType && resolvedMedia && !resolvedMedia.startsWith('data:')
+        ? resolvedMedia.slice(0, 2048)
+        : isMediaType && resolvedMedia.length <= 2048
+        ? resolvedMedia
+        : '';
+
     const msgPayload: Record<string, unknown> = {
       id: messageId,
       chatId: chat.id,
@@ -1398,8 +1023,8 @@ export async function sendMessage(params: {
       senderPhoto: (sender.photoURL || '').slice(0, 250000),
       type,
       text: storedText,
-      imageUrl: type === 'image' ? (imageUrl || imageData).slice(0, 2048) : '',
-      imageData: type === 'image' ? (imageUrl || imageData).slice(0, 500000) : '',
+      imageUrl: safeHttpOrShortUrl,
+      imageData: isMediaType ? resolvedMedia.slice(0, 500000) : '',
       status: initialStatus,
       replyToId: replyTo ? replyTo.id : '',
       replyToSenderName: replyTo ? replyTo.senderName.slice(0, 80) : '',
@@ -1503,7 +1128,6 @@ export async function sendMessage(params: {
     if (
       chat.type === 'private' &&
       chat.id !== `saved_${sender.uid}` &&
-      chat.id !== `dank_bot_${sender.uid}` &&
       chat.dmPeerIds &&
       chat.dmPeerIds.length === 2
     ) {
@@ -1625,15 +1249,48 @@ export async function forwardMessage(params: {
   });
 }
 
+const VIEWED_CHANNEL_MSGS_KEY = 'dank_viewed_channel_msgs';
+
+function hasLocalViewedChannelMsg(chatId: string, messageId: string): boolean {
+  try {
+    const raw = localStorage.getItem(VIEWED_CHANNEL_MSGS_KEY);
+    if (!raw) return false;
+    const list = JSON.parse(raw) as unknown;
+    return Array.isArray(list) && list.includes(`${chatId}_${messageId}`);
+  } catch {
+    return false;
+  }
+}
+
+function markLocalViewedChannelMsg(chatId: string, messageId: string): void {
+  try {
+    const raw = localStorage.getItem(VIEWED_CHANNEL_MSGS_KEY);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : [];
+    const list = Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [];
+    const key = `${chatId}_${messageId}`;
+    if (!list.includes(key)) {
+      list.push(key);
+      if (list.length > 200) list.splice(0, list.length - 200);
+      localStorage.setItem(VIEWED_CHANNEL_MSGS_KEY, JSON.stringify(list));
+    }
+  } catch {
+    // ignore storage errors
+  }
+}
+
 export async function recordChannelMessageView(
   chatId: string,
   messageId: string,
   uid: string
 ): Promise<void> {
+  if (isFirestoreWritesPaused() || hasLocalViewedChannelMsg(chatId, messageId)) return;
   try {
     const viewRef = doc(db, 'chats', chatId, 'messages', messageId, 'views', uid);
     const snap = await getDoc(viewRef);
-    if (snap.exists()) return;
+    if (snap.exists()) {
+      markLocalViewedChannelMsg(chatId, messageId);
+      return;
+    }
 
     const batch = writeBatch(db);
     batch.set(viewRef, {
@@ -1645,8 +1302,11 @@ export async function recordChannelMessageView(
       updatedAt: serverTimestamp(),
     });
     await batch.commit();
-  } catch {
-    // Non-fatal view increment
+    markLocalViewedChannelMsg(chatId, messageId);
+  } catch (error) {
+    if (isQuotaExhaustedError(error)) {
+      pauseFirestoreWrites();
+    }
   }
 }
 
@@ -1696,6 +1356,7 @@ export async function deleteChannelComment(
 }
 
 export async function markChatMessagesDelivered(chat: Chat, currentUid: string): Promise<void> {
+  if (isFirestoreWritesPaused()) return;
   try {
     const q = query(
       collection(db, 'chats', chat.id, 'messages'),
@@ -1732,6 +1393,10 @@ export async function markChatMessagesDelivered(chat: Chat, currentUid: string):
 
     await batch.commit();
   } catch (error) {
+    if (isQuotaExhaustedError(error)) {
+      pauseFirestoreWrites();
+      return;
+    }
     console.warn('Could not sync delivered status for chat', chat.id, error);
   }
 }
@@ -1741,6 +1406,7 @@ export async function markChatMessagesSeen(
   messages: Message[],
   currentUid: string
 ): Promise<void> {
+  if (isFirestoreWritesPaused()) return;
   const unseen = messages.filter(
     (m) => m.senderId !== currentUid && (m.status === 'sent' || m.status === 'delivered')
   );
@@ -1773,6 +1439,10 @@ export async function markChatMessagesSeen(
 
     await batch.commit();
   } catch (error) {
+    if (isQuotaExhaustedError(error)) {
+      pauseFirestoreWrites();
+      return;
+    }
     console.warn('Could not mark messages seen for chat', chat.id, error);
   }
 }
@@ -2088,7 +1758,7 @@ export function getOrCreateLocalSessionId(): string {
 }
 
 export async function registerActiveSession(uid: string, sessionId: string): Promise<void> {
-  if (typeof navigator === 'undefined') return;
+  if (typeof navigator === 'undefined' || isFirestoreWritesPaused()) return;
   const ua = (navigator.userAgent || 'Web Browser').slice(0, 300);
   const platform = (navigator.platform || 'Web').slice(0, 80);
   let deviceName = 'Web Browser';
@@ -2121,8 +1791,10 @@ export async function registerActiveSession(uid: string, sessionId: string): Pro
         lastActiveAt: serverTimestamp(),
       });
     }
-  } catch {
-    // Non-fatal session heartbeat failure
+  } catch (error) {
+    if (isQuotaExhaustedError(error)) {
+      pauseFirestoreWrites();
+    }
   }
 }
 
@@ -2141,7 +1813,7 @@ export async function initiateCall(params: {
   caller: UserPublic;
   callee: UserPublic;
   chatId: string;
-  callType: 'voice' | 'video';
+  callType?: 'voice';
 }): Promise<string> {
   const callId = generateId();
   try {
@@ -2154,7 +1826,7 @@ export async function initiateCall(params: {
       calleeName: params.callee.name.slice(0, 80),
       calleePhoto: (params.callee.photoURL || '').slice(0, 250000),
       chatId: params.chatId,
-      callType: params.callType,
+      callType: params.callType || 'voice',
       status: 'ringing',
       startedAt: serverTimestamp(),
       endedAt: null,
@@ -2189,11 +1861,94 @@ export async function updateCallState(
   }
 }
 
+export async function updateCallSignaling(
+  callId: string,
+  updates: { offerSdp?: string; answerSdp?: string }
+): Promise<void> {
+  try {
+    const payload: Record<string, unknown> = {};
+    if (updates.offerSdp !== undefined) {
+      payload.offerSdp = updates.offerSdp.slice(0, 32000);
+    }
+    if (updates.answerSdp !== undefined) {
+      payload.answerSdp = updates.answerSdp.slice(0, 32000);
+    }
+    if (Object.keys(payload).length === 0) return;
+    await updateDoc(doc(db, 'calls', callId), payload);
+  } catch {
+    // Signaling updates are best-effort if the call already closed
+  }
+}
+
+export async function addCallIceCandidate(
+  callId: string,
+  senderId: string,
+  candidateJson: string
+): Promise<void> {
+  const candidateId = generateId();
+  try {
+    await setDoc(doc(db, 'calls', callId, 'candidates', candidateId), {
+      id: candidateId,
+      senderId,
+      candidate: candidateJson.slice(0, 4000),
+      createdAt: serverTimestamp(),
+    });
+  } catch {
+    // Non-fatal ICE candidate error
+  }
+}
+
+export async function postMissedCallMessage(
+  call: CallRecord,
+  caller: UserPublic
+): Promise<void> {
+  if (!call.chatId) return;
+  const msgId = `missed_${call.id}`;
+  try {
+    const msgRef = doc(db, 'chats', call.chatId, 'messages', msgId);
+    const existingSnap = await getDoc(msgRef);
+    if (existingSnap.exists()) return;
+
+    const missedText = '📞 Missed voice call';
+    const batch = writeBatch(db);
+    batch.set(msgRef, {
+      id: msgId,
+      chatId: call.chatId,
+      senderId: caller.uid,
+      senderName: caller.name.slice(0, 80),
+      senderPhoto: (caller.photoURL || '').slice(0, 250000),
+      type: 'text',
+      text: missedText,
+      imageUrl: '',
+      imageData: '',
+      status: 'sent',
+      replyToId: '',
+      replyToSenderName: '',
+      replyToText: '',
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    batch.update(doc(db, 'chats', call.chatId), {
+      lastMessageText: missedText,
+      lastMessageType: 'text',
+      lastMessageSenderId: caller.uid,
+      lastMessageSenderName: caller.name.slice(0, 80),
+      lastMessageStatus: 'sent',
+      lastMessageAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    await batch.commit();
+  } catch {
+    // Non-fatal if chat was deleted or permissions unavailable
+  }
+}
+
 export async function setTypingStatus(
   chatId: string,
   user: UserPublic,
   isTyping: boolean
 ): Promise<void> {
+  if (isFirestoreWritesPaused()) return;
   try {
     await setDoc(doc(db, 'chats', chatId, 'typing', user.uid), {
       uid: user.uid,
@@ -2201,8 +1956,10 @@ export async function setTypingStatus(
       isTyping,
       updatedAt: serverTimestamp(),
     });
-  } catch {
-    // Ephemeral typing failure shouldn't crash UI
+  } catch (error) {
+    if (isQuotaExhaustedError(error)) {
+      pauseFirestoreWrites();
+    }
   }
 }
 
@@ -2400,3 +2157,209 @@ export function canSeePrivacyField(
 export function getDisplayLanguageLabel(lang?: AppLanguage): string {
   return lang === 'en' ? 'English' : 'العربية';
 }
+
+// ==========================================
+// Stickers (Custom & Saved) CRUD
+// ==========================================
+export async function saveUserSticker(
+  uid: string,
+  params: {
+    source: UserSticker['source'];
+    stickerId?: string;
+    packId?: string;
+    imageUrl?: string;
+    label?: string;
+  }
+): Promise<string> {
+  const id = generateId();
+  const payload: Record<string, unknown> = {
+    id,
+    uid,
+    source: params.source,
+    createdAt: serverTimestamp(),
+  };
+  if (params.stickerId) payload.stickerId = params.stickerId.slice(0, 64);
+  if (params.packId) payload.packId = params.packId.slice(0, 64);
+  if (params.imageUrl) payload.imageUrl = params.imageUrl.slice(0, 2048);
+  if (params.label) payload.label = params.label.trim().slice(0, 80);
+
+  try {
+    await setDoc(doc(db, 'users_private', uid, 'stickers', id), payload);
+    return id;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, `users_private/${uid}/stickers/${id}`);
+  }
+}
+
+export async function deleteUserSticker(uid: string, stickerDocId: string): Promise<void> {
+  try {
+    await deleteDoc(doc(db, 'users_private', uid, 'stickers', stickerDocId));
+  } catch (error) {
+    handleFirestoreError(
+      error,
+      OperationType.DELETE,
+      `users_private/${uid}/stickers/${stickerDocId}`
+    );
+  }
+}
+
+// ==========================================
+// Scheduled Messages CRUD
+// ==========================================
+export async function createScheduledMessage(params: {
+  uid: string;
+  chatId: string;
+  chatTitle?: string;
+  text: string;
+  scheduledAtMs: number;
+}): Promise<string> {
+  const id = generateId();
+  const cleanText = params.text.trim().slice(0, 4000);
+  if (!cleanText) throw new Error('Scheduled message text cannot be empty.');
+
+  const payload: Record<string, unknown> = {
+    id,
+    uid: params.uid,
+    chatId: params.chatId,
+    text: cleanText,
+    scheduledAt: Timestamp.fromMillis(params.scheduledAtMs),
+    status: 'pending',
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+  if (params.chatTitle) {
+    payload.chatTitle = params.chatTitle.trim().slice(0, 100);
+  }
+
+  try {
+    await setDoc(doc(db, 'users_private', params.uid, 'scheduled_messages', id), payload);
+    return id;
+  } catch (error) {
+    handleFirestoreError(
+      error,
+      OperationType.CREATE,
+      `users_private/${params.uid}/scheduled_messages/${id}`
+    );
+  }
+}
+
+export async function updateScheduledMessage(
+  uid: string,
+  scheduleId: string,
+  updates: { text?: string; scheduledAtMs?: number }
+): Promise<void> {
+  const payload: Record<string, unknown> = {
+    updatedAt: serverTimestamp(),
+  };
+  if (updates.text !== undefined) {
+    const clean = updates.text.trim().slice(0, 4000);
+    if (!clean) throw new Error('Scheduled message text cannot be empty.');
+    payload.text = clean;
+  }
+  if (updates.scheduledAtMs !== undefined) {
+    payload.scheduledAt = Timestamp.fromMillis(updates.scheduledAtMs);
+  }
+  try {
+    await updateDoc(doc(db, 'users_private', uid, 'scheduled_messages', scheduleId), payload);
+  } catch (error) {
+    handleFirestoreError(
+      error,
+      OperationType.UPDATE,
+      `users_private/${uid}/scheduled_messages/${scheduleId}`
+    );
+  }
+}
+
+export async function markScheduledMessageSent(uid: string, scheduleId: string): Promise<void> {
+  try {
+    await updateDoc(doc(db, 'users_private', uid, 'scheduled_messages', scheduleId), {
+      status: 'sent',
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    handleFirestoreError(
+      error,
+      OperationType.UPDATE,
+      `users_private/${uid}/scheduled_messages/${scheduleId}`
+    );
+  }
+}
+
+export async function deleteScheduledMessage(uid: string, scheduleId: string): Promise<void> {
+  try {
+    await deleteDoc(doc(db, 'users_private', uid, 'scheduled_messages', scheduleId));
+  } catch (error) {
+    handleFirestoreError(
+      error,
+      OperationType.DELETE,
+      `users_private/${uid}/scheduled_messages/${scheduleId}`
+    );
+  }
+}
+
+// ==========================================
+// Chat Reminders CRUD
+// ==========================================
+export async function createChatReminder(params: {
+  uid: string;
+  chatId: string;
+  chatTitle: string;
+  note?: string;
+  remindAtMs: number;
+}): Promise<string> {
+  const id = generateId();
+  const payload: Record<string, unknown> = {
+    id,
+    uid: params.uid,
+    chatId: params.chatId,
+    chatTitle: (params.chatTitle || 'Chat').trim().slice(0, 100),
+    remindAt: Timestamp.fromMillis(params.remindAtMs),
+    status: 'pending',
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+  if (params.note && params.note.trim()) {
+    payload.note = params.note.trim().slice(0, 200);
+  }
+
+  try {
+    await setDoc(doc(db, 'users_private', params.uid, 'chat_reminders', id), payload);
+    return id;
+  } catch (error) {
+    handleFirestoreError(
+      error,
+      OperationType.CREATE,
+      `users_private/${params.uid}/chat_reminders/${id}`
+    );
+  }
+}
+
+export async function markChatReminderFired(uid: string, reminderId: string): Promise<void> {
+  try {
+    await updateDoc(doc(db, 'users_private', uid, 'chat_reminders', reminderId), {
+      status: 'fired',
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    handleFirestoreError(
+      error,
+      OperationType.UPDATE,
+      `users_private/${uid}/chat_reminders/${reminderId}`
+    );
+  }
+}
+
+export async function deleteChatReminder(uid: string, reminderId: string): Promise<void> {
+  try {
+    await deleteDoc(doc(db, 'users_private', uid, 'chat_reminders', reminderId));
+  } catch (error) {
+    handleFirestoreError(
+      error,
+      OperationType.DELETE,
+      `users_private/${uid}/chat_reminders/${reminderId}`
+    );
+  }
+}
+
+export type { ChatReminder, ScheduledMessage, UserSticker };
+

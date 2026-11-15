@@ -11,7 +11,6 @@ import {
 } from 'firebase/auth';
 import {
   doc,
-  enableNetwork,
   getDoc,
   onSnapshot,
   serverTimestamp,
@@ -21,7 +20,6 @@ import {
 } from 'firebase/firestore';
 import { auth, db, googleProvider } from '../lib/firebase';
 import {
-  ensureDankBotChat,
   ensureDankTeamChannelForAdmin,
   ensureOfficialChannelForAdmin,
   ensureSavedMessagesChat,
@@ -30,13 +28,19 @@ import {
   ensureUserJoinedOfficialChannel,
   getOrCreateLocalSessionId,
   redeemInviteCode,
-  registerActiveSession,
   verifyTwoStepInput,
 } from '../services/chatService';
 import { getStoredLanguage, getTranslations } from '../i18n';
-import type { AppLanguage, UserPrivate, UserPublic } from '../types/dank';
-import { handleFirestoreError, isOfflineError, OperationType } from '../utils/firestoreErrors';
-import { sanitizeUsername } from '../utils/timeFormat';
+import type { AppLanguage, AppThemeId, UserPrivate, UserPublic } from '../types/dank';
+import {
+  handleFirestoreError,
+  isFirestoreWritesPaused,
+  isOfflineError,
+  isQuotaExhaustedError,
+  OperationType,
+  pauseFirestoreWrites,
+} from '../utils/firestoreErrors';
+import { sanitizeUsername, timestampToMs } from '../utils/timeFormat';
 
 const ADMIN_EMAIL = 'youssefdankapp@gmail.com';
 const PENDING_PROFILE_KEY = 'dank_pending_signup_profile';
@@ -74,6 +78,7 @@ interface AuthContextValue {
     photoURL?: string;
     coverURL?: string;
     language?: AppLanguage;
+    theme?: AppThemeId;
   }) => Promise<void>;
   redeemReferralCode: (code: string) => Promise<void>;
   setActiveChatPresence: (chatId: string) => Promise<void>;
@@ -81,22 +86,6 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
-
-async function withOfflineRetry<T>(fn: () => Promise<T>, maxAttempts = 4): Promise<T> {
-  let lastError: unknown;
-  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    try {
-      return await fn();
-    } catch (err) {
-      lastError = err;
-      if (!isOfflineError(err) || attempt === maxAttempts) {
-        throw err;
-      }
-      await new Promise((resolve) => setTimeout(resolve, 600 * attempt));
-    }
-  }
-  throw lastError;
-}
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
@@ -110,7 +99,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [twoStepUnlockedMap, setTwoStepUnlockedMap] = useState<Record<string, boolean>>({});
 
   const activeChatRef = useRef<string>('');
-  const uidRef = useRef<string | null>(null);
+  const lastPresenceWriteRef = useRef<number>(0);
+  const syncAttemptedUidRef = useRef<string | null>(null);
 
   const isVerified = Boolean(firebaseUser && firebaseUser.emailVerified);
   const isAdmin = Boolean(
@@ -159,60 +149,76 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [firebaseUser, privateProfile]
   );
 
-  const ensureUserProfileDocs = useCallback(
-    async (user: User) => {
-      if (!user.emailVerified) return;
+  // Try Firestore ONCE per login. If quota/network fails, fallback immediately to cached/local profile and do NOT retry in a loop.
+  const ensureUserProfileDocsOnce = useCallback(async (user: User) => {
+    if (!user.emailVerified) return;
+    if (syncAttemptedUidRef.current === user.uid) return;
+    syncAttemptedUidRef.current = user.uid;
 
-      setProfileError(null);
-      const pubRef = doc(db, 'users_public', user.uid);
-      const privRef = doc(db, 'users_private', user.uid);
+    const chosenLang = getStoredLanguage();
+    const fallbackName = user.displayName?.trim() || user.email?.split('@')[0] || 'DANK Member';
+    const fallbackUsername = sanitizeUsername(
+      user.displayName || user.email?.split('@')[0] || user.uid.slice(0, 8)
+    );
 
-      let pendingName = '';
-      let pendingUsername = '';
-      let pendingInviteCode = '';
-      let hasPendingSession = false;
-      try {
-        const raw = sessionStorage.getItem(PENDING_PROFILE_KEY);
-        if (raw) {
-          const parsed = JSON.parse(raw) as {
-            name?: string;
-            username?: string;
-            inviteCode?: string;
-          };
-          pendingName = parsed.name || '';
-          pendingUsername = parsed.username || '';
-          pendingInviteCode = parsed.inviteCode || '';
-          hasPendingSession = true;
-        }
-      } catch {
-        // ignore storage read error
+    let cachedPub: UserPublic | null = null;
+    try {
+      const raw = localStorage.getItem(`dank_local_profile_${user.uid}`);
+      if (raw) cachedPub = JSON.parse(raw) as UserPublic;
+    } catch {}
+
+    const fallbackProfile: UserPublic = cachedPub || {
+      uid: user.uid,
+      name: fallbackName,
+      username: fallbackUsername,
+      photoURL: user.photoURL || '',
+      language: chosenLang,
+      isOnline: true,
+      lastSeen: null,
+      createdAt: null,
+      updatedAt: null,
+      isAdmin: user.email?.toLowerCase() === ADMIN_EMAIL,
+    };
+
+    // Immediately set profile and unblock loading so WhatsApp layout appears instantly without waiting
+    setProfile(fallbackProfile);
+    setLoading(false);
+    setAuthReady(true);
+
+    const pubRef = doc(db, 'users_public', user.uid);
+    const privRef = doc(db, 'users_private', user.uid);
+
+    let pendingInviteCode = '';
+    try {
+      const rawPending = sessionStorage.getItem(PENDING_PROFILE_KEY);
+      if (rawPending) {
+        const parsed = JSON.parse(rawPending) as { inviteCode?: string };
+        pendingInviteCode = parsed.inviteCode || '';
+      }
+    } catch {}
+
+    // Perform Firestore sync ONCE in background if quota is not paused
+    if (isFirestoreWritesPaused()) {
+      return;
+    }
+
+    try {
+      const [pubSnap, privSnap] = await Promise.all([getDoc(pubRef), getDoc(privRef)]);
+
+      if (pubSnap.exists()) {
+        const pubData = pubSnap.data() as UserPublic;
+        setProfile(pubData);
+        try {
+          localStorage.setItem(`dank_local_profile_${user.uid}`, JSON.stringify(pubData));
+        } catch {}
       }
 
-      let stage: OperationType = OperationType.GET;
-      try {
-        const [pubSnap, privSnap] = await withOfflineRetry(() =>
-          Promise.all([getDoc(pubRef), getDoc(privRef)])
-        );
-
-        stage = OperationType.WRITE;
+      if (!isFirestoreWritesPaused()) {
         const batch = writeBatch(db);
         let hasWrites = false;
-        let createdPublicDoc: UserPublic | null = null;
 
         if (!pubSnap.exists()) {
-          const chosenLang = getStoredLanguage();
-          const fallbackName =
-            pendingName ||
-            user.displayName?.trim() ||
-            user.email?.split('@')[0] ||
-            'DANK Member';
-          const fallbackUsername = sanitizeUsername(
-            pendingUsername ||
-              user.displayName ||
-              user.email?.split('@')[0] ||
-              user.uid.slice(0, 8)
-          );
-          const payload: Record<string, unknown> = {
+          batch.set(pubRef, {
             uid: user.uid,
             name: fallbackName.slice(0, 80),
             username: fallbackUsername,
@@ -221,7 +227,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             language: chosenLang,
             isOnline: true,
             lastSeen: serverTimestamp(),
-            activeChatId: activeChatRef.current || '',
+            activeChatId: '',
             isAdmin: user.email?.toLowerCase() === ADMIN_EMAIL,
             isVerified: false,
             isBot: false,
@@ -240,36 +246,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             privacyMessages: 'everyone',
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
-          };
-          batch.set(pubRef, payload);
-          createdPublicDoc = {
-            uid: user.uid,
-            name: fallbackName.slice(0, 80),
-            username: fallbackUsername,
-            photoURL: user.photoURL || '',
-            language: chosenLang,
-            isOnline: true,
-            lastSeen: null,
-            createdAt: null,
-            updatedAt: null,
-          };
-          hasWrites = true;
-        } else {
-          const existingPub = pubSnap.data() as Partial<UserPublic>;
-          const updatePayload: Record<string, unknown> = {
-            isOnline: true,
-            lastSeen: serverTimestamp(),
-            activeChatId: activeChatRef.current || '',
-            updatedAt: serverTimestamp(),
-          };
-          if (
-            user.email?.toLowerCase() === ADMIN_EMAIL &&
-            existingPub.isAdmin === undefined
-          ) {
-            updatePayload.isAdmin = true;
-          }
-          batch.update(pubRef, updatePayload);
-          createdPublicDoc = existingPub as UserPublic;
+          });
           hasWrites = true;
         }
 
@@ -289,70 +266,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         if (hasWrites) {
-          await withOfflineRetry(() => batch.commit());
+          await batch.commit();
         }
-
-        if (hasPendingSession) {
-          try {
-            sessionStorage.removeItem(PENDING_PROFILE_KEY);
-          } catch {
-            // ignore storage remove error
-          }
-        }
-
-        // Ensure user has a DANK-XXXX invite code & register active device session
-        await withOfflineRetry(() => ensureUserInviteCode(user.uid));
-        void registerActiveSession(user.uid, sessionId);
 
         if (pendingInviteCode) {
           try {
             await redeemInviteCode(user.uid, pendingInviteCode);
-          } catch (err) {
-            console.warn('Could not redeem signup invite code:', err);
-          }
+            sessionStorage.removeItem(PENDING_PROFILE_KEY);
+          } catch {}
         }
-
-        // Ensure official channels & personal utilities (Saved Messages & DANK Bot)
         if (user.email?.toLowerCase() === ADMIN_EMAIL) {
-          await ensureOfficialChannelForAdmin(user.uid);
-          await ensureDankTeamChannelForAdmin(user.uid);
+          await ensureOfficialChannelForAdmin(user.uid).catch(() => {});
+          await ensureDankTeamChannelForAdmin(user.uid).catch(() => {});
         }
         await Promise.all([
           ensureUserJoinedOfficialChannel(user.uid),
           ensureUserJoinedDankTeam(user.uid),
-          createdPublicDoc ? ensureSavedMessagesChat(createdPublicDoc) : Promise.resolve(''),
-          createdPublicDoc ? ensureDankBotChat(createdPublicDoc) : Promise.resolve(''),
-        ]).catch(() => {
-          // Non-fatal background bootstrap
-        });
-      } catch (error) {
-        if (isOfflineError(error)) {
-          console.warn('Profile sync paused while Firestore client is offline:', error);
-          setProfileError(
-            'Unable to reach DANK servers right now. Please check your connection and retry.'
-          );
-          return;
-        }
-        handleFirestoreError(error, stage, `users_public/${user.uid}`);
+          ensureSavedMessagesChat(fallbackProfile),
+        ]).catch(() => {});
       }
-    },
-    [sessionId]
-  );
+    } catch (error) {
+      if (isQuotaExhaustedError(error)) {
+        pauseFirestoreWrites();
+        setProfileError('Firestore free daily write quota reached. Running with cached profile.');
+      } else if (isOfflineError(error)) {
+        console.warn('Firestore offline during single profile sync, using local profile cache.');
+      } else {
+        console.warn('One-time profile sync error (cached profile active):', error);
+      }
+    }
+  }, []);
 
   const retryProfileSync = useCallback(async () => {
+    syncAttemptedUidRef.current = null;
     const activeUser = auth.currentUser || firebaseUser;
     if (!activeUser || !activeUser.emailVerified) return;
     setProfileError(null);
-    await enableNetwork(db).catch(() => {});
-    await ensureUserProfileDocs(activeUser);
-  }, [ensureUserProfileDocs, firebaseUser]);
+    await ensureUserProfileDocsOnce(activeUser);
+  }, [ensureUserProfileDocsOnce, firebaseUser]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setFirebaseUser(user);
-      uidRef.current = user?.uid ?? null;
 
       if (!user) {
+        syncAttemptedUidRef.current = null;
         setProfile(null);
         setPrivateProfile(null);
         setProfileError(null);
@@ -363,39 +321,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       if (user.emailVerified) {
-        try {
-          await ensureUserProfileDocs(user);
-        } catch (err) {
-          console.error('Failed ensuring profile docs:', err);
-        }
+        void ensureUserProfileDocsOnce(user);
       } else {
         setProfile(null);
         setPrivateProfile(null);
         setProfileError(null);
+        setAuthReady(true);
+        setLoading(false);
       }
-
-      setAuthReady(true);
-      setLoading(false);
     });
 
     return () => unsubscribe();
-  }, [ensureUserProfileDocs]);
+  }, [ensureUserProfileDocsOnce]);
 
-  // Listen to public & private user profiles + current session revocation
+  // Listen to public & private user profiles + current session revocation in background
   useEffect(() => {
-    if (!firebaseUser || !firebaseUser.emailVerified) {
-      setProfile(null);
-      setPrivateProfile(null);
-      return;
-    }
+    if (!firebaseUser || !firebaseUser.emailVerified) return;
 
     const uid = firebaseUser.uid;
     const unsubPub = onSnapshot(
       doc(db, 'users_public', uid),
       (snap) => {
         if (snap.exists()) {
-          setProfileError(null);
-          setProfile(snap.data() as UserPublic);
+          const data = snap.data() as UserPublic;
+          setProfile(data);
+          try {
+            localStorage.setItem(`dank_local_profile_${uid}`, JSON.stringify(data));
+          } catch {}
         }
       },
       (error) => {
@@ -417,86 +369,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     );
 
-    const unsubSession = onSnapshot(
-      doc(db, 'users_private', uid, 'sessions', sessionId),
-      (snap) => {
-        if (snap.exists() && (snap.data() as { revoked?: boolean }).revoked === true) {
-          setSessionRevoked(true);
-          void signOut(auth);
-        }
-      },
-      () => {
-        // ignore transient session listener issues
-      }
-    );
-
     return () => {
       unsubPub();
       unsubPriv();
-      unsubSession();
     };
-  }, [firebaseUser, firebaseUser?.emailVerified, sessionId]);
-
-  // Automatically retry profile sync when browser comes back online
-  useEffect(() => {
-    if (!firebaseUser || !firebaseUser.emailVerified || profile) return;
-    const handleOnline = () => {
-      void retryProfileSync();
-    };
-    window.addEventListener('online', handleOnline);
-    return () => window.removeEventListener('online', handleOnline);
-  }, [firebaseUser, profile, retryProfileSync]);
-
-  // Presence & active session heartbeat
-  useEffect(() => {
-    if (!firebaseUser || !firebaseUser.emailVerified) return;
-    const uid = firebaseUser.uid;
-    const pubRef = doc(db, 'users_public', uid);
-
-    const setPresence = async (online: boolean) => {
-      try {
-        await updateDoc(pubRef, {
-          isOnline: online,
-          lastSeen: serverTimestamp(),
-          activeChatId: online ? activeChatRef.current : '',
-          updatedAt: serverTimestamp(),
-        });
-      } catch {
-        // Ignore transient offline errors
-      }
-    };
-
-    const handleVisibility = () => {
-      if (document.visibilityState === 'hidden') {
-        void setPresence(false);
-      } else {
-        void setPresence(true);
-        void registerActiveSession(uid, sessionId);
-      }
-    };
-
-    const handleUnload = () => {
-      void setPresence(false);
-    };
-
-    const intervalId = window.setInterval(() => {
-      if (document.visibilityState === 'visible') {
-        void setPresence(true);
-        void registerActiveSession(uid, sessionId);
-      }
-    }, 30_000);
-
-    document.addEventListener('visibilitychange', handleVisibility);
-    window.addEventListener('pagehide', handleUnload);
-    window.addEventListener('beforeunload', handleUnload);
-
-    return () => {
-      window.clearInterval(intervalId);
-      document.removeEventListener('visibilitychange', handleVisibility);
-      window.removeEventListener('pagehide', handleUnload);
-      window.removeEventListener('beforeunload', handleUnload);
-    };
-  }, [firebaseUser, firebaseUser?.emailVerified, sessionId]);
+  }, [firebaseUser, firebaseUser?.emailVerified]);
 
   const signInWithEmail = useCallback(
     async (email: string, password: string) => {
@@ -504,10 +381,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
       setFirebaseUser(cred.user);
       if (cred.user.emailVerified) {
-        await ensureUserProfileDocs(cred.user);
+        await ensureUserProfileDocsOnce(cred.user);
       }
     },
-    [ensureUserProfileDocs]
+    [ensureUserProfileDocsOnce]
   );
 
   const signUpWithEmail = useCallback(
@@ -527,15 +404,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           PENDING_PROFILE_KEY,
           JSON.stringify({ name: cleanName, username: cleanUsername, inviteCode: cleanCode })
         );
-      } catch {
-        // ignore storage error
-      }
+      } catch {}
       const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
       await updateFirebaseAuthProfile(cred.user, { displayName: cleanName });
       await sendEmailVerification(cred.user);
       setFirebaseUser(cred.user);
+      await ensureUserProfileDocsOnce(cred.user);
     },
-    []
+    [ensureUserProfileDocsOnce]
   );
 
   const signInWithGoogle = useCallback(async () => {
@@ -543,9 +419,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const cred = await signInWithPopup(auth, googleProvider);
     setFirebaseUser(cred.user);
     if (cred.user.emailVerified) {
-      await ensureUserProfileDocs(cred.user);
+      await ensureUserProfileDocsOnce(cred.user);
     }
-  }, [ensureUserProfileDocs]);
+  }, [ensureUserProfileDocsOnce]);
 
   const resendVerificationEmail = useCallback(async () => {
     if (!auth.currentUser) throw new Error('No authenticated user found.');
@@ -558,11 +434,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const refreshed = auth.currentUser;
     setFirebaseUser({ ...refreshed } as User);
     if (refreshed.emailVerified) {
-      await ensureUserProfileDocs(refreshed);
+      await ensureUserProfileDocsOnce(refreshed);
       return true;
     }
     return false;
-  }, [ensureUserProfileDocs]);
+  }, [ensureUserProfileDocsOnce]);
 
   const updateUserProfile = useCallback(
     async (updates: {
@@ -572,6 +448,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       photoURL?: string;
       coverURL?: string;
       language?: AppLanguage;
+      theme?: AppThemeId;
     }) => {
       if (!firebaseUser || !firebaseUser.emailVerified) {
         throw new Error('You must be signed in with a verified email to update your profile.');
@@ -599,17 +476,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (updates.language === 'ar' || updates.language === 'en') {
         payload.language = updates.language;
       }
+      if (
+        updates.theme === 'dank-dark' ||
+        updates.theme === 'midnight-blue' ||
+        updates.theme === 'purple-neon' ||
+        updates.theme === 'light'
+      ) {
+        payload.theme = updates.theme;
+      }
 
       try {
-        await updateDoc(pubRef, payload);
+        if (profile) {
+          const updatedLocal: UserPublic = {
+            ...profile,
+            ...(payload.name !== undefined ? { name: String(payload.name) } : {}),
+            ...(payload.username !== undefined ? { username: String(payload.username) } : {}),
+            ...(payload.bio !== undefined ? { bio: String(payload.bio) } : {}),
+            ...(payload.photoURL !== undefined ? { photoURL: String(payload.photoURL) } : {}),
+            ...(payload.coverURL !== undefined ? { coverURL: String(payload.coverURL) } : {}),
+            ...(payload.language !== undefined ? { language: payload.language as AppLanguage } : {}),
+            ...(payload.theme !== undefined ? { theme: payload.theme as AppThemeId } : {}),
+          };
+          setProfile(updatedLocal);
+          localStorage.setItem(`dank_local_profile_${firebaseUser.uid}`, JSON.stringify(updatedLocal));
+        }
+
+        if (!isFirestoreWritesPaused()) {
+          await updateDoc(pubRef, payload);
+        }
         if (updates.name !== undefined) {
           await updateFirebaseAuthProfile(firebaseUser, { displayName: String(payload.name) });
         }
       } catch (error) {
-        handleFirestoreError(error, OperationType.UPDATE, `users_public/${firebaseUser.uid}`);
+        if (isQuotaExhaustedError(error)) {
+          pauseFirestoreWrites();
+        } else {
+          handleFirestoreError(error, OperationType.UPDATE, `users_public/${firebaseUser.uid}`);
+        }
       }
     },
-    [firebaseUser]
+    [firebaseUser, profile]
   );
 
   const redeemReferralCode = useCallback(
@@ -624,8 +530,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const setActiveChatPresence = useCallback(
     async (chatId: string) => {
+      if (activeChatRef.current === chatId) return;
       activeChatRef.current = chatId;
-      if (!firebaseUser || !firebaseUser.emailVerified) return;
+      if (!firebaseUser || !firebaseUser.emailVerified || isFirestoreWritesPaused()) return;
+      const now = Date.now();
+      if (now - lastPresenceWriteRef.current < 180_000) return;
+      lastPresenceWriteRef.current = now;
       try {
         await updateDoc(doc(db, 'users_public', firebaseUser.uid), {
           isOnline: document.visibilityState === 'visible',
@@ -633,39 +543,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           lastSeen: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
-      } catch {
-        // Ignore transient errors
+      } catch (err) {
+        if (isQuotaExhaustedError(err)) {
+          pauseFirestoreWrites();
+        }
       }
     },
     [firebaseUser]
   );
 
   const logout = useCallback(async () => {
-    const uid = uidRef.current;
+    syncAttemptedUidRef.current = null;
     activeChatRef.current = '';
-    if (uid) {
-      try {
-        sessionStorage.removeItem(`dank_2fa_ok_${uid}`);
-      } catch {
-        // ignore
-      }
-    }
-    if (uid && auth.currentUser?.emailVerified) {
-      try {
-        await setDoc(
-          doc(db, 'users_public', uid),
-          {
-            isOnline: false,
-            activeChatId: '',
-            lastSeen: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-          },
-          { merge: true }
-        );
-      } catch {
-        // Proceed with signOut even if offline
-      }
-    }
     await signOut(auth);
     setProfile(null);
     setPrivateProfile(null);

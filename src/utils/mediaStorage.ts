@@ -1,7 +1,4 @@
 import { compressImageFile } from './imageCompress';
-import { compressStoryVideo, type VideoMetadata } from './videoCompress';
-
-const VOICE_CACHE_PREFIX = 'dank_voice_';
 
 export const CLOUDINARY_CLOUD_NAME = 'ehjqqr8v';
 export const CLOUDINARY_UPLOAD_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`;
@@ -35,38 +32,6 @@ export function blobToDataUrl(blob: Blob): Promise<string> {
   });
 }
 
-export function saveVoiceCache(messageId: string, dataUrl: string): void {
-  if (!messageId || !dataUrl || dataUrl.length > 720000) return;
-  try {
-    localStorage.setItem(`${VOICE_CACHE_PREFIX}${messageId}`, dataUrl);
-  } catch {
-    try {
-      const keysToRemove: string[] = [];
-      for (let i = 0; i < localStorage.length; i += 1) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith(VOICE_CACHE_PREFIX)) {
-          keysToRemove.push(key);
-        }
-      }
-      keysToRemove.slice(0, Math.max(1, Math.floor(keysToRemove.length / 2))).forEach((k) => {
-        localStorage.removeItem(k);
-      });
-      localStorage.setItem(`${VOICE_CACHE_PREFIX}${messageId}`, dataUrl);
-    } catch {
-      // ignore if storage completely full
-    }
-  }
-}
-
-export function getVoiceCache(messageId?: string): string | null {
-  if (!messageId) return null;
-  try {
-    return localStorage.getItem(`${VOICE_CACHE_PREFIX}${messageId}`);
-  } catch {
-    return null;
-  }
-}
-
 export async function uploadToCloudinary(file: Blob | File, filename: string): Promise<string> {
   const formData = new FormData();
   formData.append('file', file, filename);
@@ -95,27 +60,6 @@ export async function uploadToCloudinary(file: Blob | File, filename: string): P
   }
 
   return payload.secure_url;
-}
-
-export async function uploadVoiceMessage(
-  blob: Blob,
-  _chatId: string,
-  messageId: string
-): Promise<{
-  audioUrl: string;
-}> {
-  const mime = (blob.type || '').toLowerCase();
-  const ext =
-    mime.includes('mp4') || mime.includes('m4a') || mime.includes('aac')
-      ? 'm4a'
-      : mime.includes('ogg')
-      ? 'ogg'
-      : mime.includes('wav')
-      ? 'wav'
-      : 'webm';
-
-  const audioUrl = await uploadToCloudinary(blob, `voice_${messageId}.${ext}`);
-  return { audioUrl };
 }
 
 export async function uploadChatImage(file: File | Blob, messageId: string): Promise<string> {
@@ -157,46 +101,6 @@ export async function uploadPostPhoto(
   return uploadToCloudinary(uploadBlob, filename);
 }
 
-export async function uploadReelVideo(
-  file: File,
-  metadata: VideoMetadata,
-  _uid: string,
-  reelId: string,
-  onProgress?: (pct: number) => void
-): Promise<{
-  storageUrl: string | null;
-  dataUrlFallback: string;
-  duration: number;
-}> {
-  onProgress?.(20);
-  if (file.size <= 50 * 1024 * 1024) {
-    const ext = file.name.split('.').pop()?.toLowerCase() || 'mp4';
-    const secureUrl = await uploadToCloudinary(file, `reel_${reelId}.${ext}`);
-    onProgress?.(100);
-    return {
-      storageUrl: secureUrl,
-      dataUrlFallback: '',
-      duration: metadata.duration,
-    };
-  }
-
-  const compressed = await compressStoryVideo(file, {
-    metadata,
-    maxSeconds: 60,
-    onProgress: (pct) => onProgress?.(Math.round(pct * 0.85)),
-  });
-
-  const ext = compressed.blob.type.includes('webm') ? 'webm' : 'mp4';
-  const secureUrl = await uploadToCloudinary(compressed.blob, `reel_${reelId}.${ext}`);
-  onProgress?.(100);
-
-  return {
-    storageUrl: secureUrl,
-    dataUrlFallback: '',
-    duration: compressed.duration,
-  };
-}
-
-export async function deleteManagedStorageMedia(_url: string): Promise<void> {
+export async function deleteManagedStorageMedia(_url?: string): Promise<void> {
   // Unsigned Cloudinary uploads do not expose client-side deletion without an API secret.
 }

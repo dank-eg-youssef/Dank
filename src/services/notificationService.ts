@@ -110,7 +110,6 @@ export async function createAppNotification(params: {
   const { recipientUid, actor, type, text, targetId } = params;
   if (!recipientUid || !actor.uid || recipientUid === actor.uid) return;
   if (!isValidFirestoreId(recipientUid) || !isValidFirestoreId(actor.uid)) return;
-  if (recipientUid === 'dank_bot') return;
 
   const id = `notif_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   const cleanText = text.trim().slice(0, 295) || 'New notification';
