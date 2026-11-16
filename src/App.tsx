@@ -53,7 +53,7 @@ import { ContactsAndCallsModal } from './components/ContactsAndCallsModal';
 import { CreateChatModal } from './components/CreateChatModal';
 import { DankLogo } from './components/DankLogo';
 import { DankPlusModal } from './components/DankPlusModal';
-import { DankSplash } from './components/DankSplash';
+
 import { JoinInviteModal } from './components/JoinInviteModal';
 import { NotificationsPage } from './components/NotificationsPage';
 import { PostsFeed } from './components/PostsFeed';
@@ -1348,22 +1348,6 @@ export default function App() {
       notify(t.whatsapp.cacheCleared);
     }
   };
-
-  const [retryingConnection, setRetryingConnection] = useState(false);
-
-  if (!authReady || (isVerified && !profile)) {
-    return (
-      <DankSplash
-        errorMessage={profileError}
-        retrying={retryingConnection}
-        onRetry={() => {
-          setRetryingConnection(true);
-          void retryProfileSync().finally(() => setRetryingConnection(false));
-        }}
-        onLogout={() => void logout()}
-      />
-    );
-  }
 
   if (!firebaseUser || !isVerified || !profile) {
     return <AuthScreen />;

@@ -69,7 +69,7 @@ export const AuthScreen: React.FC = () => {
       setError(t.auth.errMissingCreds);
       return;
     }
-    if (mode === 'signup' && (!name.trim() || !username.trim())) {
+    if (mode === 'signup' && !name.trim()) {
       setError(t.auth.errMissingProfileFields);
       return;
     }
@@ -79,7 +79,8 @@ export const AuthScreen: React.FC = () => {
       if (mode === 'signin') {
         await signInWithEmail(email, password);
       } else {
-        await signUpWithEmail(email, password, name, username, inviteCode);
+        const cleanUsername = name.trim().toLowerCase().replace(/[^a-z0-9_]/g, '') || email.split('@')[0];
+        await signUpWithEmail(email, password, name, cleanUsername);
         setInfo(t.auth.infoAccountCreated);
       }
     } catch (err) {
@@ -300,37 +301,20 @@ export const AuthScreen: React.FC = () => {
 
               <form onSubmit={handleSubmit} className="space-y-3.5">
                 {mode === 'signup' && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-[var(--dank-muted)] mb-1">
-                        {t.auth.fullName}
-                      </label>
-                      <input
-                        type="text"
-                        dir="auto"
-                        required
-                        maxLength={80}
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        placeholder={t.auth.fullNamePlaceholder}
-                        className="w-full h-11 px-4 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] text-base text-[var(--dank-text)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)]"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-[var(--dank-muted)] mb-1">
-                        {t.auth.username}
-                      </label>
-                      <input
-                        type="text"
-                        dir="ltr"
-                        required
-                        maxLength={32}
-                        value={username}
-                        onChange={(e) => setUsername(e.target.value.replace(/[^a-zA-Z0-9_]/g, ''))}
-                        placeholder={t.auth.usernamePlaceholder}
-                        className="w-full h-11 px-4 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] text-base text-[var(--dank-text)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)]"
-                      />
-                    </div>
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--dank-muted)] mb-1">
+                      {t.auth.fullName}
+                    </label>
+                    <input
+                      type="text"
+                      dir="auto"
+                      required
+                      maxLength={80}
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder={t.auth.fullNamePlaceholder}
+                      className="w-full h-11 px-4 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] text-base text-[var(--dank-text)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)]"
+                    />
                   </div>
                 )}
 
@@ -373,23 +357,6 @@ export const AuthScreen: React.FC = () => {
                     </button>
                   </div>
                 </div>
-
-                {mode === 'signup' && (
-                  <div>
-                    <label className="block text-xs font-medium text-[var(--dank-muted)] mb-1">
-                      {t.auth.inviteCodeOptional}
-                    </label>
-                    <input
-                      type="text"
-                      dir="ltr"
-                      maxLength={16}
-                      value={inviteCode}
-                      onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-                      placeholder="DANK-XXXX"
-                      className="w-full h-11 px-4 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] text-base text-[var(--dank-text)] uppercase focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)]"
-                    />
-                  </div>
-                )}
 
                 <button
                   type="submit"
