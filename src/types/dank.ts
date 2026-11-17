@@ -275,6 +275,17 @@ export interface AdsBanner {
   updatedAt: Timestamp | null;
 }
 
+export interface SystemSettings {
+  id: string;
+  maintenanceMode: boolean;
+  maintenanceMessage?: string;
+  allowSignups: boolean;
+  globalNoticeEnabled: boolean;
+  globalNoticeText?: string;
+  updatedBy?: string;
+  updatedAt: Timestamp | null;
+}
+
 export interface AdminActiveUserStat {
   uid: string;
   name: string;
@@ -309,6 +320,10 @@ export interface AdminStatsData {
   totalPrivateChats: number;
   newUsersToday: number;
   totalMessagesToday: number;
+  storiesCount?: number;
+  callsCount?: number;
+  connectedCallsCount?: number;
+  missedCallsCount?: number;
   mostActiveUsers: AdminActiveUserStat[];
   mostActiveGroups: AdminActiveGroupStat[];
   dailyActivity: AdminDailyStat[];

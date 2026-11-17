@@ -40,7 +40,7 @@
         },
         "theme": {
           "type": "string",
-          "enum": ["dank-dark", "midnight-blue", "purple-neon", "light"]
+          "enum": ["arcade", "dank-dark", "midnight-blue", "purple-neon", "light"]
         },
         "isOnline": {
           "type": "boolean"
@@ -683,6 +683,45 @@
       },
       "required": ["id", "enabled", "text", "updatedAt"]
     },
+    "SystemSettings": {
+      "title": "SystemSettings",
+      "description": "Admin-managed global platform controls (maintenance mode, signup lock, and announcement strip).",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "maintenanceMode": {
+          "type": "boolean"
+        },
+        "maintenanceMessage": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "allowSignups": {
+          "type": "boolean"
+        },
+        "globalNoticeEnabled": {
+          "type": "boolean"
+        },
+        "globalNoticeText": {
+          "type": "string",
+          "maxLength": 240
+        },
+        "updatedBy": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "maintenanceMode", "allowSignups", "globalNoticeEnabled", "updatedAt"]
+    },
     "Post": {
       "title": "Post",
       "description": "Social feed post with 1-4 photos, caption, and hashtags.",
@@ -963,7 +1002,7 @@
     },
     "/app_config/{docId}": {
       "schema": { "$ref": "#/entities/AdsBanner" },
-      "description": "Admin-managed global app configuration such as the Ads banner."
+      "description": "Admin-managed global app configuration such as Ads banner and SystemSettings."
     },
     "/users_private/{userId}/saved_items/{itemId}": {
       "schema": { "$ref": "#/entities/SavedItem" },

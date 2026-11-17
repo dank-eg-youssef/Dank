@@ -41,6 +41,7 @@ import {
   Settings as SettingsIcon,
   Shield,
   Users,
+  Wrench,
   X,
 } from 'lucide-react';
 import { AdminDashboardModal } from './components/AdminDashboardModal';
@@ -87,6 +88,7 @@ import {
   OFFICIAL_CHANNEL_ID,
   sendMessage,
   setUserChatPref,
+  subscribeSystemSettings,
 } from './services/chatService';
 import {
   appendLocalNotification,
@@ -109,6 +111,7 @@ import type {
   SavedItem,
   ScheduledMessage,
   Story,
+  SystemSettings,
   TypingState,
   UserChatPref,
   UserChatRef,
@@ -166,6 +169,7 @@ export default function App() {
   const [stories, setStories] = useState<Story[]>([]);
   const [viewedStoryIds, setViewedStoryIds] = useState<Set<string>>(new Set());
   const [adsBanner, setAdsBanner] = useState<AdsBanner | null>(null);
+  const [systemSettings, setSystemSettings] = useState<SystemSettings | null>(null);
   const [showCreateStoryModal, setShowCreateStoryModal] = useState(false);
   const [activeStoryGroup, setActiveStoryGroup] = useState<StoryAuthorGroup | null>(null);
 
@@ -584,6 +588,11 @@ export default function App() {
     );
     return () => unsub();
   }, [isVerified, firebaseUser?.uid]);
+
+  // 4d2. Live global system settings (publicly readable so AuthScreen respects allowSignups)
+  useEffect(() => {
+    return subscribeSystemSettings(setSystemSettings);
+  }, []);
 
   // 4g3. App Notifications
   useEffect(() => {
@@ -1296,7 +1305,7 @@ export default function App() {
     }
 
     if (!firebaseUser || !isVerified || !profile) {
-      return <AuthScreen />;
+      return <AuthScreen allowSignups={systemSettings?.allowSignups ?? true} />;
     }
 
     // Two-Step Verification (2FA) Lock Screen
@@ -1384,6 +1393,34 @@ export default function App() {
               </h1>
               <p className="mt-2 text-sm text-[var(--dank-muted)] leading-relaxed">
                 {t.errors.accountSuspendedDesc}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void logout()}
+              className="w-full h-11 rounded-full bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] text-sm font-semibold flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <LogOut className="w-4 h-4 text-[var(--dank-accent)]" />
+              {t.profile.logout}
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    if (systemSettings?.maintenanceMode && !isAdmin) {
+      return (
+        <div className="dank-auth-scroll bg-[var(--dank-canvas)] flex items-center justify-center p-6">
+          <div className="max-w-md w-full rounded-3xl bg-[var(--dank-surface)] border border-[var(--dank-border)] shadow-xl p-7 text-center space-y-4">
+            <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-500/15 text-amber-400 flex items-center justify-center">
+              <Wrench className="w-7 h-7" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-[var(--dank-text)]">
+                {t.admin.maintenanceScreenTitle}
+              </h1>
+              <p dir="auto" className="mt-2 text-sm text-[var(--dank-muted)] leading-relaxed">
+                {systemSettings.maintenanceMessage?.trim() || t.admin.maintenanceScreenDefault}
               </p>
             </div>
             <button
@@ -1492,6 +1529,14 @@ export default function App() {
       onClick={() => setShowHeaderPlusMenu(false)}
       className="fixed inset-0 h-[100dvh] w-full overflow-hidden overscroll-none bg-[var(--dank-canvas)] text-[var(--dank-text)] flex flex-col"
     >
+      {systemSettings?.globalNoticeEnabled && systemSettings.globalNoticeText?.trim() && (
+        <div className="bg-[var(--dank-accent-soft)] border-b border-[var(--dank-accent-border)] px-4 py-1.5 flex items-center justify-center gap-2 text-xs font-semibold text-[var(--dank-accent)] shrink-0 z-30">
+          <Megaphone className="w-3.5 h-3.5 shrink-0" />
+          <span dir="auto" className="truncate">
+            {systemSettings.globalNoticeText}
+          </span>
+        </div>
+      )}
       {quotaPaused && !quotaBannerDismissed && (
         <div className="bg-amber-500/15 border-b border-amber-500/40 px-4 py-2 flex items-center justify-between gap-2 text-xs text-amber-200 shrink-0 z-30">
           <span className="truncate">
@@ -2936,8 +2981,19 @@ export default function App() {
       {showAdminModal && isAdmin && (
         <AdminDashboardModal
           currentAdminUid={profile.uid}
+          currentAdminUser={profile}
           liveUsers={allUsers}
           adsBanner={adsBanner}
+          systemSettings={systemSettings}
+          onOpenChat={(chatId) => {
+            setShowAdminModal(false);
+            setMainTab('chats');
+            setActiveChatId(chatId);
+          }}
+          onStartDmWithUser={(u) => {
+            setShowAdminModal(false);
+            void handleStartPrivateChat(u);
+          }}
           onClose={() => setShowAdminModal(false)}
           onNotify={notify}
         />

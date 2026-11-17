@@ -336,6 +336,24 @@ service cloud.firestore {
         && data.updatedAt is timestamp;
     }
 
+    function isValidSystemSettings(data, docId) {
+      return data.keys().hasAll(['id', 'maintenanceMode', 'allowSignups', 'globalNoticeEnabled', 'updatedAt'])
+        && data.keys().hasOnly([
+          'id', 'maintenanceMode', 'maintenanceMessage',
+          'allowSignups', 'globalNoticeEnabled', 'globalNoticeText',
+          'updatedBy', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && data.id == docId
+        && data.maintenanceMode is bool
+        && isValidOptString(data, 'maintenanceMessage', 300)
+        && data.allowSignups is bool
+        && data.globalNoticeEnabled is bool
+        && isValidOptString(data, 'globalNoticeText', 240)
+        && isValidOptString(data, 'updatedBy', 128)
+        && data.updatedAt is timestamp;
+    }
+
     function isValidChatMember(data, chatId, memberUid) {
       return data.keys().hasAll(['uid', 'chatId', 'role', 'joinedAt', 'lastReadAt'])
         && data.keys().hasOnly(['uid', 'chatId', 'role', 'joinedAt', 'lastReadAt'])
@@ -1459,13 +1477,16 @@ service cloud.firestore {
       allow list: if isAdmin();
     }
 
-    // 6. Global App Config (Admin Ads Banner)
+    // 6. Global App Config (Admin Ads Banner & System Settings)
     match /app_config/{docId} {
-      allow get: if isVerified() && isValidId(docId);
+      allow get: if isValidId(docId) && (docId == 'system_settings' || isVerified());
 
       allow create, update: if isAdmin()
         && isValidId(docId)
-        && isValidAdsBanner(incoming(), docId)
+        && (
+          (docId == 'system_settings' && isValidSystemSettings(incoming(), docId))
+          || (docId != 'system_settings' && isValidAdsBanner(incoming(), docId))
+        )
         && incoming().updatedAt == request.time;
 
       allow delete: if isAdmin() && isValidId(docId);

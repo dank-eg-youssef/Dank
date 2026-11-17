@@ -9,6 +9,8 @@ import {
   getDocs,
   increment,
   limit,
+  onSnapshot,
+  orderBy,
   query,
   serverTimestamp,
   setDoc,
@@ -19,6 +21,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import type {
+  ActiveSession,
   AdminActiveGroupStat,
   AdminActiveUserStat,
   AdminDailyStat,
@@ -34,13 +37,16 @@ import type {
   PrivacyVisibility,
   ScheduledMessage,
   Story,
+  SystemSettings,
   UserChatPref,
+  UserPrivate,
   UserPublic,
   UserSticker,
 } from '../types/dank';
 import {
   handleFirestoreError,
   isFirestoreWritesPaused,
+  isOfflineError,
   isQuotaExhaustedError,
   OperationType,
   pauseFirestoreWrites,
@@ -53,6 +59,7 @@ import { createAppNotification } from './notificationService';
 export const OFFICIAL_CHANNEL_ID = 'dank_official';
 export const DANK_TEAM_CHANNEL_ID = 'dank_team';
 export const ADS_BANNER_DOC_ID = 'ads_banner';
+export const SYSTEM_SETTINGS_DOC_ID = 'system_settings';
 
 export function getEffective24hCount(chat: Chat): number {
   const count = chat.messages24hCount ?? 0;
@@ -1949,12 +1956,15 @@ export async function setTypingStatus(
 
 export async function fetchAdminStats(): Promise<AdminStatsData> {
   try {
-    const [usersRes, chatsRes, messagesCountRes, messagesRes] = await Promise.allSettled([
-      getDocs(collection(db, 'users_public')),
-      getDocs(collection(db, 'chats')),
-      getCountFromServer(collectionGroup(db, 'messages')),
-      getDocs(query(collectionGroup(db, 'messages'), limit(3000))),
-    ]);
+    const [usersRes, chatsRes, messagesCountRes, messagesRes, storiesRes, callsRes] =
+      await Promise.allSettled([
+        getDocs(collection(db, 'users_public')),
+        getDocs(collection(db, 'chats')),
+        getCountFromServer(collectionGroup(db, 'messages')),
+        getDocs(query(collectionGroup(db, 'messages'), limit(3000))),
+        getDocs(collection(db, 'stories')),
+        getDocs(query(collection(db, 'calls'), limit(200))),
+      ]);
 
     if (usersRes.status === 'rejected') {
       handleFirestoreError(usersRes.reason, OperationType.LIST, 'users_public');
@@ -1982,6 +1992,27 @@ export async function fetchAdminStats(): Promise<AdminStatsData> {
       messagesCountRes.status === 'fulfilled'
         ? messagesCountRes.value.data().count
         : msgs.length;
+
+    const nowMs = Date.now();
+    const storiesCount =
+      storiesRes.status === 'fulfilled'
+        ? storiesRes.value.docs.filter((d) => {
+            const st = d.data() as Story;
+            return timestampToMs(st.expiresAt) > nowMs;
+          }).length
+        : 0;
+
+    const calls =
+      callsRes.status === 'fulfilled'
+        ? callsRes.value.docs.map((d) => d.data() as CallRecord)
+        : [];
+    const callsCount = calls.length;
+    const connectedCallsCount = calls.filter(
+      (c) => c.status === 'connected' || c.status === 'ended'
+    ).length;
+    const missedCallsCount = calls.filter(
+      (c) => c.status === 'missed' || c.status === 'declined'
+    ).length;
 
     const totalGroups = chats.filter((c) => c.type === 'group').length;
     const totalChannels = chats.filter((c) => c.type === 'channel').length;
@@ -2080,6 +2111,10 @@ export async function fetchAdminStats(): Promise<AdminStatsData> {
       totalPrivateChats,
       newUsersToday,
       totalMessagesToday,
+      storiesCount,
+      callsCount,
+      connectedCallsCount,
+      missedCallsCount,
       mostActiveUsers,
       mostActiveGroups,
       dailyActivity,
@@ -2093,7 +2128,7 @@ export async function fetchAdminStats(): Promise<AdminStatsData> {
 
 export async function setUserVerificationFlags(
   targetUid: string,
-  updates: { isAdmin?: boolean; isVerified?: boolean }
+  updates: { isAdmin?: boolean; isVerified?: boolean; isVip?: boolean; isPlus?: boolean }
 ): Promise<void> {
   try {
     const payload: Record<string, unknown> = {
@@ -2101,10 +2136,209 @@ export async function setUserVerificationFlags(
     };
     if (updates.isAdmin !== undefined) payload.isAdmin = updates.isAdmin;
     if (updates.isVerified !== undefined) payload.isVerified = updates.isVerified;
+    if (updates.isVip !== undefined) payload.isVip = updates.isVip;
+    if (updates.isPlus !== undefined) payload.isPlus = updates.isPlus;
     await updateDoc(doc(db, 'users_public', targetUid), payload);
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, `users_public/${targetUid}`);
   }
+}
+
+export async function adminUpdateUserProfile(
+  targetUid: string,
+  updates: { name?: string; username?: string; bio?: string }
+): Promise<{ name?: string; username?: string; bio?: string }> {
+  try {
+    const payload: Record<string, unknown> = {
+      updatedAt: serverTimestamp(),
+    };
+    const cleaned: { name?: string; username?: string; bio?: string } = {};
+    if (updates.name !== undefined) {
+      const cleanName = updates.name.trim().slice(0, 80);
+      if (!cleanName) throw new Error('Display name cannot be empty.');
+      payload.name = cleanName;
+      cleaned.name = cleanName;
+    }
+    if (updates.username !== undefined) {
+      const cleanUsername = sanitizeUsername(updates.username);
+      payload.username = cleanUsername;
+      cleaned.username = cleanUsername;
+    }
+    if (updates.bio !== undefined) {
+      const cleanBio = updates.bio.trim().slice(0, 240);
+      payload.bio = cleanBio;
+      cleaned.bio = cleanBio;
+    }
+    await updateDoc(doc(db, 'users_public', targetUid), payload);
+    return cleaned;
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('cannot be empty')) {
+      throw error;
+    }
+    handleFirestoreError(error, OperationType.UPDATE, `users_public/${targetUid}`);
+  }
+}
+
+export async function fetchAdminUserPrivateInfo(uid: string): Promise<{
+  privateData: UserPrivate | null;
+  sessions: ActiveSession[];
+}> {
+  try {
+    const [privRes, sessionsRes] = await Promise.allSettled([
+      getDoc(doc(db, 'users_private', uid)),
+      getDocs(collection(db, 'users_private', uid, 'sessions')),
+    ]);
+    const privateData =
+      privRes.status === 'fulfilled' && privRes.value.exists()
+        ? (privRes.value.data() as UserPrivate)
+        : null;
+    const sessions =
+      sessionsRes.status === 'fulfilled'
+        ? sessionsRes.value.docs
+            .map((d) => d.data() as ActiveSession)
+            .sort((a, b) => timestampToMs(b.lastActiveAt) - timestampToMs(a.lastActiveAt))
+        : [];
+    return { privateData, sessions };
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, `users_private/${uid}`);
+  }
+}
+
+export async function adminDeleteUserAccount(targetUid: string): Promise<void> {
+  try {
+    await Promise.all([
+      deleteDoc(doc(db, 'users_public', targetUid)),
+      deleteDoc(doc(db, 'users_private', targetUid)).catch(() => undefined),
+    ]);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `users_public/${targetUid}`);
+  }
+}
+
+export async function adminUpdateChat(
+  chatId: string,
+  updates: { name?: string; description?: string; isPublic?: boolean }
+): Promise<void> {
+  try {
+    const payload: Record<string, unknown> = {
+      updatedAt: serverTimestamp(),
+    };
+    if (updates.name !== undefined) {
+      payload.name = updates.name.trim().slice(0, 100);
+    }
+    if (updates.description !== undefined) {
+      payload.description = updates.description.trim().slice(0, 300);
+    }
+    if (updates.isPublic !== undefined) {
+      payload.isPublic = updates.isPublic;
+    }
+    await updateDoc(doc(db, 'chats', chatId), payload);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `chats/${chatId}`);
+  }
+}
+
+export async function adminDeleteChat(chatId: string): Promise<void> {
+  try {
+    // Clean up member refs & user_chats index best-effort first so members' sidebars update cleanly
+    const membersSnap = await getDocs(collection(db, 'chats', chatId, 'members')).catch(
+      () => null
+    );
+    if (membersSnap && !membersSnap.empty) {
+      const memberDocs = membersSnap.docs;
+      for (let i = 0; i < memberDocs.length; i += 200) {
+        const chunk = memberDocs.slice(i, i + 200);
+        const batch = writeBatch(db);
+        chunk.forEach((mDoc) => {
+          batch.delete(mDoc.ref);
+          batch.delete(doc(db, 'user_chats', `${mDoc.id}_${chatId}`));
+        });
+        await batch.commit().catch(() => undefined);
+      }
+    }
+    await deleteDoc(doc(db, 'chats', chatId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `chats/${chatId}`);
+  }
+}
+
+export async function fetchAdminStories(): Promise<Story[]> {
+  try {
+    const snap = await getDocs(query(collection(db, 'stories'), limit(120)));
+    const nowMs = Date.now();
+    return snap.docs
+      .map((d) => d.data() as Story)
+      .filter((s) => timestampToMs(s.expiresAt) > nowMs)
+      .sort((a, b) => timestampToMs(b.createdAt) - timestampToMs(a.createdAt));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, 'stories');
+  }
+}
+
+export async function fetchAdminCalls(): Promise<CallRecord[]> {
+  try {
+    const snap = await getDocs(query(collection(db, 'calls'), limit(120)));
+    return snap.docs
+      .map((d) => d.data() as CallRecord)
+      .sort((a, b) => timestampToMs(b.startedAt) - timestampToMs(a.startedAt));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, 'calls');
+  }
+}
+
+export async function adminBroadcastNotification(params: {
+  adminUser: UserPublic;
+  recipients: UserPublic[];
+  text: string;
+}): Promise<number> {
+  const cleanText = params.text.trim().slice(0, 295);
+  if (!cleanText) throw new Error('Notification text cannot be empty.');
+  const targets = params.recipients.filter((u) => u.uid && u.uid !== params.adminUser.uid);
+  let sentCount = 0;
+  for (let i = 0; i < targets.length; i += 15) {
+    const batch = targets.slice(i, i + 15);
+    await Promise.all(
+      batch.map(async (recipient) => {
+        await createAppNotification({
+          recipientUid: recipient.uid,
+          actor: params.adminUser,
+          type: 'message',
+          text: cleanText,
+        });
+        sentCount += 1;
+      })
+    );
+  }
+  return sentCount;
+}
+
+export async function adminBroadcastChannelMessage(params: {
+  adminUser: UserPublic;
+  channelId: typeof OFFICIAL_CHANNEL_ID | typeof DANK_TEAM_CHANNEL_ID;
+  text: string;
+  usersMap: Record<string, UserPublic>;
+}): Promise<string> {
+  const cleanText = params.text.trim().slice(0, 4000);
+  if (!cleanText) throw new Error('Broadcast message cannot be empty.');
+
+  if (params.channelId === OFFICIAL_CHANNEL_ID) {
+    await ensureOfficialChannelForAdmin(params.adminUser.uid);
+  } else {
+    await ensureDankTeamChannelForAdmin(params.adminUser.uid);
+  }
+
+  const chatSnap = await getDoc(doc(db, 'chats', params.channelId));
+  if (!chatSnap.exists()) {
+    throw new Error('Official channel could not be initialized.');
+  }
+  const chat = chatSnap.data() as Chat;
+  return sendMessage({
+    chat,
+    sender: params.adminUser,
+    type: 'text',
+    text: cleanText,
+    usersMap: params.usersMap,
+  });
 }
 
 export async function setUserModeration(
@@ -2143,6 +2377,49 @@ export async function saveAdsBanner(params: {
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, `app_config/${ADS_BANNER_DOC_ID}`);
   }
+}
+
+export async function saveSystemSettings(params: {
+  maintenanceMode: boolean;
+  maintenanceMessage: string;
+  allowSignups: boolean;
+  globalNoticeEnabled: boolean;
+  globalNoticeText: string;
+  adminUid: string;
+}): Promise<void> {
+  try {
+    await setDoc(doc(db, 'app_config', SYSTEM_SETTINGS_DOC_ID), {
+      id: SYSTEM_SETTINGS_DOC_ID,
+      maintenanceMode: params.maintenanceMode,
+      maintenanceMessage: params.maintenanceMessage.trim().slice(0, 300),
+      allowSignups: params.allowSignups,
+      globalNoticeEnabled: params.globalNoticeEnabled,
+      globalNoticeText: params.globalNoticeText.trim().slice(0, 240),
+      updatedBy: params.adminUid,
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `app_config/${SYSTEM_SETTINGS_DOC_ID}`);
+  }
+}
+
+export function subscribeSystemSettings(
+  onUpdate: (settings: SystemSettings | null) => void
+): () => void {
+  return onSnapshot(
+    doc(db, 'app_config', SYSTEM_SETTINGS_DOC_ID),
+    (snap) => {
+      if (snap.exists()) {
+        onUpdate(snap.data() as SystemSettings);
+      } else {
+        onUpdate(null);
+      }
+    },
+    (error) => {
+      if (isOfflineError(error)) return;
+      console.warn('Could not subscribe to system_settings:', error);
+    }
+  );
 }
 
 export function canSeePrivacyField(

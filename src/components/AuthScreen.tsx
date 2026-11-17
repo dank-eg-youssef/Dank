@@ -4,7 +4,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { DankLogo } from './DankLogo';
 
-export const AuthScreen: React.FC = () => {
+interface AuthScreenProps {
+  allowSignups?: boolean;
+}
+
+export const AuthScreen: React.FC<AuthScreenProps> = ({ allowSignups = true }) => {
   const {
     firebaseUser,
     isVerified,
@@ -79,6 +83,11 @@ export const AuthScreen: React.FC = () => {
       if (mode === 'signin') {
         await signInWithEmail(email, password);
       } else {
+        if (!allowSignups) {
+          setError(t.admin.signupsDisabledNotice);
+          setBusy(false);
+          return;
+        }
         const cleanUsername = name.trim().toLowerCase().replace(/[^a-z0-9_]/g, '') || email.split('@')[0];
         await signUpWithEmail(email, password, name, cleanUsername);
         setInfo(t.auth.infoAccountCreated);
@@ -288,6 +297,12 @@ export const AuthScreen: React.FC = () => {
                 </div>
               </div>
 
+              {mode === 'signup' && !allowSignups && (
+                <div className="mb-4 p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-medium">
+                  {t.admin.signupsDisabledNotice}
+                </div>
+              )}
+
               {error && (
                 <div className="mb-4 p-3 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-500 text-xs font-medium">
                   {error}
@@ -360,7 +375,7 @@ export const AuthScreen: React.FC = () => {
 
                 <button
                   type="submit"
-                  disabled={busy}
+                  disabled={busy || (mode === 'signup' && !allowSignups)}
                   className="w-full h-12 rounded-full bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] font-extrabold text-sm flex items-center justify-center gap-2 transition-transform active:scale-95 disabled:opacity-50 cursor-pointer shadow-lg mt-2"
                 >
                   {busy && <RefreshCw className="w-4 h-4 animate-spin" />}
