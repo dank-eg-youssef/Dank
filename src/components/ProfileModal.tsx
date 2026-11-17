@@ -6,8 +6,6 @@ import {
   Crown,
   Gift,
   Globe,
-  Grid,
-  Heart,
   LogOut,
   MessageCircle,
   Palette,
@@ -22,7 +20,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { THEME_OPTIONS, useTheme } from '../contexts/ThemeContext';
 import { getTranslations } from '../i18n';
 import { toggleFollowUser } from '../services/socialService';
-import type { AppLanguage, AppThemeId, FollowRelation, Post, UserPublic } from '../types/dank';
+import type { AppLanguage, AppThemeId, FollowRelation, UserPublic } from '../types/dank';
 import { compressImageFile } from '../utils/imageCompress';
 import { Avatar } from './Avatar';
 import { PWAInstallButton } from './PWAInstallButton';
@@ -30,10 +28,8 @@ import { UserBadges } from './UserBadges';
 
 interface ProfileModalProps {
   targetUser?: UserPublic | null;
-  posts: Post[];
   follows: FollowRelation[];
   initialEditMode?: boolean;
-  onOpenPost?: (postId: string) => void;
   onStartChat?: (user: UserPublic) => void;
   onOpenPrivacySettings?: () => void;
   onClose: () => void;
@@ -42,10 +38,8 @@ interface ProfileModalProps {
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({
   targetUser,
-  posts,
   follows,
   initialEditMode = false,
-  onOpenPost,
   onStartChat,
   onOpenPrivacySettings,
   onClose,
@@ -74,11 +68,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
   const fileRef = useRef<HTMLInputElement | null>(null);
   const coverRef = useRef<HTMLInputElement | null>(null);
-
-  const userPosts = useMemo(
-    () => (displayedUser ? posts.filter((p) => p.authorId === displayedUser.uid) : []),
-    [posts, displayedUser?.uid]
-  );
 
   const { followersCount, followingCount, isFollowing } = useMemo(() => {
     if (!displayedUser) return { followersCount: 0, followingCount: 0, isFollowing: false };
@@ -205,15 +194,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     }
   };
 
-  const getThemeLabel = (id: AppThemeId) => {
-    switch (id) {
-      case 'light':
-        return t.theme.lightMode;
-      case 'arcade':
-      default:
-        return t.theme.arcade;
-    }
-  };
+  const getThemeLabel = (_id: AppThemeId) => t.theme.arcade;
 
   const renderLanguageAndThemeCard = () => (
     <div className="space-y-2.5">
@@ -267,13 +248,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           </span>
         </div>
 
-        <div className="grid grid-cols-2 gap-2.5">
+        <div className="grid grid-cols-1 gap-2.5">
           {THEME_OPTIONS.map((opt) => {
             const active = theme === opt.id;
-            const swatchBg =
-              opt.id === 'arcade'
-                ? 'linear-gradient(135deg, #040409 42%, #A855F7 70%, #22D3EE 100%)'
-                : 'linear-gradient(135deg, #FFFFFF 50%, #DBEAFE 50%)';
             return (
               <button
                 key={opt.id}
@@ -282,16 +259,16 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   setTheme(opt.id);
                   void updateUserProfile({ theme: opt.id });
                 }}
-                className={`p-2.5 rounded-xl border flex flex-col items-center gap-1.5 transition-colors cursor-pointer ${
+                className={`p-2.5 rounded-xl border flex items-center gap-3 transition-colors cursor-pointer ${
                   active
                     ? 'bg-[var(--dank-accent-soft)] border-[var(--dank-accent)]'
                     : 'bg-[var(--dank-surface)] border-[var(--dank-border)] hover:border-[var(--dank-muted)]'
                 }`}
               >
                 <span
-                  className="relative w-9 h-9 rounded-full border border-[var(--dank-border)] shadow-sm overflow-hidden flex items-center justify-center"
+                  className="relative w-9 h-9 rounded-full border border-[var(--dank-border)] shadow-sm overflow-hidden flex items-center justify-center shrink-0"
                   style={{
-                    background: swatchBg,
+                    background: 'linear-gradient(135deg, #040409 42%, #A855F7 70%, #22D3EE 100%)',
                   }}
                 >
                   {active && (
@@ -300,7 +277,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     </span>
                   )}
                 </span>
-                <span className="text-xs font-semibold text-[var(--dank-text)] text-center leading-tight">
+                <span className="text-xs font-semibold text-[var(--dank-text)] text-start leading-tight">
                   {getThemeLabel(opt.id)}
                 </span>
               </button>

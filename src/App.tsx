@@ -57,7 +57,6 @@ import { DankSplash } from './components/DankSplash';
 
 import { JoinInviteModal } from './components/JoinInviteModal';
 import { NotificationsPage } from './components/NotificationsPage';
-import { PostsFeed } from './components/PostsFeed';
 import { ProfileModal } from './components/ProfileModal';
 import { ProfilePage } from './components/ProfilePage';
 import { ChatReminderModal } from './components/ScheduleModals';
@@ -107,7 +106,6 @@ import type {
   Chat,
   ChatReminder,
   FollowRelation,
-  Post,
   SavedItem,
   ScheduledMessage,
   Story,
@@ -178,16 +176,6 @@ export default function App() {
   const [headerSearchQuery, setHeaderSearchQuery] = useState('');
   const [showHeaderPlusMenu, setShowHeaderPlusMenu] = useState(false);
 
-  const [showPostsModal, setShowPostsModal] = useState(() => {
-    const params = new URLSearchParams(window.location.search);
-    return Boolean(params.get('post'));
-  });
-  const [highlightedPostId, setHighlightedPostId] = useState<string | null>(() => {
-    const params = new URLSearchParams(window.location.search);
-    return params.get('post');
-  });
-
-  const [posts, setPosts] = useState<Post[]>([]);
   const [follows] = useState<FollowRelation[]>([]);
   const [localFollowEdges] = useState(() => getLocalFollows());
   const [savedItems, setSavedItems] = useState<SavedItem[]>([]);
@@ -279,15 +267,7 @@ export default function App() {
     [setTheme, profile, updateUserProfile]
   );
 
-  const getThemeLabel = (id: AppThemeId) => {
-    switch (id) {
-      case 'light':
-        return t.theme.lightMode;
-      case 'arcade':
-      default:
-        return t.theme.arcade;
-    }
-  };
+  const getThemeLabel = (_id: AppThemeId) => t.theme.arcade;
 
   useEffect(() => {
     registerSW({
@@ -600,28 +580,6 @@ export default function App() {
       },
       () => {
         setAdsBanner(null);
-      }
-    );
-    return () => unsub();
-  }, [isVerified, firebaseUser?.uid]);
-
-  // 4e. Posts
-  useEffect(() => {
-    if (!isVerified || !firebaseUser) {
-      setPosts([]);
-      return;
-    }
-
-    const q = query(collection(db, 'posts'), orderBy('createdAt', 'desc'));
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        setPosts(snap.docs.map((d) => d.data() as Post));
-      },
-      (error) => {
-        if (!isOfflineError(error)) {
-          handleFirestoreError(error, OperationType.LIST, 'posts');
-        }
       }
     );
     return () => unsub();
@@ -1179,14 +1137,6 @@ export default function App() {
       changed = true;
     }
 
-    const deepPostId = url.searchParams.get('post');
-    if (deepPostId) {
-      setShowPostsModal(true);
-      setHighlightedPostId(deepPostId);
-      url.searchParams.delete('post');
-      changed = true;
-    }
-
     if (changed) {
       window.history.replaceState({}, '', url.pathname + url.search);
     }
@@ -1227,12 +1177,6 @@ export default function App() {
         setViewedProfileUser(null);
         setMainTab('chats');
         setActiveChatId(notif.targetId);
-        return;
-      }
-      if (notif.targetId) {
-        setViewedProfileUser(null);
-        setHighlightedPostId(notif.targetId);
-        setShowPostsModal(true);
       }
     },
     [openProfileFor, usersMap]
@@ -2259,29 +2203,26 @@ export default function App() {
                   <ChevronRight className="w-4 h-4 text-[var(--dank-muted)] rtl:rotate-180 shrink-0" />
                 </button>
 
-                <div className="grid grid-cols-2 gap-3 pt-1">
+                <div className="grid grid-cols-1 gap-3 pt-1">
                   {THEME_OPTIONS.map((opt) => {
                     const active = theme === opt.id;
-                    const swatchBg =
-                      opt.id === 'arcade'
-                        ? 'linear-gradient(135deg, #040409 42%, #A855F7 70%, #22D3EE 100%)'
-                        : 'linear-gradient(135deg, #FFFFFF 50%, #DBEAFE 50%)';
                     return (
                       <button
                         key={opt.id}
                         type="button"
                         onClick={() => handleSelectTheme(opt.id)}
-                        className={`p-3 rounded-2xl border flex flex-col items-center gap-2 transition-colors cursor-pointer ${
+                        className={`p-3 rounded-2xl border flex items-center gap-3 transition-colors cursor-pointer ${
                           active
                             ? 'bg-[var(--dank-accent-soft)] border-[var(--dank-accent)] shadow-xs'
                             : 'bg-[var(--dank-canvas)] border-[var(--dank-border)] hover:border-[var(--dank-muted)]'
                         }`}
                       >
                         <span
-                          className="relative w-11 h-11 rounded-full border-2 shadow-sm overflow-hidden flex items-center justify-center transition-transform active:scale-95"
+                          className="relative w-11 h-11 rounded-full border-2 shadow-sm overflow-hidden flex items-center justify-center shrink-0 transition-transform active:scale-95"
                           style={{
                             borderColor: active ? opt.accent : 'var(--dank-border)',
-                            background: swatchBg,
+                            background:
+                              'linear-gradient(135deg, #040409 42%, #A855F7 70%, #22D3EE 100%)',
                           }}
                         >
                           {active && (
@@ -2290,7 +2231,7 @@ export default function App() {
                             </span>
                           )}
                         </span>
-                        <span className="text-xs font-semibold text-[var(--dank-text)] text-center leading-tight">
+                        <span className="text-xs font-semibold text-[var(--dank-text)] text-start leading-tight">
                           {getThemeLabel(opt.id)}
                         </span>
                       </button>
@@ -2726,10 +2667,6 @@ export default function App() {
             <div className="p-3 space-y-2">
               {THEME_OPTIONS.map((opt) => {
                 const active = theme === opt.id;
-                const swatchBg =
-                  opt.id === 'arcade'
-                    ? 'linear-gradient(135deg, #040409 42%, #A855F7 70%, #22D3EE 100%)'
-                    : 'linear-gradient(135deg, #FFFFFF 50%, #DBEAFE 50%)';
                 return (
                   <button
                     key={opt.id}
@@ -2748,7 +2685,8 @@ export default function App() {
                       <span
                         className="w-9 h-9 rounded-full border border-[var(--dank-border)] shrink-0 shadow-xs"
                         style={{
-                          background: swatchBg,
+                          background:
+                            'linear-gradient(135deg, #040409 42%, #A855F7 70%, #22D3EE 100%)',
                         }}
                       />
                       <span className="text-sm font-semibold text-[var(--dank-text)] truncate">
@@ -2888,7 +2826,6 @@ export default function App() {
             user={liveViewedUser}
             currentUser={profile}
             usersMap={usersMap}
-            posts={posts}
             followerUids={effectiveFollows
               .filter((f) => f.targetUid === liveViewedUser.uid)
               .map((f) => f.followerUid)}
@@ -2906,11 +2843,6 @@ export default function App() {
             onOpenSettings={() => setShowSettingsPrivacyModal(true)}
             onStartChat={(u) => void handleStartPrivateChat(u)}
             onViewProfile={(u) => openProfileFor(u)}
-            onOpenPost={(post) => {
-              setViewedProfileUser(null);
-              setHighlightedPostId(post.id);
-              setShowPostsModal(true);
-            }}
             onNotify={notify}
           />
         </div>
@@ -2933,14 +2865,8 @@ export default function App() {
       {showProfileModal && (
         <ProfileModal
           targetUser={profile}
-          posts={posts}
           follows={effectiveFollows}
           initialEditMode={profileModalEditMode}
-          onOpenPost={(postId) => {
-            setShowProfileModal(false);
-            setHighlightedPostId(postId);
-            setShowPostsModal(true);
-          }}
           onStartChat={(user) => {
             setShowProfileModal(false);
             void handleStartPrivateChat(user);

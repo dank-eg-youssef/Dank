@@ -96,7 +96,7 @@ export const DankSplash: React.FC<DankSplashProps> = ({
 
       <p
         dir="rtl"
-        className="absolute bottom-[24px] inset-x-0 px-4 text-center text-[12px] font-normal text-[#6B7280] dark:text-[#A1A1AA] tracking-[0.01em] pointer-events-none"
+        className="absolute bottom-[24px] inset-x-0 px-4 text-center text-[12px] font-normal text-[#A1A1AA] tracking-[0.01em] pointer-events-none"
       >
         © 2027 YOUSSEF DANK - جميع الحقوق محفوظة
       </p>

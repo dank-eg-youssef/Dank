@@ -28,31 +28,6 @@
     --dank-primary: #0b0b18;
   }
 
-  [data-theme='light'] {
-    color-scheme: light;
-    --dank-canvas: #ffffff;
-    --dank-surface: #f3f4f6;
-    --dank-elevated: #e5e7eb;
-    --dank-hover: #eff6ff;
-    --dank-bubble-out: #dbeafe;
-    --dank-bubble-out-fg: #0f172a;
-    --dank-bubble-in: #f3f4f6;
-    --dank-bubble-in-fg: #0f172a;
-    --dank-accent: #3b82f6;
-    --dank-accent-hover: #2563eb;
-    --dank-neon-pink: #60a5fa;
-    --dank-neon-cyan: #3b82f6;
-    --dank-accent-soft: #dbeafe;
-    --dank-accent-border: #93c5fd;
-    --dank-accent-fg: #ffffff;
-    --dank-text: #0f172a;
-    --dank-muted: #6b7280;
-    --dank-border: #e5e7eb;
-    --dank-border-subtle: #f3f4f6;
-    --dank-dot: rgba(148, 163, 184, 0.1);
-    --dank-primary: #ffffff;
-  }
-
   * {
     box-sizing: border-box;
     -webkit-tap-highlight-color: transparent;
@@ -105,18 +80,6 @@
 
   html[data-theme='arcade'] [class*='border-[var(--dank-accent)]'] {
     box-shadow: 0 0 12px rgba(34, 211, 238, 0.26), 0 0 6px rgba(168, 85, 247, 0.24);
-  }
-
-  html[data-theme='light'] h1,
-  html[data-theme='light'] h2,
-  html[data-theme='light'] h3,
-  html[data-theme='light'] button {
-    text-shadow: none;
-  }
-
-  html[data-theme='light'] button[class*='bg-[var(--dank-accent)]'],
-  html[data-theme='light'] [class*='border-[var(--dank-accent)]'] {
-    box-shadow: none;
   }
 
   body {
@@ -174,11 +137,6 @@
     radial-gradient(var(--dank-border-subtle) 1px, transparent 1px);
   background-size: 26px 26px;
   background-position: 0 0, 13px 13px;
-}
-
-[data-theme='light'] .dank-chat-bg {
-  background-color: #ffffff;
-  background-image: none;
 }
 
 /* Custom sleek scrollbars */
@@ -252,20 +210,13 @@
 }
 
 @keyframes dankArcadeCheckBlink {
-  0%,
-  46% {
+  0% {
     opacity: 1;
-    filter: drop-shadow(0 0 2px #ffffff) drop-shadow(0 0 4px #f472b6);
+    filter: drop-shadow(0 0 2px #ffffff) drop-shadow(0 0 5px #f472b6);
   }
-  50%,
-  94% {
-    opacity: 0.08;
-    filter: none;
-  }
-  98%,
   100% {
-    opacity: 1;
-    filter: drop-shadow(0 0 2px #ffffff) drop-shadow(0 0 4px #f472b6);
+    opacity: 0.1;
+    filter: drop-shadow(0 0 0px transparent);
   }
 }
 
@@ -275,7 +226,7 @@
 }
 
 .dank-arcade-verified-check {
-  animation: dankArcadeCheckBlink 0.8s linear infinite;
+  animation: dankArcadeCheckBlink 0.16s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite alternate;
   will-change: opacity, filter;
 }
 

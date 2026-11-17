@@ -31,21 +31,16 @@
             document.documentElement.lang = 'ar';
             document.documentElement.dir = 'rtl';
           }
-          var storedTheme = localStorage.getItem('dank_theme');
-          var isLight = storedTheme === 'light';
-          var resolvedTheme = isLight ? 'light' : 'arcade';
-          var initialBg = isLight ? '#FFFFFF' : '#040409';
-          document.documentElement.dataset.theme = resolvedTheme;
-          document.documentElement.style.colorScheme = isLight ? 'light' : 'dark';
-          document.documentElement.style.backgroundColor = initialBg;
-          if (!isLight) {
-            document.documentElement.classList.add('dark');
-          } else {
-            document.documentElement.classList.remove('dark');
-          }
+          document.documentElement.dataset.theme = 'arcade';
+          document.documentElement.style.colorScheme = 'dark';
+          document.documentElement.style.backgroundColor = '#040409';
+          document.documentElement.classList.add('dark');
+          try {
+            localStorage.setItem('dank_theme', 'arcade');
+          } catch (e) {}
           var metaThemeColor = document.querySelector('meta[name="theme-color"]');
           if (metaThemeColor) {
-            metaThemeColor.setAttribute('content', initialBg);
+            metaThemeColor.setAttribute('content', '#040409');
           }
         } catch (e) {}
       })();
@@ -59,11 +54,6 @@
         width: 100%;
         height: 100%;
         background-color: #040409;
-      }
-      html[data-theme='light'],
-      html[data-theme='light'] body,
-      html[data-theme='light'] #root {
-        background-color: #FFFFFF;
       }
       @keyframes dank-hello-gradient {
         0% {
@@ -89,9 +79,6 @@
         padding: 24px;
         box-sizing: border-box;
         overflow: hidden;
-      }
-      html[data-theme='light'] #dank-boot-splash {
-        background-color: #FFFFFF;
       }
       #dank-boot-hello {
         margin: 0;
@@ -121,9 +108,6 @@
         font-weight: 400;
         color: #A1A1AA;
         letter-spacing: 0.01em;
-      }
-      html[data-theme='light'] #dank-boot-copyright {
-        color: #6B7280;
       }
     </style>
     <link rel="preconnect" href="https://fonts.googleapis.com" />

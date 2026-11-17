@@ -2,9 +2,6 @@ import React, { useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Camera,
-  Grid3X3,
-  Heart,
-  Image as ImageIcon,
   MessageCircle,
   Settings,
   UserCheck,
@@ -14,7 +11,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { toggleFollowUser } from '../services/socialService';
-import type { Post, UserPublic } from '../types/dank';
+import type { UserPublic } from '../types/dank';
 import { compressImageFile } from '../utils/imageCompress';
 import { Avatar } from './Avatar';
 import { UserBadges } from './UserBadges';
@@ -27,7 +24,6 @@ interface ProfilePageProps {
   user: UserPublic;
   currentUser: UserPublic;
   usersMap: Record<string, UserPublic>;
-  posts: Post[];
   followerUids: string[];
   followingUids: string[];
   isFollowing: boolean;
@@ -35,7 +31,6 @@ interface ProfilePageProps {
   onOpenSettings: () => void;
   onStartChat: (user: UserPublic) => void;
   onViewProfile: (user: UserPublic) => void;
-  onOpenPost?: (post: Post) => void;
   onBack?: () => void;
   onNotify: (msg: string) => void;
   allFollowEdges?: Array<{ followerUid: string; targetUid: string }>;
@@ -46,7 +41,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   user,
   currentUser,
   usersMap,
-  posts,
   followerUids,
   followingUids,
   isFollowing,
@@ -54,7 +48,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   onOpenSettings,
   onStartChat,
   onViewProfile,
-  onOpenPost,
   onBack,
   onNotify,
   allFollowEdges = [],
@@ -65,32 +58,13 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const isMe = user.uid === currentUser.uid;
   const isVip = Boolean(user.isVip || (user.inviteCount ?? 0) >= 5);
 
-  const [activeTab, setActiveTab] = useState<'posts' | 'media'>('posts');
   const [followBusy, setFollowBusy] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [followModal, setFollowModal] = useState<FollowListModalState | null>(null);
-  const [previewPost, setPreviewPost] = useState<Post | null>(null);
 
   const coverInputRef = useRef<HTMLInputElement | null>(null);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
-
-  const userPosts = useMemo(
-    () => posts.filter((p) => p.authorId === user.uid),
-    [posts, user.uid]
-  );
-
-  const mediaItems = useMemo(() => {
-    const items: Array<{ kind: 'photo'; id: string; src: string; post: Post }> = [];
-    userPosts.forEach((p) => {
-      p.images.forEach((img, idx) => {
-        if (img?.trim()) {
-          items.push({ kind: 'photo', id: `${p.id}_${idx}`, src: img, post: p });
-        }
-      });
-    });
-    return items;
-  }, [userPosts]);
 
   const handleToggleFollow = async (targetUid = user.uid, targetName = user.name) => {
     if (followBusy || targetUid === currentUser.uid) return;
@@ -332,20 +306,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           </div>
 
           {/* Clickable Stats Row */}
-          <div className="mt-4 grid grid-cols-3 divide-x rtl:divide-x-reverse divide-[var(--dank-border)] rounded-2xl bg-[var(--dank-canvas)] border border-[var(--dank-border)]">
-            <button
-              type="button"
-              onClick={() => setActiveTab('posts')}
-              className="py-3 px-2 flex flex-col items-center justify-center hover:bg-[var(--dank-hover)] transition-colors cursor-pointer"
-            >
-              <span className="text-base sm:text-lg font-extrabold text-[var(--dank-text)] tabular-nums">
-                {userPosts.length}
-              </span>
-              <span className="text-[11px] font-medium text-[var(--dank-muted)]">
-                {t.profile.postsGridTitle}
-              </span>
-            </button>
-
+          <div className="mt-4 grid grid-cols-2 divide-x rtl:divide-x-reverse divide-[var(--dank-border)] rounded-2xl bg-[var(--dank-canvas)] border border-[var(--dank-border)]">
             <button
               type="button"
               onClick={() => setFollowModal({ mode: 'followers' })}
@@ -372,96 +333,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               </span>
             </button>
           </div>
-        </div>
-
-        {/* 2 Profile Tabs: Posts | Media */}
-        <div className="bg-[var(--dank-surface)] border-b border-[var(--dank-border)] grid grid-cols-2 sticky top-0 z-10">
-          <button
-            type="button"
-            onClick={() => setActiveTab('posts')}
-            className={`h-12 flex items-center justify-center gap-1.5 text-xs sm:text-sm font-bold border-b-2 transition-colors cursor-pointer ${
-              activeTab === 'posts'
-                ? 'border-[var(--dank-accent)] text-[var(--dank-accent)]'
-                : 'border-transparent text-[var(--dank-muted)] hover:text-[var(--dank-text)]'
-            }`}
-          >
-            <Grid3X3 className="w-4 h-4" />
-            <span>{t.profile.postsGridTitle}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('media')}
-            className={`h-12 flex items-center justify-center gap-1.5 text-xs sm:text-sm font-bold border-b-2 transition-colors cursor-pointer ${
-              activeTab === 'media'
-                ? 'border-[var(--dank-accent)] text-[var(--dank-accent)]'
-                : 'border-transparent text-[var(--dank-muted)] hover:text-[var(--dank-text)]'
-            }`}
-          >
-            <ImageIcon className="w-4 h-4" />
-            <span>{t.profile.mediaTab}</span>
-          </button>
-        </div>
-
-        {/* Tab Grids */}
-        <div className="p-2 sm:p-3">
-          {activeTab === 'posts' && (
-            userPosts.length === 0 ? (
-              <div className="py-16 text-center text-xs text-[var(--dank-muted)]">
-                {t.profile.noPhotoPosts}
-              </div>
-            ) : (
-              <div className="grid grid-cols-3 gap-1.5">
-                {userPosts.map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => (onOpenPost ? onOpenPost(p) : setPreviewPost(p))}
-                    className="relative aspect-square rounded-lg overflow-hidden bg-[var(--dank-surface)] group cursor-pointer"
-                  >
-                    {p.images[0]?.trim() && (
-                      <img
-                        src={p.images[0].trim()}
-                        alt={p.caption || t.posts.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                      />
-                    )}
-                    <div className="absolute bottom-1.5 start-1.5 px-1.5 py-0.5 rounded-md bg-black/70 text-white text-[10px] font-semibold flex items-center gap-1 tabular-nums">
-                      <Heart className="w-2.5 h-2.5 fill-current text-[var(--dank-accent)]" />
-                      {p.likeCount || 0}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )
-          )}
-
-          {activeTab === 'media' && (
-            mediaItems.length === 0 ? (
-              <div className="py-16 text-center text-xs text-[var(--dank-muted)]">
-                {t.profile.noMediaYet}
-              </div>
-            ) : (
-              <div className="grid grid-cols-3 gap-1.5">
-                {mediaItems.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() =>
-                      onOpenPost ? onOpenPost(item.post) : setPreviewPost(item.post)
-                    }
-                    className="relative aspect-square rounded-lg overflow-hidden bg-[var(--dank-surface)] group cursor-pointer"
-                  >
-                    <img
-                      src={item.src}
-                      alt={item.post.caption || t.profile.mediaTab}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                    />
-                  </button>
-                ))}
-              </div>
-            )
-          )}
         </div>
       </div>
 
@@ -555,48 +426,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 })
               )}
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Simple Photo Post Preview Modal */}
-      {previewPost && (
-        <div
-          onClick={() => setPreviewPost(null)}
-          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] overflow-hidden shadow-2xl"
-          >
-            <div className="px-4 py-3 flex items-center justify-between border-b border-[var(--dank-border)]">
-              <div className="flex items-center gap-2 min-w-0">
-                <Avatar src={user.photoURL} name={user.name} size="sm" />
-                <span className="text-sm font-bold text-[var(--dank-text)] truncate">
-                  {user.name}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPreviewPost(null)}
-                aria-label={t.common.close}
-                className="w-8 h-8 rounded-lg hover:bg-[var(--dank-hover)] flex items-center justify-center text-[var(--dank-text)] cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            {previewPost.images[0]?.trim() && (
-              <img
-                src={previewPost.images[0].trim()}
-                alt={previewPost.caption || t.posts.title}
-                className="w-full max-h-[60vh] object-contain bg-black"
-              />
-            )}
-            {previewPost.caption && (
-              <p dir="auto" className="p-4 text-sm text-[var(--dank-text)] leading-relaxed">
-                {previewPost.caption}
-              </p>
-            )}
           </div>
         </div>
       )}

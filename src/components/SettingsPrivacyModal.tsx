@@ -216,14 +216,9 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
                   {t.theme.appearanceTitle}
                 </span>
               </div>
-              <div className="grid grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-1 gap-2.5">
                 {THEME_OPTIONS.map((opt) => {
                   const selected = theme === opt.id;
-                  const label = opt.id === 'arcade' ? t.theme.arcade : t.theme.lightMode;
-                  const swatchBg =
-                    opt.id === 'arcade'
-                      ? 'linear-gradient(135deg, #040409 42%, #A855F7 70%, #22D3EE 100%)'
-                      : 'linear-gradient(135deg, #FFFFFF 50%, #DBEAFE 50%)';
                   return (
                     <button
                       key={opt.id}
@@ -232,20 +227,20 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
                         setTheme(opt.id);
                         void updateUserProfile({ theme: opt.id }).catch(() => {});
                       }}
-                      className={`p-2.5 rounded-xl border text-center flex flex-col items-center gap-1.5 transition-colors cursor-pointer ${
+                      className={`p-2.5 rounded-xl border text-center flex items-center gap-3 transition-colors cursor-pointer ${
                         selected
                           ? 'bg-[var(--dank-accent-soft)] border-[var(--dank-accent)]'
                           : 'bg-[var(--dank-surface)] border-[var(--dank-border)] hover:bg-[var(--dank-hover)]'
                       }`}
                     >
                       <span
-                        className="w-9 h-9 rounded-full border border-[var(--dank-border)] relative overflow-hidden"
+                        className="w-9 h-9 rounded-full border border-[var(--dank-border)] shrink-0 relative overflow-hidden"
                         style={{
-                          background: swatchBg,
+                          background: 'linear-gradient(135deg, #040409 42%, #A855F7 70%, #22D3EE 100%)',
                         }}
                       />
                       <span className="text-xs font-semibold text-[var(--dank-text)] leading-tight">
-                        {label}
+                        {t.theme.arcade}
                       </span>
                     </button>
                   );
