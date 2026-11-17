@@ -2,6 +2,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import { Camera, Check, Lock, Megaphone, Search, Timer, Users, X } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { createGroupOrChannel, createSecretChat } from '../services/chatService';
+import { matchesUserQuery } from '../services/socialService';
 import type { UserPublic } from '../types/dank';
 import { compressImageFile } from '../utils/imageCompress';
 import { Avatar } from './Avatar';
@@ -11,7 +12,7 @@ interface CreateChatModalProps {
   defaultType: 'group' | 'channel' | 'secret';
   currentUser: UserPublic;
   allUsers: UserPublic[];
-  contactIds?: Set<string>;
+  friendIds?: Set<string>;
   onCreated: (chatId: string) => void;
   onClose: () => void;
   onNotify: (msg: string) => void;
@@ -21,7 +22,7 @@ export const CreateChatModal: React.FC<CreateChatModalProps> = ({
   defaultType,
   currentUser,
   allUsers,
-  contactIds = new Set<string>(),
+  friendIds = new Set<string>(),
   onCreated,
   onClose,
   onNotify,
@@ -40,21 +41,20 @@ export const CreateChatModal: React.FC<CreateChatModalProps> = ({
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   const candidateUsers = useMemo(() => {
-    const q = memberSearch.trim().replace(/^@+/, '').toLowerCase();
+    const trimmed = memberSearch.trim();
     return allUsers
       .filter((u) => u.uid !== currentUser.uid)
       .filter((u) => {
-        if (!q) {
-          // Privacy rule: only show saved contacts when search is empty
-          return contactIds.has(u.uid);
+        if (type === 'secret' && !friendIds.has(u.uid)) {
+          return false;
         }
-        return (
-          u.name.toLowerCase().includes(q) ||
-          u.username.toLowerCase().includes(q)
-        );
+        if (!trimmed) {
+          return friendIds.has(u.uid);
+        }
+        return matchesUserQuery(u, trimmed);
       })
       .slice(0, 30);
-  }, [allUsers, contactIds, currentUser.uid, memberSearch]);
+  }, [allUsers, friendIds, currentUser.uid, memberSearch, type]);
 
   const toggleMember = (uid: string) => {
     if (type === 'secret') {
@@ -324,7 +324,7 @@ export const CreateChatModal: React.FC<CreateChatModalProps> = ({
                 <p className="p-3 text-xs text-[var(--dank-muted)] text-center">
                   {memberSearch.trim()
                     ? t.createChat.noMatchingUsers
-                    : t.privacy.noContactsYet}
+                    : t.privacy.noFriendsYet}
                 </p>
               ) : (
                 candidateUsers.map((u) => {

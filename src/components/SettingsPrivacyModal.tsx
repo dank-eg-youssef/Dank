@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { THEME_OPTIONS, useTheme } from '../contexts/ThemeContext';
+import { NEON_COLORS, THEME_OPTIONS, useTheme } from '../contexts/ThemeContext';
 import { db } from '../lib/firebase';
 import {
   disableTwoStepAuth,
@@ -55,7 +55,7 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
 }) => {
   const { privateProfile, sessionId, updateUserProfile } = useAuth();
   const { language, setLanguage, t } = useLanguage();
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, neonTheme, setNeonTheme } = useTheme();
 
 
   const [privacyPhone, setPrivacyPhone] = useState<PrivacyVisibility>(
@@ -241,6 +241,49 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
                       />
                       <span className="text-xs font-semibold text-[var(--dank-text)] leading-tight">
                         {t.theme.arcade}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] space-y-3">
+              <div className="flex items-center gap-2">
+                <Palette className="w-4 h-4 text-[var(--dank-accent)]" />
+                <span className="text-xs font-bold text-[var(--dank-text)]">
+                  الثيمات (Themes)
+                </span>
+              </div>
+              <p className="text-[11px] text-[var(--dank-muted)]">
+                اختر لون نيون التطبيق (الشات، الأزرار، البروفايل، وكل مكان):
+              </p>
+              <div className="grid grid-cols-5 gap-2 pt-1">
+                {NEON_COLORS.map((nc) => {
+                  const active = neonTheme === nc.id;
+                  return (
+                    <button
+                      key={nc.id}
+                      type="button"
+                      title={language === 'ar' ? nc.labelAr : nc.labelEn}
+                      onClick={() => {
+                        setNeonTheme(nc.id);
+                        void updateUserProfile({ neonTheme: nc.id }).catch(() => {});
+                      }}
+                      className={`flex flex-col items-center gap-1.5 p-2 rounded-xl border transition-all cursor-pointer ${
+                        active
+                          ? 'bg-[var(--dank-accent-soft)] border-[var(--dank-accent)] shadow-md'
+                          : 'bg-[var(--dank-surface)] border-[var(--dank-border)] hover:bg-[var(--dank-hover)]'
+                      }`}
+                    >
+                      <span
+                        className="w-7 h-7 rounded-full border border-white/20 shadow-sm flex items-center justify-center"
+                        style={{ backgroundColor: nc.hex }}
+                      >
+                        {active && <Check className="w-3.5 h-3.5 text-white drop-shadow" />}
+                      </span>
+                      <span className="text-[10px] font-bold text-[var(--dank-text)] truncate">
+                        {language === 'ar' ? nc.labelAr : nc.labelEn}
                       </span>
                     </button>
                   );

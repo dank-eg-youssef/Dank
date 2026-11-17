@@ -101,12 +101,33 @@ service cloud.firestore {
       return !('bannedMemberIds' in chatDoc(chatId)) || !(request.auth.uid in chatDoc(chatId).bannedMemberIds);
     }
 
+    function pairDocId(uidA, uidB) {
+      return uidA < uidB ? (uidA + '_' + uidB) : (uidB + '_' + uidA);
+    }
+
+    function areFriends(uidA, uidB) {
+      return exists(/databases/$(database)/documents/friendships/$(pairDocId(uidA, uidB)));
+    }
+
+    function isPrivateChatFriendsAllowed(data, chatId) {
+      return data.type != 'private'
+        || chatId == ('saved_' + request.auth.uid)
+        || chatId == ('dank_bot_' + request.auth.uid)
+        || (
+          'dmPeerIds' in data
+          && data.dmPeerIds is list
+          && data.dmPeerIds.size() == 2
+          && request.auth.uid in data.dmPeerIds
+          && areFriends(data.dmPeerIds[0], data.dmPeerIds[1])
+        );
+    }
+
     // --- Validation Helpers ---
     function isValidUserPublic(data, userId) {
       return data.keys().hasAll(['uid', 'name', 'username', 'isOnline', 'lastSeen', 'createdAt', 'updatedAt'])
         && data.keys().hasOnly([
           'uid', 'name', 'username', 'photoURL', 'coverURL', 'bio', 'language', 'theme', 'isOnline', 'lastSeen',
-          'activeChatId', 'isAdmin', 'isVerified', 'isBot', 'isPlus',
+          'activeChatId', 'isAdmin', 'isVerified', 'isBot', 'isPlus', 'friendsCount',
           'inviteCode', 'invitedBy', 'inviteCount', 'isVip', 'isBanned', 'mutedUntil',
           'hasPhone', 'privacyPhone', 'privacyLastSeen', 'privacyLastSeenExceptions',
           'privacyProfilePhoto', 'privacyGroupAdd', 'privacyCall', 'privacyMessages',
@@ -128,6 +149,7 @@ service cloud.firestore {
         && isValidOptBool(data, 'isVerified')
         && isValidOptBool(data, 'isBot')
         && isValidOptBool(data, 'isPlus')
+        && (!('friendsCount' in data) || (data.friendsCount is int && data.friendsCount >= 0 && data.friendsCount <= 100000))
         && isValidOptBool(data, 'hasPhone')
         && (!('inviteCount' in data) || (data.inviteCount is int && data.inviteCount >= 0 && data.inviteCount <= 100000))
         && isValidOptBool(data, 'isVip')
@@ -184,17 +206,6 @@ service cloud.firestore {
         && (!('unreadClearedAt' in data) || data.unreadClearedAt == null || data.unreadClearedAt is timestamp)
         && (!('deletedAt' in data) || data.deletedAt == null || data.deletedAt is timestamp)
         && data.updatedAt is timestamp;
-    }
-
-    function isValidUserContact(data, contactUid) {
-      return data.keys().hasAll(['uid', 'name', 'username', 'addedAt'])
-        && data.keys().hasOnly(['uid', 'name', 'username', 'photoURL', 'addedAt'])
-        && isValidId(data.uid)
-        && data.uid == contactUid
-        && data.name is string && data.name.size() >= 1 && data.name.size() <= 80
-        && data.username is string && data.username.size() >= 2 && data.username.size() <= 40
-        && isValidOptString(data, 'photoURL', 250000)
-        && data.addedAt is timestamp;
     }
 
     function isValidBlockedUser(data, blockedUid) {
@@ -611,13 +622,40 @@ service cloud.firestore {
         && data.updatedAt is timestamp;
     }
 
-    function isValidFollowRelation(data, followId) {
-      return data.keys().hasAll(['followerUid', 'targetUid', 'createdAt'])
-        && data.keys().hasOnly(['followerUid', 'targetUid', 'createdAt'])
-        && isValidId(data.followerUid)
-        && isValidId(data.targetUid)
-        && data.followerUid != data.targetUid
-        && followId == (data.followerUid + '_' + data.targetUid)
+    function isValidFriendRequest(data, requestId) {
+      return data.keys().hasAll(['id', 'fromUid', 'toUid', 'users', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'fromUid', 'toUid', 'users', 'status', 'createdAt', 'updatedAt'])
+        && isValidId(data.id)
+        && data.id == requestId
+        && isValidId(data.fromUid)
+        && isValidId(data.toUid)
+        && data.fromUid != data.toUid
+        && requestId == pairDocId(data.fromUid, data.toUid)
+        && data.users is list
+        && data.users.size() == 2
+        && data.users[0] < data.users[1]
+        && data.fromUid in data.users
+        && data.toUid in data.users
+        && data.status in ['pending', 'accepted', 'rejected']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidFriendship(data, friendshipId) {
+      return data.keys().hasAll(['id', 'user1', 'user2', 'users', 'createdBy', 'createdAt'])
+        && data.keys().hasOnly(['id', 'user1', 'user2', 'users', 'createdBy', 'createdAt'])
+        && isValidId(data.id)
+        && data.id == friendshipId
+        && isValidId(data.user1)
+        && isValidId(data.user2)
+        && data.user1 < data.user2
+        && friendshipId == (data.user1 + '_' + data.user2)
+        && data.users is list
+        && data.users.size() == 2
+        && data.users[0] == data.user1
+        && data.users[1] == data.user2
+        && isValidId(data.createdBy)
+        && data.createdBy in data.users
         && data.createdAt is timestamp;
     }
 
@@ -642,7 +680,7 @@ service cloud.firestore {
         && isValidId(data.actorUid)
         && data.actorName is string && data.actorName.size() >= 1 && data.actorName.size() <= 80
         && isValidOptString(data, 'actorPhoto', 250000)
-        && data.type in ['follow', 'like', 'comment', 'message']
+        && data.type in ['friend_request', 'friend_accepted', 'like', 'comment', 'message']
         && data.text is string && data.text.size() >= 1 && data.text.size() <= 300
         && isValidOptString(data, 'targetId', 128)
         && data.read is bool
@@ -704,6 +742,7 @@ service cloud.firestore {
         && incoming().updatedAt == request.time
         && incoming().lastSeen == request.time
         && (!('inviteCount' in incoming()) || incoming().inviteCount == 0)
+        && (!('friendsCount' in incoming()) || incoming().friendsCount == 0)
         && (!('isVip' in incoming()) || incoming().isVip == false)
         && (!('isBanned' in incoming()) || incoming().isBanned == false)
         && (!('mutedUntil' in incoming()) || incoming().mutedUntil == null)
@@ -750,6 +789,32 @@ service cloud.firestore {
             )
             && (
               !('inviteCode' in existing()) || existing().inviteCode == '' || incoming().inviteCode == existing().inviteCode
+            )
+          )
+          // Owner atomic friendsCount step on accept (+1) or unfriend (-1)
+          || (
+            isOwner(userId)
+            && incoming().diff(existing()).affectedKeys().hasOnly(['friendsCount', 'updatedAt'])
+            && (
+              incoming().friendsCount == (('friendsCount' in existing() ? existing().friendsCount : 0) + 1)
+              || incoming().friendsCount == (('friendsCount' in existing() && existing().friendsCount > 0) ? existing().friendsCount - 1 : 0)
+            )
+          )
+          // Peer atomic friendsCount sync when accepting friend request (+1) or unfriending (-1)
+          || (
+            request.auth.uid != userId
+            && incoming().diff(existing()).affectedKeys().hasOnly(['friendsCount', 'updatedAt'])
+            && (
+              (
+                !exists(/databases/$(database)/documents/friendships/$(pairDocId(request.auth.uid, userId)))
+                && existsAfter(/databases/$(database)/documents/friendships/$(pairDocId(request.auth.uid, userId)))
+                && incoming().friendsCount == (('friendsCount' in existing() ? existing().friendsCount : 0) + 1)
+              )
+              || (
+                exists(/databases/$(database)/documents/friendships/$(pairDocId(request.auth.uid, userId)))
+                && !existsAfter(/databases/$(database)/documents/friendships/$(pairDocId(request.auth.uid, userId)))
+                && incoming().friendsCount == (('friendsCount' in existing() && existing().friendsCount > 0) ? existing().friendsCount - 1 : 0)
+              )
             )
           )
           // Atomic referral counter & automatic VIP unlock when another user redeems this user's invite code
@@ -819,20 +884,6 @@ service cloud.firestore {
           && incoming().updatedAt == request.time;
 
         allow delete: if isOwner(userId) && isValidId(userId) && isValidId(chatId);
-      }
-
-      // Contacts subcollection
-      match /contacts/{contactUid} {
-        allow get: if (isOwner(userId) || isAdmin()) && isValidId(userId) && isValidId(contactUid);
-        allow list: if isOwner(userId) || isAdmin();
-
-        allow create, update: if isOwner(userId)
-          && isValidId(userId)
-          && isValidId(contactUid)
-          && isValidUserContact(incoming(), contactUid)
-          && incoming().addedAt == request.time;
-
-        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(contactUid);
       }
 
       // Blocked users subcollection
@@ -1031,6 +1082,7 @@ service cloud.firestore {
         && isValidCallRecord(incoming(), callId)
         && incoming().callerId == request.auth.uid
         && incoming().startedAt == request.time
+        && areFriends(incoming().callerId, incoming().calleeId)
         && isNotBanned();
 
       allow update: if isVerified()
@@ -1154,6 +1206,7 @@ service cloud.firestore {
       allow create: if isVerified()
         && isValidId(chatId)
         && isValidChat(incoming(), chatId)
+        && isPrivateChatFriendsAllowed(incoming(), chatId)
         && incoming().createdBy == request.auth.uid
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time
@@ -1181,6 +1234,10 @@ service cloud.firestore {
               'lastMessageSenderName', 'lastMessageStatus', 'lastMessageAt',
               'messages24hCount', 'messages24hWindowStart', 'updatedAt'
             ])
+            && (
+              !incoming().diff(existing()).affectedKeys().hasAny(['lastMessageText', 'lastMessageSenderId', 'lastMessageAt'])
+              || isPrivateChatFriendsAllowed(existing(), chatId)
+            )
           )
           // Action 2: Chat member sending message, updating status, pinning, or secret timer
           || (
@@ -1188,6 +1245,7 @@ service cloud.firestore {
             && (
               (
                 (existing().type != 'channel' || isChatAdmin(chatId))
+                && isPrivateChatFriendsAllowed(existing(), chatId)
                 && isNotBannedOrMuted()
                 && (incoming().lastMessageSenderId == request.auth.uid || incoming().lastMessageSenderId == 'dank_bot')
                 && incoming().diff(existing()).affectedKeys().hasOnly([
@@ -1329,6 +1387,7 @@ service cloud.firestore {
           && isValidId(messageId)
           && isChatMember(chatId)
           && (chatDoc(chatId).type != 'channel' || isChatAdmin(chatId))
+          && isPrivateChatFriendsAllowed(chatDoc(chatId), chatId)
           && isValidMessage(incoming(), chatId, messageId)
           && (incoming().senderId == request.auth.uid || (incoming().senderId == 'dank_bot' && chatId == ('dank_bot_' + request.auth.uid)))
           && incoming().createdAt == request.time
@@ -1787,20 +1846,103 @@ service cloud.firestore {
       }
     }
 
-    // 9. Follow Relationships
-    match /follows/{followId} {
-      allow get: if isVerified() && isValidId(followId);
-      allow list: if isVerified();
+    // 9a. Friend Requests (Strictly scoped to sender & recipient)
+    match /friend_requests/{requestId} {
+      allow get: if isVerified()
+        && isValidId(requestId)
+        && (
+          (resource == null && (requestId.matches('^' + request.auth.uid + '_.*') || requestId.matches('.*_' + request.auth.uid + '$')))
+          || (resource != null && request.auth.uid in existing().users)
+          || isAdmin()
+        );
+
+      allow list: if isVerified()
+        && (request.auth.uid in existing().users || isAdmin());
 
       allow create: if isVerified()
-        && isValidId(followId)
-        && isValidFollowRelation(incoming(), followId)
-        && incoming().followerUid == request.auth.uid
-        && incoming().createdAt == request.time;
+        && isValidId(requestId)
+        && isValidFriendRequest(incoming(), requestId)
+        && incoming().fromUid == request.auth.uid
+        && incoming().fromUid != incoming().toUid
+        && incoming().status == 'pending'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && !exists(/databases/$(database)/documents/friendships/$(requestId))
+        && exists(/databases/$(database)/documents/users_public/$(incoming().toUid))
+        && isNotBanned();
+
+      allow update: if isVerified()
+        && isValidId(requestId)
+        && isValidFriendRequest(incoming(), requestId)
+        && incoming().id == existing().id
+        && incoming().users == existing().users
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Recipient accepts pending request (atomic with friendship creation)
+          (
+            existing().status == 'pending'
+            && existing().toUid == request.auth.uid
+            && incoming().fromUid == existing().fromUid
+            && incoming().toUid == existing().toUid
+            && incoming().status == 'accepted'
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+            && existsAfter(/databases/$(database)/documents/friendships/$(requestId))
+          )
+          // Recipient rejects pending request
+          || (
+            existing().status == 'pending'
+            && existing().toUid == request.auth.uid
+            && incoming().fromUid == existing().fromUid
+            && incoming().toUid == existing().toUid
+            && incoming().status == 'rejected'
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+          )
+          // Re-send friend request after rejection or prior unfriend when not currently friends
+          || (
+            request.auth.uid in existing().users
+            && existing().status in ['rejected', 'accepted']
+            && !exists(/databases/$(database)/documents/friendships/$(requestId))
+            && incoming().fromUid == request.auth.uid
+            && incoming().toUid != request.auth.uid
+            && incoming().toUid in existing().users
+            && incoming().status == 'pending'
+            && incoming().diff(existing()).affectedKeys().hasOnly(['fromUid', 'toUid', 'status', 'updatedAt'])
+            && isNotBanned()
+          )
+        );
 
       allow delete: if isVerified()
-        && isValidId(followId)
-        && (existing().followerUid == request.auth.uid || isAdmin());
+        && isValidId(requestId)
+        && (request.auth.uid in existing().users || isAdmin());
+    }
+
+    // 9b. Friendships (Strictly private — only the two friends can view/list)
+    match /friendships/{friendshipId} {
+      allow get: if isVerified()
+        && isValidId(friendshipId)
+        && (
+          (resource == null && (friendshipId.matches('^' + request.auth.uid + '_.*') || friendshipId.matches('.*_' + request.auth.uid + '$')))
+          || (resource != null && request.auth.uid in existing().users)
+          || isAdmin()
+        );
+
+      allow list: if isVerified()
+        && (request.auth.uid in existing().users || isAdmin());
+
+      allow create: if isVerified()
+        && isValidId(friendshipId)
+        && isValidFriendship(incoming(), friendshipId)
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time
+        && exists(/databases/$(database)/documents/friend_requests/$(friendshipId))
+        && get(/databases/$(database)/documents/friend_requests/$(friendshipId)).data.status == 'pending'
+        && get(/databases/$(database)/documents/friend_requests/$(friendshipId)).data.toUid == request.auth.uid
+        && getAfter(/databases/$(database)/documents/friend_requests/$(friendshipId)).data.status == 'accepted';
+
+      allow delete: if isVerified()
+        && isValidId(friendshipId)
+        && (request.auth.uid in existing().users || isAdmin());
     }
 
     // 10. In-App Notifications

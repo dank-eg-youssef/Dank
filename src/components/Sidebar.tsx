@@ -19,11 +19,21 @@ import {
   X,
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
-import { canSeePrivacyField, setUserChatPref } from '../services/chatService';
+import {
+  canSeeOnlineStatus,
+  canSeePrivacyField,
+  setUserChatPref,
+} from '../services/chatService';
+import {
+  acceptFriendRequest,
+  matchesUserQuery,
+  sendFriendRequest,
+} from '../services/socialService';
 import type {
   AdsBanner,
   Chat,
   ChatReminder,
+  FriendRequest,
   TypingState,
   UserChatPref,
   UserPublic,
@@ -40,7 +50,9 @@ interface SidebarProps {
   allUsers: UserPublic[];
   publicChannels: Chat[];
   usersMap: Record<string, UserPublic>;
-  contactIds: Set<string>;
+  friendIds: Set<string>;
+  incomingRequests?: FriendRequest[];
+  outgoingRequests?: FriendRequest[];
   mutedChatIds: Set<string>;
   chatPrefsById: Record<string, UserChatPref>;
   typingByChat: Record<string, TypingState[]>;
@@ -63,7 +75,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   allUsers,
   publicChannels,
   usersMap,
-  contactIds,
+  friendIds,
+  incomingRequests = [],
+  outgoingRequests = [],
   mutedChatIds,
   chatPrefsById,
   typingByChat,
@@ -106,6 +120,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         title: t.telegram.savedMessagesTitle,
         subtitle: t.telegram.savedMessagesDesc,
         photoURL: '',
+        canSeeOnline: false,
         isOnline: false,
         isAdmin: false,
         isVerified: true,
@@ -122,20 +137,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
         currentUser.uid,
         peer,
         peer?.privacyProfilePhoto,
-        contactIds
+        friendIds
       );
-      const canSeeOnline = canSeePrivacyField(
-        currentUser.uid,
-        peer,
-        peer?.privacyLastSeen,
-        contactIds,
-        peer?.privacyLastSeenExceptions
-      );
+      const canSeeOnline = canSeeOnlineStatus(currentUser.uid, peer, friendIds);
       return {
         peer,
         title: peer?.name || t.common.privateChat,
         subtitle: peer ? `@${peer.username}` : '',
         photoURL: canSeePhoto ? peer?.photoURL || '' : '',
+        canSeeOnline,
         isOnline:
           canSeeOnline && peer ? isUserActuallyOnline(peer.isOnline, peer.lastSeen) : false,
         isAdmin: Boolean(peer?.isAdmin),
@@ -150,6 +160,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       title: chat.name || (chat.type === 'channel' ? t.common.channel : t.common.group),
       subtitle: chat.description || '',
       photoURL: chat.photoURL || '',
+      canSeeOnline: false,
       isOnline: false,
       isAdmin: false,
       isVerified: chat.id === 'dank_official' || chat.id === 'dank_team',
@@ -199,19 +210,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
     inbox.sort(sortFn);
     archived.sort(sortFn);
     return { inboxChats: inbox, archivedChats: archived };
-  }, [chats, chatPrefsById, activeSearch, usersMap, contactIds, currentUser.uid]);
+  }, [chats, chatPrefsById, activeSearch, usersMap, friendIds, currentUser.uid]);
 
   const discoverPeople = useMemo(() => {
-    const q = activeSearch.trim().toLowerCase();
-    if (!q) return [];
-    const cleanQ = q.replace(/^@/, '');
+    if (!activeSearch.trim()) return [];
     return allUsers
       .filter((u) => u.uid !== currentUser.uid)
-      .filter(
-        (u) =>
-          u.name.toLowerCase().includes(q) ||
-          u.username.toLowerCase().includes(cleanQ)
-      )
+      .filter((u) => matchesUserQuery(u, activeSearch))
       .slice(0, 20);
   }, [allUsers, currentUser.uid, activeSearch]);
 
@@ -391,7 +396,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 name={disp.title}
                 size="md"
                 isOnline={disp.isOnline}
-                showOnlineDot={chat.type === 'private'}
+                showOnlineDot={chat.type === 'private' && Boolean(disp.canSeeOnline)}
                 chatType={chat.type}
                 specialType={disp.specialType}
               />
@@ -402,7 +407,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               name={disp.title}
               size="md"
               isOnline={disp.isOnline}
-              showOnlineDot={chat.type === 'private'}
+              showOnlineDot={chat.type === 'private' && Boolean(disp.canSeeOnline)}
               chatType={chat.type}
               specialType={disp.specialType}
             />
@@ -644,19 +649,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {t.sidebar.peopleOnDank}
             </div>
             {discoverPeople.map((person) => {
+              const isFriend = friendIds.has(person.uid);
+              const hasIncoming = incomingRequests.some((r) => r.fromUid === person.uid);
+              const hasOutgoing = outgoingRequests.some((r) => r.toUid === person.uid);
               const canSeePhoto = canSeePrivacyField(
                 currentUser.uid,
                 person,
                 person.privacyProfilePhoto,
-                contactIds
+                friendIds
               );
-              const canSeeOnline = canSeePrivacyField(
-                currentUser.uid,
-                person,
-                person.privacyLastSeen,
-                contactIds,
-                person.privacyLastSeenExceptions
-              );
+              const canSeeOnline = canSeeOnlineStatus(currentUser.uid, person, friendIds);
               const online =
                 canSeeOnline && isUserActuallyOnline(person.isOnline, person.lastSeen);
               return (
@@ -664,11 +666,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   key={person.uid}
                   role="button"
                   tabIndex={0}
-                  onClick={() => onStartPrivateChat(person)}
+                  onClick={() => {
+                    if (isFriend) {
+                      onStartPrivateChat(person);
+                    } else if (onOpenProfile) {
+                      onOpenProfile(person);
+                    }
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
-                      onStartPrivateChat(person);
+                      if (isFriend) {
+                        onStartPrivateChat(person);
+                      } else if (onOpenProfile) {
+                        onOpenProfile(person);
+                      }
                     }
                   }}
                   className="w-full px-4 py-3 rounded-[20px] border border-[var(--dank-border)] shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] bg-[var(--dank-surface)] flex items-center gap-3 text-start hover:bg-[var(--dank-hover)] transition-colors cursor-pointer"
@@ -687,7 +699,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         name={person.name}
                         size="sm"
                         isOnline={online}
-                        showOnlineDot={true}
+                        showOnlineDot={canSeeOnline}
                       />
                     </button>
                   ) : (
@@ -696,7 +708,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       name={person.name}
                       size="sm"
                       isOnline={online}
-                      showOnlineDot={true}
+                      showOnlineDot={canSeeOnline}
                     />
                   )}
                   <div className="flex-1 min-w-0">
@@ -719,9 +731,51 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       @{person.username}
                     </div>
                   </div>
-                  <span className="text-xs font-bold text-[var(--dank-accent-fg)] bg-[var(--dank-accent)] px-3 py-1 rounded-full shrink-0 whitespace-nowrap">
-                    {t.common.chat}
-                  </span>
+                  {isFriend ? (
+                    <span className="text-xs font-bold text-[var(--dank-accent-fg)] bg-[var(--dank-accent)] px-3 py-1 rounded-full shrink-0 whitespace-nowrap">
+                      {t.common.chat}
+                    </span>
+                  ) : hasIncoming ? (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void acceptFriendRequest(currentUser, person)
+                          .then(() => onNotify(t.profile.requestAcceptedToast))
+                          .catch((err) =>
+                            onNotify(err instanceof Error ? err.message : t.errors.unexpected)
+                          );
+                      }}
+                      className="text-xs font-bold text-[var(--dank-accent-fg)] bg-[var(--dank-accent)] px-3 py-1 rounded-full shrink-0 whitespace-nowrap cursor-pointer"
+                    >
+                      {t.profile.acceptRequest}
+                    </button>
+                  ) : hasOutgoing ? (
+                    <span className="text-xs font-semibold text-[var(--dank-muted)] bg-[var(--dank-elevated)] px-3 py-1 rounded-full shrink-0 whitespace-nowrap">
+                      {t.profile.friendRequestSent}
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void sendFriendRequest(currentUser, person)
+                          .then((res) =>
+                            onNotify(
+                              res === 'accepted'
+                                ? t.profile.requestAcceptedToast
+                                : t.profile.requestSentToast
+                            )
+                          )
+                          .catch((err) =>
+                            onNotify(err instanceof Error ? err.message : t.errors.unexpected)
+                          );
+                      }}
+                      className="text-xs font-bold text-[var(--dank-accent-fg)] bg-[var(--dank-accent)] px-3 py-1 rounded-full shrink-0 whitespace-nowrap cursor-pointer"
+                    >
+                      {t.profile.addFriend}
+                    </button>
+                  )}
                 </div>
               );
             })}

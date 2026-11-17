@@ -1,3 +1,5 @@
+import { ARCADE_STICKER_PACK } from '../assets/stickers/arcadeStickers';
+
 export interface DankSticker {
   id: string;
   packId?: string;
@@ -29,6 +31,7 @@ export interface DankGifItem {
 }
 
 export const DANK_STICKER_PACKS: StickerPack[] = [
+  ARCADE_STICKER_PACK,
   {
     id: 'dank_funny',
     nameEn: 'DANK Funny',

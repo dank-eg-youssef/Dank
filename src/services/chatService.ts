@@ -520,12 +520,24 @@ export async function deleteStory(storyId: string): Promise<void> {
   }
 }
 
+export async function areUsersFriends(uidA: string, uidB: string): Promise<boolean> {
+  if (!uidA || !uidB || uidA === uidB) return false;
+  const pairId = uidA < uidB ? `${uidA}_${uidB}` : `${uidB}_${uidA}`;
+  const snap = await getDoc(doc(db, 'friendships', pairId));
+  return snap.exists();
+}
+
 export async function createOrOpenPrivateChat(
   currentUser: UserPublic,
   peerUser: UserPublic
 ): Promise<string> {
   if (peerUser.uid === currentUser.uid) {
     return ensureSavedMessagesChat(currentUser);
+  }
+
+  const friends = await areUsersFriends(currentUser.uid, peerUser.uid);
+  if (!friends) {
+    throw new Error('NOT_FRIENDS');
   }
 
   const [u1, u2] = [currentUser.uid, peerUser.uid].sort();
@@ -605,6 +617,11 @@ export async function createSecretChat(
   peerUser: UserPublic,
   selfDestructSeconds = 0
 ): Promise<string> {
+  const friends = await areUsersFriends(currentUser.uid, peerUser.uid);
+  if (!friends) {
+    throw new Error('NOT_FRIENDS');
+  }
+
   const [u1, u2] = [currentUser.uid, peerUser.uid].sort();
   const chatId = `secret_${u1}_${u2}_${makeCodeSuffix(5)}`;
 
@@ -958,6 +975,21 @@ export async function sendMessage(params: {
   } = params;
 
   const messageId = params.messageId || generateId();
+
+  if (
+    chat.type === 'private' &&
+    chat.id !== `saved_${sender.uid}` &&
+    !chat.id.startsWith('dank_bot_')
+  ) {
+    const peerId = chat.dmPeerIds?.find((id) => id !== sender.uid);
+    if (!peerId) {
+      throw new Error('NOT_FRIENDS');
+    }
+    const friends = await areUsersFriends(sender.uid, peerId);
+    if (!friends) {
+      throw new Error('NOT_FRIENDS');
+    }
+  }
 
   let initialStatus: MessageStatus = 'sent';
   if (chat.id === `saved_${sender.uid}`) {
@@ -1411,9 +1443,10 @@ export async function markChatMessagesDelivered(chat: Chat, currentUid: string):
 export async function markChatMessagesSeen(
   chat: Chat,
   messages: Message[],
-  currentUid: string
+  currentUid: string,
+  isGhostMode?: boolean
 ): Promise<void> {
-  if (isFirestoreWritesPaused()) return;
+  if (isFirestoreWritesPaused() || isGhostMode) return;
   const unseen = messages.filter(
     (m) => m.senderId !== currentUid && (m.status === 'sent' || m.status === 'delivered')
   );
@@ -1561,47 +1594,6 @@ export async function setUserChatPref(
     await batch.commit();
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, `users_private/${uid}/chat_prefs/${chatId}`);
-  }
-}
-
-export async function addUserContact(uid: string, target: UserPublic): Promise<void> {
-  try {
-    await setDoc(doc(db, 'users_private', uid, 'contacts', target.uid), {
-      uid: target.uid,
-      name: target.name.slice(0, 80),
-      username: target.username,
-      photoURL: (target.photoURL || '').slice(0, 250000),
-      addedAt: serverTimestamp(),
-    });
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, `users_private/${uid}/contacts/${target.uid}`);
-  }
-}
-
-export async function addContactByUsername(
-  uid: string,
-  rawUsername: string
-): Promise<UserPublic> {
-  const clean = sanitizeUsername(rawUsername);
-  const snap = await getDocs(
-    query(collection(db, 'users_public'), where('username', '==', clean), limit(1))
-  );
-  if (snap.empty) {
-    throw new Error('USER_NOT_FOUND');
-  }
-  const target = snap.docs[0].data() as UserPublic;
-  if (target.uid === uid) {
-    throw new Error('CANNOT_ADD_SELF');
-  }
-  await addUserContact(uid, target);
-  return target;
-}
-
-export async function removeUserContact(uid: string, contactUid: string): Promise<void> {
-  try {
-    await deleteDoc(doc(db, 'users_private', uid, 'contacts', contactUid));
-  } catch (error) {
-    handleFirestoreError(error, OperationType.DELETE, `users_private/${uid}/contacts/${contactUid}`);
   }
 }
 
@@ -1806,6 +1798,10 @@ export async function initiateCall(params: {
   chatId: string;
   callType?: 'voice';
 }): Promise<string> {
+  const friends = await areUsersFriends(params.caller.uid, params.callee.uid);
+  if (!friends) {
+    throw new Error('NOT_FRIENDS');
+  }
   const callId = generateId();
   try {
     await setDoc(doc(db, 'calls', callId), {
@@ -2426,7 +2422,7 @@ export function canSeePrivacyField(
   viewerUid: string,
   owner: UserPublic | undefined,
   setting: PrivacyVisibility | undefined,
-  contactIds: Set<string>,
+  friendIds: Set<string>,
   exceptions?: string[]
 ): boolean {
   if (!owner) return false;
@@ -2435,7 +2431,25 @@ export function canSeePrivacyField(
   const resolved = setting || 'everyone';
   if (resolved === 'everyone') return true;
   if (resolved === 'nobody') return false;
-  return contactIds.has(owner.uid);
+  return friendIds.has(owner.uid);
+}
+
+export function canSeeOnlineStatus(
+  viewerUid: string,
+  owner: UserPublic | undefined,
+  friendIds: Set<string>
+): boolean {
+  if (!owner) return false;
+  if (owner.uid === viewerUid) return true;
+  if (owner.ghostMode) return false;
+  if (!friendIds.has(owner.uid)) return false;
+  return canSeePrivacyField(
+    viewerUid,
+    owner,
+    owner.privacyLastSeen,
+    friendIds,
+    owner.privacyLastSeenExceptions
+  );
 }
 
 export function getDisplayLanguageLabel(lang?: AppLanguage): string {

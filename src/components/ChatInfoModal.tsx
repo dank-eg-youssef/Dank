@@ -1,13 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Ban,
+  Clock,
   Copy,
   Lock,
   LogOut,
   Phone,
   ShieldAlert,
   ShieldCheck,
-  UserCheck,
   UserMinus,
   UserPlus,
   Users,
@@ -19,16 +19,23 @@ import { db } from '../lib/firebase';
 import {
   addGroupMemberByUsername,
   addMemberToGroup,
-  addUserContact,
   banMemberFromGroup,
   blockUserAccount,
+  canSeeOnlineStatus,
   canSeePrivacyField,
   createSecretChat,
   removeMemberFromChat,
-  removeUserContact,
   unblockUserAccount,
 } from '../services/chatService';
-import type { Chat, ChatMember, UserPublic } from '../types/dank';
+import {
+  acceptFriendRequest,
+  cancelFriendRequest,
+  matchesUserQuery,
+  rejectFriendRequest,
+  removeFriend,
+  sendFriendRequest,
+} from '../services/socialService';
+import type { Chat, ChatMember, FriendRequest, UserPublic } from '../types/dank';
 import { handleFirestoreError, isOfflineError, OperationType } from '../utils/firestoreErrors';
 import { formatLastSeen, isUserActuallyOnline } from '../utils/timeFormat';
 import { Avatar } from './Avatar';
@@ -39,7 +46,9 @@ interface ChatInfoModalProps {
   currentUser: UserPublic;
   allUsers: UserPublic[];
   usersMap: Record<string, UserPublic>;
-  contactIds?: Set<string>;
+  friendIds?: Set<string>;
+  incomingRequests?: FriendRequest[];
+  outgoingRequests?: FriendRequest[];
   blockedUserIds?: Set<string>;
   onStartCall?: (peer: UserPublic, chatId: string) => void;
   onSelectChat?: (chatId: string) => void;
@@ -54,7 +63,9 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
   currentUser,
   allUsers,
   usersMap,
-  contactIds = new Set<string>(),
+  friendIds = new Set<string>(),
+  incomingRequests = [],
+  outgoingRequests = [],
   blockedUserIds = new Set<string>(),
   onStartCall,
   onSelectChat,
@@ -69,6 +80,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
   const [usernameInput, setUsernameInput] = useState('');
   const [addingByUsername, setAddingByUsername] = useState(false);
   const [startingSecret, setStartingSecret] = useState(false);
+  const [friendBusy, setFriendBusy] = useState(false);
 
   const isSaved = chat.id === `saved_${currentUser.uid}`;
 
@@ -100,12 +112,12 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
   const dankLink = `${t.telegram.dankLinkPrefix}${chat.id}`;
 
   const matchingNonMembers = useMemo(() => {
-    const q = usernameInput.trim().replace(/^@+/, '').toLowerCase();
-    if (!q) return [];
+    const trimmed = usernameInput.trim();
+    if (!trimmed) return [];
     const memberSet = new Set(members.map((m) => m.uid));
     return allUsers
       .filter((u) => !memberSet.has(u.uid))
-      .filter((u) => u.name.toLowerCase().includes(q) || u.username.toLowerCase().includes(q))
+      .filter((u) => matchesUserQuery(u, trimmed))
       .slice(0, 12);
   }, [allUsers, members, usernameInput]);
 
@@ -169,37 +181,87 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
     }
   };
 
-  const isPeerContact = peer ? contactIds.has(peer.uid) : false;
+  const isPeerFriend = peer ? friendIds.has(peer.uid) : false;
   const isPeerBlocked = peer ? blockedUserIds.has(peer.uid) : false;
+  const incomingReq = peer
+    ? incomingRequests.find((r) => r.fromUid === peer.uid && r.status === 'pending')
+    : undefined;
+  const outgoingReq = peer
+    ? outgoingRequests.find((r) => r.toUid === peer.uid && r.status === 'pending')
+    : undefined;
 
   const canSeePeerPhoto = peer
-    ? canSeePrivacyField(currentUser.uid, peer, peer.privacyProfilePhoto, contactIds)
+    ? canSeePrivacyField(currentUser.uid, peer, peer.privacyProfilePhoto, friendIds)
     : true;
   const canSeePeerLastSeen = peer
-    ? canSeePrivacyField(
-        currentUser.uid,
-        peer,
-        peer.privacyLastSeen,
-        contactIds,
-        peer.privacyLastSeenExceptions
-      )
+    ? canSeeOnlineStatus(currentUser.uid, peer, friendIds)
     : false;
   const canCallPeer = peer
-    ? canSeePrivacyField(currentUser.uid, peer, peer.privacyCall, contactIds)
+    ? isPeerFriend && canSeePrivacyField(currentUser.uid, peer, peer.privacyCall, friendIds)
     : false;
 
-  const handleToggleContact = async () => {
-    if (!peer) return;
+  const handleSendFriendRequest = async () => {
+    if (!peer || friendBusy) return;
+    setFriendBusy(true);
     try {
-      if (isPeerContact) {
-        await removeUserContact(currentUser.uid, peer.uid);
-        onNotify(t.privacy.contactRemoved);
-      } else {
-        await addUserContact(currentUser.uid, peer);
-        onNotify(t.privacy.contactAdded);
-      }
+      await sendFriendRequest(currentUser, peer);
+      onNotify(t.profile.requestSentToast);
     } catch (err) {
       onNotify(err instanceof Error ? err.message : t.errors.unexpected);
+    } finally {
+      setFriendBusy(false);
+    }
+  };
+
+  const handleCancelFriendRequest = async () => {
+    if (!peer || friendBusy) return;
+    setFriendBusy(true);
+    try {
+      await cancelFriendRequest(currentUser.uid, peer.uid);
+      onNotify(t.profile.requestCancelledToast);
+    } catch (err) {
+      onNotify(err instanceof Error ? err.message : t.errors.unexpected);
+    } finally {
+      setFriendBusy(false);
+    }
+  };
+
+  const handleAcceptFriendRequest = async () => {
+    if (!peer || friendBusy) return;
+    setFriendBusy(true);
+    try {
+      await acceptFriendRequest(currentUser, peer);
+      onNotify(t.profile.requestAcceptedToast);
+    } catch (err) {
+      onNotify(err instanceof Error ? err.message : t.errors.unexpected);
+    } finally {
+      setFriendBusy(false);
+    }
+  };
+
+  const handleRejectFriendRequest = async () => {
+    if (!peer || friendBusy) return;
+    setFriendBusy(true);
+    try {
+      await rejectFriendRequest(currentUser.uid, peer.uid);
+      onNotify(t.profile.requestRejectedToast);
+    } catch (err) {
+      onNotify(err instanceof Error ? err.message : t.errors.unexpected);
+    } finally {
+      setFriendBusy(false);
+    }
+  };
+
+  const handleUnfriend = async () => {
+    if (!peer || friendBusy) return;
+    setFriendBusy(true);
+    try {
+      await removeFriend(currentUser.uid, peer.uid);
+      onNotify(t.profile.unfriendedToast);
+    } catch (err) {
+      onNotify(err instanceof Error ? err.message : t.errors.unexpected);
+    } finally {
+      setFriendBusy(false);
     }
   };
 
@@ -310,11 +372,9 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                   ? t.drawer.savedMessagesDesc
                   : chat.type === 'private'
                   ? peer
-                    ? `@${peer.username} · ${
-                        canSeePeerLastSeen
-                          ? formatLastSeen(peer.isOnline, peer.lastSeen, language)
-                          : t.privacy.nobody
-                      }`
+                    ? isPeerFriend && canSeePeerLastSeen
+                      ? `@${peer.username} · ${formatLastSeen(peer.isOnline, peer.lastSeen, language)}`
+                      : `@${peer.username}`
                     : ''
                   : `${members.length} ${
                       chat.type === 'channel' ? t.common.subscribers : t.common.members
@@ -336,22 +396,24 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
           </div>
 
           {chat.type === 'private' && peer && (
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  if (!canCallPeer) {
-                    onNotify(t.privacy.cannotCallPrivacy);
-                    return;
-                  }
-                  onStartCall?.(peer, chat.id);
-                  onClose();
-                }}
-                className="p-2.5 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] text-[var(--dank-text)] hover:border-[var(--dank-accent)] flex flex-col items-center gap-1 text-xs font-semibold cursor-pointer"
-              >
-                <Phone className="w-4 h-4 text-[var(--dank-accent)]" />
-                <span>{t.calls.voiceCall}</span>
-              </button>
+            <div className={`grid ${isPeerFriend ? 'grid-cols-2' : 'grid-cols-1'} gap-2`}>
+              {isPeerFriend && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!canCallPeer) {
+                      onNotify(t.privacy.cannotCallPrivacy);
+                      return;
+                    }
+                    onStartCall?.(peer, chat.id);
+                    onClose();
+                  }}
+                  className="p-2.5 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] text-[var(--dank-text)] hover:border-[var(--dank-accent)] flex flex-col items-center gap-1 text-xs font-semibold cursor-pointer"
+                >
+                  <Phone className="w-4 h-4 text-[var(--dank-accent)]" />
+                  <span>{t.calls.voiceCall}</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => {
@@ -379,7 +441,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
 
           {chat.type === 'private' && peer && (
             <div className="space-y-2">
-              {!chat.isSecret && (
+              {!chat.isSecret && isPeerFriend && (
                 <button
                   type="button"
                   disabled={startingSecret}
@@ -391,24 +453,63 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                 </button>
               )}
 
+              {incomingReq ? (
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    disabled={friendBusy}
+                    onClick={() => void handleAcceptFriendRequest()}
+                    className="h-10 rounded-xl bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    {t.profile.acceptRequest}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={friendBusy}
+                    onClick={() => void handleRejectFriendRequest()}
+                    className="h-10 rounded-xl border border-[var(--dank-border)] bg-[var(--dank-canvas)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    <X className="w-4 h-4" />
+                    {t.profile.rejectRequest}
+                  </button>
+                </div>
+              ) : null}
+
               <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => void handleToggleContact()}
-                  className="h-10 rounded-xl border border-[var(--dank-border)] bg-[var(--dank-canvas)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  {isPeerContact ? (
-                    <>
-                      <UserCheck className="w-4 h-4 text-[var(--dank-accent)]" />
-                      {t.privacy.contactRemoved.replace('.', '')}
-                    </>
-                  ) : (
-                    <>
-                      <UserPlus className="w-4 h-4 text-[var(--dank-accent)]" />
-                      {t.privacy.contactsTitle}
-                    </>
-                  )}
-                </button>
+                {isPeerFriend ? (
+                  <button
+                    type="button"
+                    disabled={friendBusy}
+                    onClick={() => void handleUnfriend()}
+                    className="h-10 rounded-xl border border-[var(--dank-border)] bg-[var(--dank-canvas)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    <UserMinus className="w-4 h-4 text-red-500" />
+                    {t.profile.unfriend}
+                  </button>
+                ) : outgoingReq ? (
+                  <button
+                    type="button"
+                    disabled={friendBusy}
+                    onClick={() => void handleCancelFriendRequest()}
+                    className="h-10 rounded-xl border border-[var(--dank-border)] bg-[var(--dank-canvas)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    <Clock className="w-4 h-4 text-[var(--dank-accent)]" />
+                    {t.profile.cancelRequest}
+                  </button>
+                ) : !incomingReq ? (
+                  <button
+                    type="button"
+                    disabled={friendBusy}
+                    onClick={() => void handleSendFriendRequest()}
+                    className="h-10 rounded-xl bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    {t.profile.addFriend}
+                  </button>
+                ) : (
+                  <div />
+                )}
 
                 <button
                   type="button"
@@ -545,13 +646,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                 {members.map((m) => {
                   const u = usersMap[m.uid];
                   const canSeeStatus = u
-                    ? canSeePrivacyField(
-                        currentUser.uid,
-                        u,
-                        u.privacyLastSeen,
-                        contactIds,
-                        u.privacyLastSeenExceptions
-                      )
+                    ? canSeeOnlineStatus(currentUser.uid, u, friendIds)
                     : false;
                   const online = u && canSeeStatus ? isUserActuallyOnline(u.isOnline, u.lastSeen) : false;
                   return (

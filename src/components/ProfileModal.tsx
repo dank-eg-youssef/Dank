@@ -2,46 +2,64 @@ import React, { useMemo, useRef, useState } from 'react';
 import {
   Camera,
   Check,
+  Clock,
   Copy,
   Crown,
   Gift,
   Globe,
+  Lock,
   LogOut,
   MessageCircle,
   Palette,
   Save,
   Settings,
   Shield,
+  UserMinus,
   UserPlus,
+  Users,
   X,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { THEME_OPTIONS, useTheme } from '../contexts/ThemeContext';
 import { getTranslations } from '../i18n';
-import { toggleFollowUser } from '../services/socialService';
-import type { AppLanguage, AppThemeId, FollowRelation, UserPublic } from '../types/dank';
+import { canSeeOnlineStatus, canSeePrivacyField } from '../services/chatService';
+import {
+  acceptFriendRequest,
+  cancelFriendRequest,
+  rejectFriendRequest,
+  removeFriend,
+  sendFriendRequest,
+} from '../services/socialService';
+import type { AppLanguage, AppThemeId, FriendRequest, UserPublic } from '../types/dank';
 import { compressImageFile } from '../utils/imageCompress';
+import { isUserActuallyOnline } from '../utils/timeFormat';
 import { Avatar } from './Avatar';
 import { PWAInstallButton } from './PWAInstallButton';
 import { UserBadges } from './UserBadges';
 
 interface ProfileModalProps {
   targetUser?: UserPublic | null;
-  follows: FollowRelation[];
+  friendIds: Set<string>;
+  incomingRequests?: FriendRequest[];
+  outgoingRequests?: FriendRequest[];
   initialEditMode?: boolean;
   onStartChat?: (user: UserPublic) => void;
   onOpenPrivacySettings?: () => void;
+  onOpenFriendsManager?: () => void;
   onClose: () => void;
   onNotify: (msg: string) => void;
 }
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({
   targetUser,
-  follows,
+  friendIds,
+  incomingRequests = [],
+  outgoingRequests = [],
   initialEditMode = false,
   onStartChat,
   onOpenPrivacySettings,
+  onOpenFriendsManager,
   onClose,
   onNotify,
 }) => {
@@ -64,31 +82,44 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [copiedCode, setCopiedCode] = useState(false);
   const [friendCode, setFriendCode] = useState('');
   const [redeeming, setRedeeming] = useState(false);
-  const [togglingFollow, setTogglingFollow] = useState(false);
+  const [friendBusy, setFriendBusy] = useState(false);
 
   const fileRef = useRef<HTMLInputElement | null>(null);
   const coverRef = useRef<HTMLInputElement | null>(null);
 
-  const { followersCount, followingCount, isFollowing } = useMemo(() => {
-    if (!displayedUser) return { followersCount: 0, followingCount: 0, isFollowing: false };
-    let followers = 0;
-    let following = 0;
-    let meFollowing = false;
-    for (const f of follows) {
-      if (f.targetUid === displayedUser.uid) {
-        followers += 1;
-        if (profile && f.followerUid === profile.uid) meFollowing = true;
-      }
-      if (f.followerUid === displayedUser.uid) following += 1;
-    }
-    return { followersCount: followers, followingCount: following, isFollowing: meFollowing };
-  }, [follows, displayedUser?.uid, profile?.uid]);
+  const isFriend = Boolean(
+    displayedUser && !isOwnProfile && friendIds.has(displayedUser.uid)
+  );
+  const incomingReq = useMemo(
+    () =>
+      displayedUser
+        ? incomingRequests.find((r) => r.fromUid === displayedUser.uid)
+        : undefined,
+    [incomingRequests, displayedUser]
+  );
+  const outgoingReq = useMemo(
+    () =>
+      displayedUser
+        ? outgoingRequests.find((r) => r.toUid === displayedUser.uid)
+        : undefined,
+    [outgoingRequests, displayedUser]
+  );
 
   if (!displayedUser || !profile) return null;
 
   const inviteCount = displayedUser.inviteCount ?? 0;
   const isVip = Boolean(displayedUser.isVip || inviteCount >= 5);
   const vipProgress = Math.min(100, Math.round((inviteCount / 5) * 100));
+
+  const friendsCount = isOwnProfile ? friendIds.size : (displayedUser.friendsCount ?? 0);
+  const canSeePhoto =
+    isOwnProfile ||
+    canSeePrivacyField(profile.uid, displayedUser, displayedUser.privacyProfilePhoto, friendIds);
+  const canSeeOnline =
+    isOwnProfile || canSeeOnlineStatus(profile.uid, displayedUser, friendIds);
+  const displayedOnline = isOwnProfile
+    ? true
+    : canSeeOnline && isUserActuallyOnline(displayedUser.isOnline, displayedUser.lastSeen);
 
   const handleLanguageChange = async (nextLang: AppLanguage) => {
     if (nextLang === language) return;
@@ -177,20 +208,68 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     }
   };
 
-  const handleToggleFollow = async () => {
-    if (isOwnProfile || togglingFollow) return;
-    setTogglingFollow(true);
+  const handleSendFriendRequest = async () => {
+    if (isOwnProfile || friendBusy) return;
+    setFriendBusy(true);
     try {
-      const nowFollowing = await toggleFollowUser(profile.uid, displayedUser.uid, profile);
-      onNotify(
-        nowFollowing
-          ? `${t.profile.startedFollowingToast} ${displayedUser.name}`
-          : `${t.profile.unfollowedToast} ${displayedUser.name}`
-      );
+      const res = await sendFriendRequest(profile, displayedUser);
+      onNotify(res === 'accepted' ? t.profile.requestAcceptedToast : t.profile.requestSentToast);
     } catch (err) {
       onNotify(err instanceof Error ? err.message : t.errors.unexpected);
     } finally {
-      setTogglingFollow(false);
+      setFriendBusy(false);
+    }
+  };
+
+  const handleCancelRequest = async () => {
+    if (isOwnProfile || friendBusy) return;
+    setFriendBusy(true);
+    try {
+      await cancelFriendRequest(profile.uid, displayedUser.uid);
+      onNotify(t.profile.requestCancelledToast);
+    } catch (err) {
+      onNotify(err instanceof Error ? err.message : t.errors.unexpected);
+    } finally {
+      setFriendBusy(false);
+    }
+  };
+
+  const handleAcceptRequest = async () => {
+    if (isOwnProfile || friendBusy) return;
+    setFriendBusy(true);
+    try {
+      await acceptFriendRequest(profile, displayedUser);
+      onNotify(t.profile.requestAcceptedToast);
+    } catch (err) {
+      onNotify(err instanceof Error ? err.message : t.errors.unexpected);
+    } finally {
+      setFriendBusy(false);
+    }
+  };
+
+  const handleRejectRequest = async () => {
+    if (isOwnProfile || friendBusy) return;
+    setFriendBusy(true);
+    try {
+      await rejectFriendRequest(profile.uid, displayedUser.uid);
+      onNotify(t.profile.requestRejectedToast);
+    } catch (err) {
+      onNotify(err instanceof Error ? err.message : t.errors.unexpected);
+    } finally {
+      setFriendBusy(false);
+    }
+  };
+
+  const handleUnfriend = async () => {
+    if (isOwnProfile || friendBusy) return;
+    setFriendBusy(true);
+    try {
+      await removeFriend(profile.uid, displayedUser.uid);
+      onNotify(t.profile.unfriendedToast);
+    } catch (err) {
+      onNotify(err instanceof Error ? err.message : t.errors.unexpected);
+    } finally {
+      setFriendBusy(false);
     }
   };
 
@@ -585,31 +664,42 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             <div className="p-5 space-y-4 bg-[var(--dank-canvas)]/70 border-b border-[var(--dank-border)] shrink-0">
               <div className="flex items-center gap-4">
                 <Avatar
-                  src={displayedUser.photoURL}
+                  src={canSeePhoto ? displayedUser.photoURL : ''}
                   name={displayedUser.name}
                   size="xl"
-                  isOnline={displayedUser.isOnline}
-                  showOnlineDot={true}
+                  isOnline={displayedOnline}
+                  showOnlineDot={canSeeOnline}
                 />
 
-                <div className="flex-1 grid grid-cols-2 gap-2 text-center">
-                  <div>
-                    <p className="text-base font-bold text-[var(--dank-text)] tabular-nums">
-                      {followersCount}
-                    </p>
-                    <p className="text-[11px] text-[var(--dank-muted)]">
-                      {t.profile.followersCount}
-                    </p>
+                {isOwnProfile && onOpenFriendsManager ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onOpenFriendsManager();
+                    }}
+                    className="flex-1 py-2.5 px-3 rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)] hover:border-[var(--dank-accent)] flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                  >
+                    <Users className="w-4 h-4 text-[var(--dank-accent)]" />
+                    <span className="text-base font-bold text-[var(--dank-text)] tabular-nums">
+                      {friendsCount}
+                    </span>
+                    <span className="text-xs font-medium text-[var(--dank-muted)]">
+                      {friendsCount === 1 ? t.profile.friendSingular : t.profile.friendsPlural}
+                    </span>
+                    <Lock className="w-3 h-3 text-[var(--dank-muted)]" />
+                  </button>
+                ) : (
+                  <div className="flex-1 py-2.5 px-3 rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)] flex items-center justify-center gap-2 select-none">
+                    <Users className="w-4 h-4 text-[var(--dank-accent)]" />
+                    <span className="text-base font-bold text-[var(--dank-text)] tabular-nums">
+                      {friendsCount}
+                    </span>
+                    <span className="text-xs font-medium text-[var(--dank-muted)]">
+                      {friendsCount === 1 ? t.profile.friendSingular : t.profile.friendsPlural}
+                    </span>
                   </div>
-                  <div>
-                    <p className="text-base font-bold text-[var(--dank-text)] tabular-nums">
-                      {followingCount}
-                    </p>
-                    <p className="text-[11px] text-[var(--dank-muted)]">
-                      {t.profile.followingCount}
-                    </p>
-                  </div>
-                </div>
+                )}
               </div>
 
               <div>
@@ -633,40 +723,116 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               </div>
 
               {!isOwnProfile ? (
-                <div className="flex items-center gap-2.5">
-                  <button
-                    type="button"
-                    disabled={togglingFollow}
-                    onClick={() => void handleToggleFollow()}
-                    className={`flex-1 h-9 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors ${
-                      isFollowing
-                        ? 'bg-[var(--dank-elevated)] text-[var(--dank-text)]'
-                        : 'bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)]'
-                    }`}
-                  >
-                    {isFollowing ? (
-                      <Check className="w-3.5 h-3.5" />
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2.5">
+                    {isFriend ? (
+                      <>
+                        {onStartChat && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onStartChat(displayedUser);
+                              onClose();
+                            }}
+                            className="flex-1 h-9 rounded-xl bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                            {t.profile.messageBtn}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          disabled={friendBusy}
+                          onClick={() => void handleUnfriend()}
+                          className="flex-1 h-9 rounded-xl bg-[var(--dank-elevated)] hover:bg-red-500/15 hover:text-red-500 text-[var(--dank-text)] text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <UserMinus className="w-3.5 h-3.5" />
+                          {t.profile.unfriend}
+                        </button>
+                      </>
+                    ) : incomingReq ? (
+                      <>
+                        <button
+                          type="button"
+                          disabled={friendBusy}
+                          onClick={() => void handleAcceptRequest()}
+                          className="flex-1 h-9 rounded-xl bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          {t.profile.acceptRequest}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={friendBusy}
+                          onClick={() => void handleRejectRequest()}
+                          className="flex-1 h-9 rounded-xl bg-[var(--dank-elevated)] hover:bg-red-500/15 hover:text-red-500 text-[var(--dank-text)] text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                          {t.profile.rejectRequest}
+                        </button>
+                      </>
+                    ) : outgoingReq ? (
+                      <button
+                        type="button"
+                        disabled={friendBusy}
+                        onClick={() => void handleCancelRequest()}
+                        className="flex-1 h-9 rounded-xl bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <Clock className="w-3.5 h-3.5 text-[var(--dank-accent)]" />
+                        {t.profile.cancelRequest}
+                      </button>
                     ) : (
-                      <UserPlus className="w-3.5 h-3.5" />
+                      <button
+                        type="button"
+                        disabled={friendBusy}
+                        onClick={() => void handleSendFriendRequest()}
+                        className="flex-1 h-9 rounded-xl bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <UserPlus className="w-3.5 h-3.5" />
+                        {t.profile.addFriend}
+                      </button>
                     )}
-                    {isFollowing ? t.profile.following : t.profile.follow}
-                  </button>
-                  {onStartChat && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onStartChat(displayedUser);
-                        onClose();
-                      }}
-                      className="flex-1 h-9 rounded-xl bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
-                    >
-                      <MessageCircle className="w-3.5 h-3.5 text-[var(--dank-accent)]" />
-                      {t.profile.messageBtn}
-                    </button>
+                  </div>
+                  {!isFriend && (
+                    <p className="text-[11px] text-[var(--dank-muted)] text-center">
+                      {t.profile.mustBeFriendsToMessage}
+                    </p>
                   )}
                 </div>
               ) : (
                 <div className="space-y-3">
+                  {/* Ghost Mode Toggle */}
+                  <div className="p-3 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] flex items-center justify-center">
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M9 10h.01M15 10h.01M12 2a8 8 0 0 0-8 8v12l3-2 2 2 3-2 3 2 2-2 3 2V10a8 8 0 0 0-8-8z"/>
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-[var(--dank-text)]">وضع الشبح (Ghost Mode)</p>
+                        <p className="text-[10px] text-[var(--dank-muted)]">إخفاء الاتصال، آخر ظهور، وعلامة القراءة</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const nextGhost = !profile.ghostMode;
+                        await updateUserProfile({ ghostMode: nextGhost });
+                        onNotify(nextGhost ? 'تم تفعيل وضع الشبح 👻' : 'تم إيقاف وضع الشبح');
+                      }}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        profile.ghostMode ? 'bg-[var(--dank-accent)]' : 'bg-[var(--dank-elevated)]'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                          profile.ghostMode ? 'translate-x-5 rtl:-translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
                   {renderLanguageAndThemeCard()}
 
                   <div className="flex items-center gap-2">
@@ -712,8 +878,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 </div>
               )}
             </div>
-
-
           </div>
         )}
       </div>

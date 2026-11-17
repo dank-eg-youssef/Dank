@@ -100,7 +100,7 @@ import {
   markNotificationRead,
   mergeNotifications,
 } from './services/notificationService';
-import { getLocalFollows } from './services/socialService';
+import { matchesUserQuery } from './services/socialService';
 import type {
   AdsBanner,
   AppNotification,
@@ -109,7 +109,8 @@ import type {
   CallRecord,
   Chat,
   ChatReminder,
-  FollowRelation,
+  FriendRequest,
+  Friendship,
   SavedItem,
   ScheduledMessage,
   Story,
@@ -117,7 +118,6 @@ import type {
   TypingState,
   UserChatPref,
   UserChatRef,
-  UserContact,
   UserPublic,
   UserSticker,
 } from './types/dank';
@@ -131,6 +131,7 @@ import {
   subscribeQuotaPaused,
 } from './utils/firestoreErrors';
 import { formatChatTime, timestampToMs } from './utils/timeFormat';
+import { dankAudio } from './utils/dankAudio';
 
 type MainTab = 'chats' | 'updates' | 'communities' | 'calls' | 'settings';
 
@@ -162,7 +163,8 @@ export default function App() {
   mutedChatIdsRef.current = mutedChatIds;
 
   const [chatPrefsById, setChatPrefsById] = useState<Record<string, UserChatPref>>({});
-  const [contacts, setContacts] = useState<UserContact[]>([]);
+  const [friendships, setFriendships] = useState<Friendship[]>([]);
+  const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
   const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
   const [calls, setCalls] = useState<CallRecord[]>([]);
   const [activeCallId, setActiveCallId] = useState<string | null>(null);
@@ -177,13 +179,14 @@ export default function App() {
 
   const [mainTab, setMainTab] = useState<MainTab>('chats');
   const [showWelcomeSplash, setShowWelcomeSplash] = useState(true);
-  const handleSplashFinish = useCallback(() => setShowWelcomeSplash(false), []);
+  const handleSplashFinish = useCallback(() => {
+    setShowWelcomeSplash(false);
+    dankAudio.playAppOpenCinematic();
+  }, []);
   const [headerSearchOpen, setHeaderSearchOpen] = useState(false);
   const [headerSearchQuery, setHeaderSearchQuery] = useState('');
   const [showHeaderPlusMenu, setShowHeaderPlusMenu] = useState(false);
 
-  const [follows] = useState<FollowRelation[]>([]);
-  const [localFollowEdges] = useState(() => getLocalFollows());
   const [savedItems, setSavedItems] = useState<SavedItem[]>([]);
 
   const [remoteNotifications, setRemoteNotifications] = useState<AppNotification[]>([]);
@@ -217,7 +220,7 @@ export default function App() {
   const [showHelpSheet, setShowHelpSheet] = useState(false);
   const [showCallPickerModal, setShowCallPickerModal] = useState(false);
   const [callPickerSearch, setCallPickerSearch] = useState('');
-  const [contactsCallsTab, setContactsCallsTab] = useState<'contacts' | 'calls' | null>(null);
+  const [contactsCallsTab, setContactsCallsTab] = useState<'friends' | 'calls' | null>(null);
   const [cacheRevision, setCacheRevision] = useState(0);
 
   const [userStickers, setUserStickers] = useState<UserSticker[]>([]);
@@ -454,24 +457,38 @@ export default function App() {
     return () => unsub();
   }, [isVerified, firebaseUser?.uid]);
 
-  // 4a2. Contacts & Blocked users
+  // 4a2. Friendships, Friend Requests & Blocked users
   useEffect(() => {
     if (!isVerified || !firebaseUser) {
-      setContacts([]);
+      setFriendships([]);
+      setFriendRequests([]);
       setBlockedUsers([]);
       return;
     }
 
-    const unsubContacts = onSnapshot(
-      collection(db, 'users_private', firebaseUser.uid, 'contacts'),
+    const uid = firebaseUser.uid;
+    const unsubFriendships = onSnapshot(
+      query(collection(db, 'friendships'), where('users', 'array-contains', uid)),
       (snap) => {
-        setContacts(snap.docs.map((d) => d.data() as UserContact));
+        setFriendships(snap.docs.map((d) => d.data() as Friendship));
       },
-      () => {}
+      (err) => {
+        if (!isOfflineError(err)) console.warn('Friendships listener error:', err);
+      }
+    );
+
+    const unsubRequests = onSnapshot(
+      query(collection(db, 'friend_requests'), where('users', 'array-contains', uid)),
+      (snap) => {
+        setFriendRequests(snap.docs.map((d) => d.data() as FriendRequest));
+      },
+      (err) => {
+        if (!isOfflineError(err)) console.warn('Friend requests listener error:', err);
+      }
     );
 
     const unsubBlocked = onSnapshot(
-      collection(db, 'users_private', firebaseUser.uid, 'blocked_users'),
+      collection(db, 'users_private', uid, 'blocked_users'),
       (snap) => {
         setBlockedUsers(snap.docs.map((d) => d.data() as BlockedUser));
       },
@@ -479,7 +496,8 @@ export default function App() {
     );
 
     return () => {
-      unsubContacts();
+      unsubFriendships();
+      unsubRequests();
       unsubBlocked();
     };
   }, [isVerified, firebaseUser?.uid]);
@@ -820,6 +838,15 @@ export default function App() {
             prevKnownTs !== undefined &&
             nextMsgTs > prevKnownTs &&
             chat.lastMessageSenderId &&
+            chat.lastMessageSenderId !== uid
+          ) {
+            dankAudio.playReceiveDing();
+          }
+
+          if (
+            prevKnownTs !== undefined &&
+            nextMsgTs > prevKnownTs &&
+            chat.lastMessageSenderId &&
             chat.lastMessageSenderId !== uid &&
             !mutedChatIdsRef.current.has(chatId) &&
             (document.visibilityState === 'hidden' || chatId !== activeChatIdRef.current)
@@ -906,31 +933,37 @@ export default function App() {
     return map;
   }, [allUsers]);
 
-  const contactIds = useMemo(() => new Set(contacts.map((c) => c.uid)), [contacts]);
+  const friendIds = useMemo(() => {
+    const next = new Set<string>();
+    if (!firebaseUser) return next;
+    const uid = firebaseUser.uid;
+    for (const f of friendships) {
+      const other = f.user1 === uid ? f.user2 : f.user1;
+      if (other) next.add(other);
+    }
+    return next;
+  }, [friendships, firebaseUser?.uid]);
+
+  const incomingFriendRequests = useMemo(() => {
+    if (!firebaseUser) return [] as FriendRequest[];
+    return friendRequests.filter(
+      (r) => r.status === 'pending' && r.toUid === firebaseUser.uid
+    );
+  }, [friendRequests, firebaseUser?.uid]);
+
+  const outgoingFriendRequests = useMemo(() => {
+    if (!firebaseUser) return [] as FriendRequest[];
+    return friendRequests.filter(
+      (r) => r.status === 'pending' && r.fromUid === firebaseUser.uid
+    );
+  }, [friendRequests, firebaseUser?.uid]);
+
   const blockedUserIds = useMemo(() => new Set(blockedUsers.map((b) => b.uid)), [blockedUsers]);
 
   const savedPostIds = useMemo(
     () => new Set(savedItems.filter((s) => s.itemType === 'post').map((s) => s.targetId)),
     [savedItems]
   );
-
-  const effectiveFollows = useMemo<FollowRelation[]>(() => {
-    if (follows.length > 0) return follows;
-    return localFollowEdges.map((e) => ({
-      followerUid: e.followerUid,
-      targetUid: e.targetUid,
-      createdAt: Timestamp.fromMillis(e.createdAtMs || Date.now()),
-    }));
-  }, [follows, localFollowEdges]);
-
-  const followingIds = useMemo(() => {
-    if (!firebaseUser) return new Set<string>();
-    return new Set(
-      effectiveFollows
-        .filter((f) => f.followerUid === firebaseUser.uid)
-        .map((f) => f.targetUid)
-    );
-  }, [effectiveFollows, firebaseUser?.uid]);
 
   const notifications = useMemo(
     () => mergeNotifications(remoteNotifications, localNotifications),
@@ -1170,7 +1203,7 @@ export default function App() {
   const handleNotificationNavigation = useCallback(
     (notif: AppNotification) => {
       setShowNotificationsPage(false);
-      if (notif.type === 'follow') {
+      if (notif.type === 'friend_request' || notif.type === 'friend_accepted') {
         const actor = usersMap[notif.actorUid] || {
           uid: notif.actorUid,
           name: notif.actorName,
@@ -1195,7 +1228,10 @@ export default function App() {
 
   const handleStartPrivateChat = async (peer: UserPublic) => {
     if (!profile) return;
-    if (!canSeePrivacyField(profile.uid, peer, peer.privacyMessages, contactIds)) {
+    if (
+      !friendIds.has(peer.uid) ||
+      !canSeePrivacyField(profile.uid, peer, peer.privacyMessages, friendIds)
+    ) {
       notify(t.privacy.cannotMessagePrivacy);
       return;
     }
@@ -1207,7 +1243,11 @@ export default function App() {
       setMainTab('chats');
       setActiveChatId(chatId);
     } catch (err) {
-      notify(err instanceof Error ? err.message : t.errors.unexpected);
+      if (err instanceof Error && err.message === 'NOT_FRIENDS') {
+        notify(t.privacy.cannotMessagePrivacy);
+      } else {
+        notify(err instanceof Error ? err.message : t.errors.unexpected);
+      }
     }
   };
 
@@ -1248,7 +1288,10 @@ export default function App() {
 
   const handleStartCall = async (peer: UserPublic, chatId?: string) => {
     if (!profile) return;
-    if (!canSeePrivacyField(profile.uid, peer, peer.privacyCall, contactIds)) {
+    if (
+      !friendIds.has(peer.uid) ||
+      !canSeePrivacyField(profile.uid, peer, peer.privacyCall, friendIds)
+    ) {
       notify(t.privacy.cannotCallPrivacy);
       return;
     }
@@ -1262,7 +1305,11 @@ export default function App() {
       });
       setActiveCallId(newCallId);
     } catch (err) {
-      notify(err instanceof Error ? err.message : t.errors.unexpected);
+      if (err instanceof Error && err.message === 'NOT_FRIENDS') {
+        notify(t.privacy.cannotCallPrivacy);
+      } else {
+        notify(err instanceof Error ? err.message : t.errors.unexpected);
+      }
     }
   };
 
@@ -1482,13 +1529,6 @@ export default function App() {
     return peerName.toLowerCase().includes(qLower);
   });
 
-  const myFollowerUids = effectiveFollows
-    .filter((f) => f.targetUid === profile.uid)
-    .map((f) => f.followerUid);
-  const myFollowingUids = effectiveFollows
-    .filter((f) => f.followerUid === profile.uid)
-    .map((f) => f.targetUid);
-
   const liveViewedUser = viewedProfileUser
     ? usersMap[viewedProfileUser.uid] || viewedProfileUser
     : null;
@@ -1497,37 +1537,12 @@ export default function App() {
     mainTab === 'chats' || mainTab === 'updates' || mainTab === 'communities';
 
   const callPickerCandidates = (() => {
-    const pq = callPickerSearch.trim().toLowerCase();
-    const seen = new Set<string>([profile.uid]);
-    const list: UserPublic[] = [];
-
-    for (const c of contacts) {
-      if (seen.has(c.uid) || blockedUserIds.has(c.uid)) continue;
-      seen.add(c.uid);
-      const u = usersMap[c.uid] || {
-        uid: c.uid,
-        name: c.name,
-        username: c.username,
-        photoURL: c.photoURL || '',
-        isOnline: false,
-        lastSeen: null,
-        createdAt: null,
-        updatedAt: null,
-      };
-      list.push(u);
-    }
-
-    for (const u of allUsers) {
-      if (seen.has(u.uid) || blockedUserIds.has(u.uid)) continue;
-      seen.add(u.uid);
-      list.push(u);
-    }
-
-    if (!pq) return list;
-    const clean = pq.replace(/^@/, '');
-    return list.filter(
-      (u) => u.name.toLowerCase().includes(pq) || u.username.toLowerCase().includes(clean)
+    const trimmed = callPickerSearch.trim();
+    const list = allUsers.filter(
+      (u) => u.uid !== profile.uid && friendIds.has(u.uid) && !blockedUserIds.has(u.uid)
     );
+    if (!trimmed) return list;
+    return list.filter((u) => matchesUserQuery(u, trimmed));
   })();
 
   return (
@@ -1647,12 +1662,12 @@ export default function App() {
                   type="button"
                   onClick={() => {
                     setShowHeaderPlusMenu(false);
-                    setContactsCallsTab('contacts');
+                    setContactsCallsTab('friends');
                   }}
                   className="w-full px-4 py-2.5 text-start text-sm font-medium hover:bg-[var(--dank-hover)] flex items-center gap-3 cursor-pointer"
                 >
                   <MessageSquarePlus className="w-4 h-4 text-[var(--dank-accent)]" />
-                  <span>{t.whatsapp.newChat}</span>
+                  <span>{t.drawer.friends}</span>
                 </button>
                 <button
                   type="button"
@@ -1771,7 +1786,9 @@ export default function App() {
               allUsers={allUsers}
               publicChannels={publicChannels}
               usersMap={usersMap}
-              contactIds={contactIds}
+              friendIds={friendIds}
+              incomingRequests={incomingFriendRequests}
+              outgoingRequests={outgoingFriendRequests}
               mutedChatIds={mutedChatIds}
               chatPrefsById={chatPrefsById}
               typingByChat={typingByChat}
@@ -2030,7 +2047,9 @@ export default function App() {
                 chats={chats}
                 currentUser={profile}
                 usersMap={usersMap}
-                contactIds={contactIds}
+                friendIds={friendIds}
+                incomingRequests={incomingFriendRequests}
+                outgoingRequests={outgoingFriendRequests}
                 blockedUserIds={blockedUserIds}
                 isMuted={mutedChatIds.has(activeChat.id)}
                 userStickers={userStickers}
@@ -2879,15 +2898,9 @@ export default function App() {
             user={liveViewedUser}
             currentUser={profile}
             usersMap={usersMap}
-            followerUids={effectiveFollows
-              .filter((f) => f.targetUid === liveViewedUser.uid)
-              .map((f) => f.followerUid)}
-            followingUids={effectiveFollows
-              .filter((f) => f.followerUid === liveViewedUser.uid)
-              .map((f) => f.targetUid)}
-            isFollowing={followingIds.has(liveViewedUser.uid)}
-            allFollowEdges={effectiveFollows}
-            myFollowingSet={followingIds}
+            friendIds={friendIds}
+            incomingRequests={incomingFriendRequests}
+            outgoingRequests={outgoingFriendRequests}
             onBack={() => setViewedProfileUser(null)}
             onOpenEditProfile={() => {
               setProfileModalEditMode(true);
@@ -2918,7 +2931,9 @@ export default function App() {
       {showProfileModal && (
         <ProfileModal
           targetUser={profile}
-          follows={effectiveFollows}
+          friendIds={friendIds}
+          incomingRequests={incomingFriendRequests}
+          outgoingRequests={outgoingFriendRequests}
           initialEditMode={profileModalEditMode}
           onStartChat={(user) => {
             setShowProfileModal(false);
@@ -2927,6 +2942,10 @@ export default function App() {
           onOpenPrivacySettings={() => {
             setShowProfileModal(false);
             setShowSettingsPrivacyModal(true);
+          }}
+          onOpenFriendsManager={() => {
+            setShowProfileModal(false);
+            setContactsCallsTab('friends');
           }}
           onClose={() => {
             setShowProfileModal(false);
@@ -2941,7 +2960,7 @@ export default function App() {
           defaultType={createModalType}
           currentUser={profile}
           allUsers={allUsers}
-          contactIds={contactIds}
+          friendIds={friendIds}
           onCreated={(chatId) => {
             setCreateModalType(null);
             setMainTab('chats');
@@ -2958,7 +2977,9 @@ export default function App() {
           currentUser={profile}
           allUsers={allUsers}
           usersMap={usersMap}
-          contactIds={contactIds}
+          friendIds={friendIds}
+          incomingRequests={incomingFriendRequests}
+          outgoingRequests={outgoingFriendRequests}
           blockedUserIds={blockedUserIds}
           onStartCall={(peer, chatId) => void handleStartCall(peer, chatId)}
           onSelectChat={(id) => {
@@ -3023,7 +3044,11 @@ export default function App() {
         <ContactsAndCallsModal
           initialTab={contactsCallsTab}
           currentUser={profile}
-          contacts={contacts}
+          allUsers={allUsers}
+          friendIds={friendIds}
+          incomingRequests={incomingFriendRequests}
+          outgoingRequests={outgoingFriendRequests}
+          blockedUserIds={blockedUserIds}
           calls={calls}
           usersMap={usersMap}
           onMessageUser={(peer) => {
@@ -3033,6 +3058,10 @@ export default function App() {
           onCallUser={(peer) => {
             setContactsCallsTab(null);
             void handleStartCall(peer);
+          }}
+          onViewProfile={(u) => {
+            setContactsCallsTab(null);
+            openProfileFor(u);
           }}
           onClose={() => setContactsCallsTab(null)}
           onNotify={notify}

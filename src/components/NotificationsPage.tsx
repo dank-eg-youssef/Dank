@@ -7,6 +7,7 @@ import {
   MessageCircle,
   Send,
   Trash2,
+  UserCheck,
   UserPlus,
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -40,10 +41,16 @@ export const NotificationsPage: React.FC<NotificationsPageProps> = ({
 
   const getTypeIcon = (type: AppNotification['type']) => {
     switch (type) {
-      case 'follow':
+      case 'friend_request':
         return (
           <span className="w-5 h-5 rounded-full bg-[var(--dank-accent)] text-[var(--dank-accent-fg)] flex items-center justify-center ring-2 ring-[var(--dank-surface)]">
             <UserPlus className="w-2.5 h-2.5" />
+          </span>
+        );
+      case 'friend_accepted':
+        return (
+          <span className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center ring-2 ring-[var(--dank-surface)]">
+            <UserCheck className="w-2.5 h-2.5" />
           </span>
         );
       case 'like':

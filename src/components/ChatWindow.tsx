@@ -29,6 +29,7 @@ import {
   Timer,
   Trash2,
   UserMinus,
+  UserPlus,
   X,
 } from 'lucide-react';
 import {
@@ -41,7 +42,9 @@ import {
 } from 'firebase/firestore';
 import { useLanguage } from '../contexts/LanguageContext';
 import { db } from '../lib/firebase';
+import { dankAudio } from '../utils/dankAudio';
 import {
+  canSeeOnlineStatus,
   canSeePrivacyField,
   createScheduledMessage,
   deleteMessage,
@@ -61,9 +64,16 @@ import {
   updateChatSelfDestruct,
   updateScheduledMessage,
 } from '../services/chatService';
+import {
+  acceptFriendRequest,
+  cancelFriendRequest,
+  rejectFriendRequest,
+  sendFriendRequest,
+} from '../services/socialService';
 import type {
   Chat,
   ChatMember,
+  FriendRequest,
   Message,
   Reaction,
   ScheduledMessage,
@@ -154,7 +164,9 @@ interface ChatWindowProps {
   chats: Chat[];
   currentUser: UserPublic;
   usersMap: Record<string, UserPublic>;
-  contactIds: Set<string>;
+  friendIds: Set<string>;
+  incomingRequests?: FriendRequest[];
+  outgoingRequests?: FriendRequest[];
   blockedUserIds: Set<string>;
   isMuted: boolean;
   userStickers: UserSticker[];
@@ -172,7 +184,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   chats,
   currentUser,
   usersMap,
-  contactIds,
+  friendIds,
+  incomingRequests = [],
+  outgoingRequests = [],
   blockedUserIds,
   isMuted,
   userStickers,
@@ -185,6 +199,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onNotify,
 }) => {
   const { t, language } = useLanguage();
+  const [friendActionBusy, setFriendActionBusy] = useState(false);
 
   const [messages, setMessages] = useState<Message[]>(() => getCachedChatMessages(chat.id));
   const [optimisticMsgs, setOptimisticMsgs] = useState<Message[]>([]);
@@ -412,13 +427,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   useEffect(() => {
     const syncSeen = () => {
       if (document.visibilityState === 'visible' && !isFirestoreWritesPaused()) {
-        void markChatMessagesSeen(chat, messages, currentUser.uid);
+        void markChatMessagesSeen(chat, messages, currentUser.uid, currentUser.ghostMode);
       }
     };
     syncSeen();
     document.addEventListener('visibilitychange', syncSeen);
     return () => document.removeEventListener('visibilitychange', syncSeen);
-  }, [chat, messages, currentUser.uid]);
+  }, [chat, messages, currentUser.uid, currentUser.ghostMode]);
 
   // Record unique views for channel broadcast posts
   useEffect(() => {
@@ -465,6 +480,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   };
 
   const isSavedMessages = chat.id === `saved_${currentUser.uid}`;
+  const isBotChat = chat.id.startsWith('dank_bot_');
 
   const peerUser = useMemo(() => {
     if (isSavedMessages) return null;
@@ -472,6 +488,19 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     const peerId = chat.dmPeerIds.find((id) => id !== currentUser.uid);
     return peerId ? usersMap[peerId] || null : null;
   }, [chat, currentUser.uid, isSavedMessages, usersMap]);
+
+  const isFriendWithPeer =
+    isSavedMessages ||
+    isBotChat ||
+    chat.type !== 'private' ||
+    Boolean(peerUser && friendIds.has(peerUser.uid));
+
+  const incomingReq = peerUser
+    ? incomingRequests.find((r) => r.fromUid === peerUser.uid && r.status === 'pending')
+    : undefined;
+  const outgoingReq = peerUser
+    ? outgoingRequests.find((r) => r.toUid === peerUser.uid && r.status === 'pending')
+    : undefined;
 
   const isBlockedPeer = Boolean(peerUser && blockedUserIds.has(peerUser.uid));
   const isAdminMuted = Boolean(
@@ -488,18 +517,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     (chat.type !== 'channel' || isChatAdmin) &&
     !isAdminBanned &&
     !isAdminMuted &&
-    !isBlockedPeer;
+    !isBlockedPeer &&
+    isFriendWithPeer;
 
   const canSeePeerOnline = useMemo(() => {
     if (!peerUser) return false;
-    return canSeePrivacyField(
-      currentUser.uid,
-      peerUser,
-      peerUser.privacyLastSeen,
-      contactIds,
-      peerUser.privacyLastSeenExceptions
-    );
-  }, [contactIds, currentUser.uid, peerUser]);
+    return canSeeOnlineStatus(currentUser.uid, peerUser, friendIds);
+  }, [currentUser.uid, friendIds, peerUser]);
 
   const canSeePeerPhoto = useMemo(() => {
     if (!peerUser) return true;
@@ -507,19 +531,19 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       currentUser.uid,
       peerUser,
       peerUser.privacyProfilePhoto,
-      contactIds
+      friendIds
     );
-  }, [contactIds, currentUser.uid, peerUser]);
+  }, [currentUser.uid, friendIds, peerUser]);
 
   const canCallPeer = useMemo(() => {
-    if (!peerUser || isSavedMessages || isBlockedPeer) return false;
+    if (!peerUser || isSavedMessages || isBlockedPeer || !isFriendWithPeer) return false;
     return canSeePrivacyField(
       currentUser.uid,
       peerUser,
       peerUser.privacyCall,
-      contactIds
+      friendIds
     );
-  }, [contactIds, currentUser.uid, isBlockedPeer, isSavedMessages, peerUser]);
+  }, [currentUser.uid, friendIds, isBlockedPeer, isFriendWithPeer, isSavedMessages, peerUser]);
 
   const activeTypers = useMemo(() => {
     const now = Date.now();
@@ -534,9 +558,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const onlineMembersCount = useMemo(() => {
     return members.filter((m) => {
       const u = usersMap[m.uid];
-      return u && isUserActuallyOnline(u.isOnline, u.lastSeen);
+      return (
+        u &&
+        canSeeOnlineStatus(currentUser.uid, u, friendIds) &&
+        isUserActuallyOnline(u.isOnline, u.lastSeen)
+      );
     }).length;
-  }, [members, usersMap]);
+  }, [currentUser.uid, friendIds, members, usersMap]);
 
   const reactionsByMessage = useMemo(() => {
     const map: Record<string, Reaction[]> = {};
@@ -653,6 +681,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         replyTo,
         usersMap,
       });
+      if (params.type === 'sticker') {
+        dankAudio.playArcadeStickerBleep();
+      } else {
+        dankAudio.playSendTick();
+      }
     } catch (err) {
       setOptimisticMsgs((prev) => prev.filter((m) => m.id !== msgId));
       throw err;
@@ -751,12 +784,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
     if (!trimmed && !pendingImage) return;
 
-    if (
-      peerUser &&
-      peerUser.privacyMessages === 'contacts' &&
-      !contactIds.has(peerUser.uid) &&
-      messages.length === 0
-    ) {
+    if (peerUser && !isSavedMessages && !isBotChat && !isFriendWithPeer) {
       onNotify(t.privacy.cannotMessagePrivacy);
       return;
     }
@@ -936,17 +964,19 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
   const headerSubtitle = useMemo(() => {
     if (isSavedMessages) return t.telegram.savedMessagesDesc;
-    if (activeTypers.length > 0) {
+    if (activeTypers.length > 0 && isFriendWithPeer) {
       return chat.type === 'private'
         ? t.chat.typing
         : `${activeTypers.map((tp) => tp.name.split(' ')[0]).join(', ')} ${t.chat.typingPluralSuffix}`;
     }
     if (chat.isSecret) {
-      return peerOnline ? `${t.time.online} · ${t.telegram.secretChat}` : t.telegram.secretChat;
+      return isFriendWithPeer && peerOnline
+        ? `${t.time.online} · ${t.telegram.secretChat}`
+        : t.telegram.secretChat;
     }
     if (chat.type === 'private') {
       if (!peerUser) return t.common.privateChat;
-      if (!canSeePeerOnline) return t.time.lastSeenRecently;
+      if (!isFriendWithPeer || !canSeePeerOnline) return `@${peerUser.username}`;
       return formatLastSeen(peerUser.isOnline, peerUser.lastSeen, language);
     }
     if (chat.type === 'channel') {
@@ -957,6 +987,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     activeTypers,
     canSeePeerOnline,
     chat,
+    isFriendWithPeer,
     isSavedMessages,
     language,
     onlineMembersCount,
@@ -1013,7 +1044,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 name={chatTitle}
                 size="md"
                 isOnline={peerOnline}
-                showOnlineDot={chat.type === 'private' && !isSavedMessages}
+                showOnlineDot={chat.type === 'private' && !isSavedMessages && canSeePeerOnline}
                 chatType={chat.type}
                 specialType={
                   isSavedMessages ? 'saved' : chat.isSecret ? 'secret' : undefined
@@ -1061,7 +1092,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         </div>
 
         <div className="flex items-center gap-0.5 shrink-0">
-          {peerUser && !isSavedMessages && (
+          {peerUser && !isSavedMessages && isFriendWithPeer && (
             <button
               type="button"
               onClick={() => {
@@ -1902,6 +1933,80 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           <div className="h-11 flex items-center justify-center text-xs font-semibold text-red-500 text-center">
             {t.privacy.blockedUsers}
           </div>
+        ) : !isFriendWithPeer && peerUser ? (
+          <div className="py-1.5 flex flex-col sm:flex-row items-center justify-between gap-2.5">
+            <p className="text-xs font-semibold text-[var(--dank-muted)] text-center sm:text-start">
+              {t.profile.mustBeFriendsToMessage}
+            </p>
+            <div className="flex items-center gap-2 shrink-0">
+              {incomingReq ? (
+                <>
+                  <button
+                    type="button"
+                    disabled={friendActionBusy}
+                    onClick={() => {
+                      setFriendActionBusy(true);
+                      void acceptFriendRequest(currentUser, peerUser)
+                        .then(() => onNotify(t.profile.requestAcceptedToast))
+                        .catch((err) => onNotify(err instanceof Error ? err.message : t.errors.unexpected))
+                        .finally(() => setFriendActionBusy(false));
+                    }}
+                    className="h-9 px-3.5 rounded-full bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    {t.profile.acceptRequest}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={friendActionBusy}
+                    onClick={() => {
+                      setFriendActionBusy(true);
+                      void rejectFriendRequest(currentUser.uid, peerUser.uid)
+                        .then(() => onNotify(t.profile.requestRejectedToast))
+                        .catch((err) => onNotify(err instanceof Error ? err.message : t.errors.unexpected))
+                        .finally(() => setFriendActionBusy(false));
+                    }}
+                    className="h-9 px-3.5 rounded-full bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] border border-[var(--dank-border)] text-[var(--dank-text)] text-xs font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    {t.profile.rejectRequest}
+                  </button>
+                </>
+              ) : outgoingReq ? (
+                <button
+                  type="button"
+                  disabled={friendActionBusy}
+                  onClick={() => {
+                    setFriendActionBusy(true);
+                    void cancelFriendRequest(currentUser.uid, peerUser.uid)
+                      .then(() => onNotify(t.profile.requestCancelledToast))
+                      .catch((err) => onNotify(err instanceof Error ? err.message : t.errors.unexpected))
+                      .finally(() => setFriendActionBusy(false));
+                  }}
+                  className="h-9 px-3.5 rounded-full bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] border border-[var(--dank-border)] text-[var(--dank-text)] text-xs font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  <Clock className="w-3.5 h-3.5 text-[var(--dank-accent)]" />
+                  {t.profile.cancelRequest}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={friendActionBusy}
+                  onClick={() => {
+                    setFriendActionBusy(true);
+                    void sendFriendRequest(currentUser, peerUser)
+                      .then(() => onNotify(t.profile.requestSentToast))
+                      .catch((err) => onNotify(err instanceof Error ? err.message : t.errors.unexpected))
+                      .finally(() => setFriendActionBusy(false));
+                  }}
+                  className="h-9 px-3.5 rounded-full bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  {t.profile.addFriend}
+                </button>
+              )}
+            </div>
+          </div>
         ) : !canPost ? (
           <div className="h-11 flex items-center justify-center text-xs font-medium text-[var(--dank-muted)] text-center">
             {t.chat.channelPostNotice}
@@ -2358,6 +2463,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           currentUser={currentUser}
           chats={chats}
           usersMap={usersMap}
+          friendIds={friendIds}
           onForwarded={(targetChatId) => {
             setForwardTargetMsg(null);
             onSelectChat(targetChatId);

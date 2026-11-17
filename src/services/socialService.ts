@@ -7,6 +7,7 @@ import {
   increment,
   serverTimestamp,
   setDoc,
+  updateDoc,
   writeBatch,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -15,56 +16,33 @@ import type { Post, UserPublic } from '../types/dank';
 import {
   handleFirestoreError,
   isFirestoreWritesPaused,
-  isOfflineError,
-  isQuotaExhaustedError,
   OperationType,
-  pauseFirestoreWrites,
 } from '../utils/firestoreErrors';
 import { deleteManagedStorageMedia } from '../utils/mediaStorage';
 import { createAppNotification } from './notificationService';
 
-const SINGLE_DOC_MAX_CHARS = 720000;
-const CHUNK_CHARS = 500000;
-const FOLLOWS_CACHE_KEY = 'dank_follows_cache';
-
-export interface CachedFollowEdge {
-  followerUid: string;
-  targetUid: string;
-  createdAtMs: number;
+export function getPairId(uidA: string, uidB: string): string {
+  return uidA < uidB ? `${uidA}_${uidB}` : `${uidB}_${uidA}`;
 }
 
-export function getLocalFollows(): CachedFollowEdge[] {
-  try {
-    const raw = localStorage.getItem(FOLLOWS_CACHE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as CachedFollowEdge[];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
+export function matchesUserQuery(user: UserPublic, rawQuery: string): boolean {
+  const normalized = rawQuery.trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!normalized) return false;
+  const cleanHandle = normalized.replace(/^@/, '');
+  const uName = (user.name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  const uUsername = (user.username || '').trim().toLowerCase();
 
-export function saveLocalFollows(edges: CachedFollowEdge[]): void {
-  try {
-    localStorage.setItem(FOLLOWS_CACHE_KEY, JSON.stringify(edges.slice(-1000)));
-    window.dispatchEvent(new CustomEvent('dank:follows-updated'));
-  } catch {
-    // ignore storage errors
+  if (cleanHandle && uUsername.includes(cleanHandle)) {
+    return true;
   }
-}
-
-export function setLocalFollowEdge(
-  followerUid: string,
-  targetUid: string,
-  isFollowing: boolean
-): void {
-  const current = getLocalFollows().filter(
-    (e) => !(e.followerUid === followerUid && e.targetUid === targetUid)
-  );
-  if (isFollowing) {
-    current.push({ followerUid, targetUid, createdAtMs: Date.now() });
+  if (uName.includes(normalized)) {
+    return true;
   }
-  saveLocalFollows(current);
+  const tokens = normalized.split(' ').filter(Boolean);
+  if (tokens.length >= 2) {
+    return tokens.every((tok) => uName.includes(tok));
+  }
+  return false;
 }
 
 export function generateSocialId(): string {
@@ -382,57 +360,216 @@ export async function toggleSaveItem(
   }
 }
 
-export async function toggleFollowUser(
-  followerUid: string,
-  targetUid: string,
-  actor?: UserPublic
-): Promise<boolean> {
-  if (followerUid === targetUid) return false;
-  const followId = `${followerUid}_${targetUid}`;
-  const refDoc = doc(db, 'follows', followId);
+export async function sendFriendRequest(
+  fromUser: UserPublic,
+  toUser: UserPublic
+): Promise<'sent' | 'accepted' | 'already_pending' | 'already_friends'> {
+  if (!fromUser.uid || !toUser.uid || fromUser.uid === toUser.uid) {
+    throw new Error('CANNOT_ADD_SELF');
+  }
+  const pairId = getPairId(fromUser.uid, toUser.uid);
+  const [u1, u2] = [fromUser.uid, toUser.uid].sort();
+  const friendshipRef = doc(db, 'friendships', pairId);
+  const reqRef = doc(db, 'friend_requests', pairId);
+
   try {
-    const existing = await getDoc(refDoc);
-    if (existing.exists()) {
-      await deleteDoc(refDoc);
-      setLocalFollowEdge(followerUid, targetUid, false);
-      return false;
+    const [friendSnap, reqSnap] = await Promise.all([
+      getDoc(friendshipRef),
+      getDoc(reqRef),
+    ]);
+
+    if (friendSnap.exists()) {
+      return 'already_friends';
     }
-    await setDoc(refDoc, {
-      followerUid,
-      targetUid,
-      createdAt: serverTimestamp(),
-    });
-    setLocalFollowEdge(followerUid, targetUid, true);
-    if (actor) {
-      const tr = getTranslations(actor.language || 'ar');
-      void createAppNotification({
-        recipientUid: targetUid,
-        actor,
-        type: 'follow',
-        text: tr.notifications.startedFollowing(actor.name),
-        targetId: actor.uid,
+
+    if (reqSnap.exists()) {
+      const data = reqSnap.data() as { fromUid?: string; toUid?: string; status?: string };
+      if (data.status === 'pending') {
+        if (data.fromUid === fromUser.uid) {
+          return 'already_pending';
+        }
+        if (data.toUid === fromUser.uid) {
+          await acceptFriendRequest(fromUser, toUser);
+          return 'accepted';
+        }
+      }
+      await updateDoc(reqRef, {
+        fromUid: fromUser.uid,
+        toUid: toUser.uid,
+        status: 'pending',
+        updatedAt: serverTimestamp(),
+      });
+    } else {
+      await setDoc(reqRef, {
+        id: pairId,
+        fromUid: fromUser.uid,
+        toUid: toUser.uid,
+        users: [u1, u2],
+        status: 'pending',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
       });
     }
-    return true;
+
+    const tr = getTranslations(fromUser.language || 'ar');
+    void createAppNotification({
+      recipientUid: toUser.uid,
+      actor: fromUser,
+      type: 'friend_request',
+      text: tr.notifications.sentFriendRequest(fromUser.name),
+      targetId: fromUser.uid,
+    });
+
+    return 'sent';
   } catch (error) {
-    if (isOfflineError(error)) {
-      const currentlyFollowing = getLocalFollows().some(
-        (e) => e.followerUid === followerUid && e.targetUid === targetUid
-      );
-      const next = !currentlyFollowing;
-      setLocalFollowEdge(followerUid, targetUid, next);
-      if (next && actor) {
-        const tr = getTranslations(actor.language || 'ar');
-        void createAppNotification({
-          recipientUid: targetUid,
-          actor,
-          type: 'follow',
-          text: tr.notifications.startedFollowing(actor.name),
-          targetId: actor.uid,
-        });
-      }
-      return next;
+    handleFirestoreError(error, OperationType.WRITE, `friend_requests/${pairId}`);
+  }
+}
+
+export async function cancelFriendRequest(
+  currentUid: string,
+  peerUid: string
+): Promise<void> {
+  if (!currentUid || !peerUid || currentUid === peerUid) return;
+  const pairId = getPairId(currentUid, peerUid);
+  try {
+    await deleteDoc(doc(db, 'friend_requests', pairId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `friend_requests/${pairId}`);
+  }
+}
+
+export async function acceptFriendRequest(
+  currentUser: UserPublic,
+  requesterUser: UserPublic
+): Promise<void> {
+  if (!currentUser.uid || !requesterUser.uid || currentUser.uid === requesterUser.uid) return;
+  const pairId = getPairId(currentUser.uid, requesterUser.uid);
+  const [u1, u2] = [currentUser.uid, requesterUser.uid].sort();
+  const friendshipRef = doc(db, 'friendships', pairId);
+  const reqRef = doc(db, 'friend_requests', pairId);
+  const myPubRef = doc(db, 'users_public', currentUser.uid);
+  const peerPubRef = doc(db, 'users_public', requesterUser.uid);
+
+  try {
+    const [friendSnap, reqSnap, mySnap, peerSnap] = await Promise.all([
+      getDoc(friendshipRef),
+      getDoc(reqRef),
+      getDoc(myPubRef),
+      getDoc(peerPubRef),
+    ]);
+
+    if (friendSnap.exists()) return;
+    if (!reqSnap.exists()) {
+      throw new Error('Friend request no longer exists.');
     }
-    handleFirestoreError(error, OperationType.WRITE, `follows/${followId}`);
+    const reqData = reqSnap.data() as { status?: string; toUid?: string };
+    if (reqData.status !== 'pending' || reqData.toUid !== currentUser.uid) {
+      throw new Error('Cannot accept this friend request.');
+    }
+
+    const myCount = mySnap.exists() ? Number(mySnap.data().friendsCount ?? 0) : 0;
+    const peerCount = peerSnap.exists() ? Number(peerSnap.data().friendsCount ?? 0) : 0;
+
+    const batch = writeBatch(db);
+    batch.update(reqRef, {
+      status: 'accepted',
+      updatedAt: serverTimestamp(),
+    });
+    batch.set(friendshipRef, {
+      id: pairId,
+      user1: u1,
+      user2: u2,
+      users: [u1, u2],
+      createdBy: currentUser.uid,
+      createdAt: serverTimestamp(),
+    });
+    if (mySnap.exists()) {
+      batch.update(myPubRef, {
+        friendsCount: myCount + 1,
+        updatedAt: serverTimestamp(),
+      });
+    }
+    if (peerSnap.exists()) {
+      batch.update(peerPubRef, {
+        friendsCount: peerCount + 1,
+        updatedAt: serverTimestamp(),
+      });
+    }
+    await batch.commit();
+
+    const tr = getTranslations(currentUser.language || 'ar');
+    void createAppNotification({
+      recipientUid: requesterUser.uid,
+      actor: currentUser,
+      type: 'friend_accepted',
+      text: tr.notifications.acceptedFriendRequest(currentUser.name),
+      targetId: currentUser.uid,
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `friendships/${pairId}`);
+  }
+}
+
+export async function rejectFriendRequest(
+  currentUid: string,
+  requesterUid: string
+): Promise<void> {
+  if (!currentUid || !requesterUid || currentUid === requesterUid) return;
+  const pairId = getPairId(currentUid, requesterUid);
+  try {
+    await updateDoc(doc(db, 'friend_requests', pairId), {
+      status: 'rejected',
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `friend_requests/${pairId}`);
+  }
+}
+
+export async function removeFriend(
+  currentUid: string,
+  friendUid: string
+): Promise<void> {
+  if (!currentUid || !friendUid || currentUid === friendUid) return;
+  const pairId = getPairId(currentUid, friendUid);
+  const friendshipRef = doc(db, 'friendships', pairId);
+  const reqRef = doc(db, 'friend_requests', pairId);
+  const myPubRef = doc(db, 'users_public', currentUid);
+  const peerPubRef = doc(db, 'users_public', friendUid);
+
+  try {
+    const [friendSnap, reqSnap, mySnap, peerSnap] = await Promise.all([
+      getDoc(friendshipRef),
+      getDoc(reqRef),
+      getDoc(myPubRef),
+      getDoc(peerPubRef),
+    ]);
+
+    if (!friendSnap.exists()) return;
+
+    const myCount = mySnap.exists() ? Number(mySnap.data().friendsCount ?? 0) : 0;
+    const peerCount = peerSnap.exists() ? Number(peerSnap.data().friendsCount ?? 0) : 0;
+
+    const batch = writeBatch(db);
+    batch.delete(friendshipRef);
+    if (reqSnap.exists()) {
+      batch.delete(reqRef);
+    }
+    if (mySnap.exists()) {
+      batch.update(myPubRef, {
+        friendsCount: Math.max(0, myCount - 1),
+        updatedAt: serverTimestamp(),
+      });
+    }
+    if (peerSnap.exists()) {
+      batch.update(peerPubRef, {
+        friendsCount: Math.max(0, peerCount - 1),
+        updatedAt: serverTimestamp(),
+      });
+    }
+    await batch.commit();
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `friendships/${pairId}`);
   }
 }

@@ -24,6 +24,8 @@ export interface UserPublic {
   bio?: string;
   language?: AppLanguage;
   theme?: AppThemeId;
+  neonTheme?: 'purple' | 'cyan' | 'pink' | 'green' | 'red';
+  ghostMode?: boolean;
   isOnline: boolean;
   lastSeen: Timestamp | null;
   activeChatId?: string;
@@ -31,6 +33,7 @@ export interface UserPublic {
   isVerified?: boolean;
   isBot?: boolean;
   isPlus?: boolean;
+  friendsCount?: number;
   inviteCode?: string;
   invitedBy?: string;
   inviteCount?: number;
@@ -70,14 +73,6 @@ export interface UserChatPref {
   unreadClearedAt?: Timestamp | null;
   deletedAt?: Timestamp | null;
   updatedAt: Timestamp | null;
-}
-
-export interface UserContact {
-  uid: string;
-  name: string;
-  username: string;
-  photoURL?: string;
-  addedAt: Timestamp | null;
 }
 
 export interface BlockedUser {
@@ -367,9 +362,24 @@ export interface FeedComment {
   updatedAt: Timestamp | null;
 }
 
-export interface FollowRelation {
-  followerUid: string;
-  targetUid: string;
+export type FriendRequestStatus = 'pending' | 'accepted' | 'rejected';
+
+export interface FriendRequest {
+  id: string;
+  fromUid: string;
+  toUid: string;
+  users: string[];
+  status: FriendRequestStatus;
+  createdAt: Timestamp | null;
+  updatedAt: Timestamp | null;
+}
+
+export interface Friendship {
+  id: string;
+  user1: string;
+  user2: string;
+  users: string[];
+  createdBy: string;
   createdAt: Timestamp | null;
 }
 
@@ -380,7 +390,12 @@ export interface SavedItem {
   createdAt: Timestamp | null;
 }
 
-export type NotificationType = 'follow' | 'like' | 'comment' | 'message';
+export type NotificationType =
+  | 'friend_request'
+  | 'friend_accepted'
+  | 'like'
+  | 'comment'
+  | 'message';
 
 export interface AppNotification {
   id: string;

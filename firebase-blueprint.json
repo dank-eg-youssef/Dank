@@ -82,6 +82,7 @@
         },
         "isBot": { "type": "boolean" },
         "isPlus": { "type": "boolean" },
+        "friendsCount": { "type": "integer" },
         "hasPhone": { "type": "boolean" },
         "privacyPhone": { "type": "string", "enum": ["everyone", "contacts", "nobody"] },
         "privacyLastSeen": { "type": "string", "enum": ["everyone", "contacts", "nobody"] },
@@ -814,16 +815,34 @@
       },
       "required": ["id", "targetId", "authorId", "authorName", "authorUsername", "text", "likeCount", "createdAt", "updatedAt"]
     },
-    "FollowRelation": {
-      "title": "FollowRelation",
-      "description": "Directed user follow relationship.",
+    "FriendRequest": {
+      "title": "FriendRequest",
+      "description": "Friend request between two users using deterministic pair document ID.",
       "type": "object",
       "properties": {
-        "followerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
-        "targetUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "id": { "type": "string", "minLength": 3, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "fromUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "toUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "users": { "type": "array" },
+        "status": { "type": "string", "enum": ["pending", "accepted", "rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "fromUid", "toUid", "users", "status", "createdAt", "updatedAt"]
+    },
+    "Friendship": {
+      "title": "Friendship",
+      "description": "Mutual friendship record between two users.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 3, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "user1": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "user2": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "users": { "type": "array" },
+        "createdBy": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["followerUid", "targetUid", "createdAt"]
+      "required": ["id", "user1", "user2", "users", "createdBy", "createdAt"]
     },
     "SavedItem": {
       "title": "SavedItem",
@@ -839,7 +858,7 @@
     },
     "AppNotification": {
       "title": "AppNotification",
-      "description": "In-app notifications for follows, likes, comments, and new messages.",
+      "description": "In-app notifications for friend requests, accepted requests, likes, comments, and new messages.",
       "type": "object",
       "properties": {
         "id": {
@@ -871,7 +890,7 @@
         },
         "type": {
           "type": "string",
-          "enum": ["follow", "like", "comment", "message"]
+          "enum": ["friend_request", "friend_accepted", "like", "comment", "message"]
         },
         "text": {
           "type": "string",
@@ -1044,9 +1063,13 @@
       "schema": { "$ref": "#/entities/ContentLike" },
       "description": "Likes on a reel comment."
     },
-    "/follows/{followId}": {
-      "schema": { "$ref": "#/entities/FollowRelation" },
-      "description": "User follow relationships."
+    "/friend_requests/{requestId}": {
+      "schema": { "$ref": "#/entities/FriendRequest" },
+      "description": "Friend requests accessible strictly by sender and recipient."
+    },
+    "/friendships/{friendshipId}": {
+      "schema": { "$ref": "#/entities/Friendship" },
+      "description": "Mutual friendships accessible strictly by the two friends."
     },
     "/calls/{callId}": {
       "schema": { "type": "object" },
@@ -1059,10 +1082,6 @@
     "/users_private/{userId}/chat_prefs/{chatId}": {
       "schema": { "type": "object" },
       "description": "Per-user pinned, archived, muted, read, and deleted chat preferences."
-    },
-    "/users_private/{userId}/contacts/{contactUid}": {
-      "schema": { "type": "object" },
-      "description": "User's saved contacts."
     },
     "/users_private/{userId}/blocked_users/{blockedUid}": {
       "schema": { "type": "object" },
@@ -1082,7 +1101,7 @@
     },
     "/notifications/{notifId}": {
       "schema": { "$ref": "#/entities/AppNotification" },
-      "description": "User in-app notifications for follows, likes, comments, and DMs."
+      "description": "User in-app notifications for friend requests, likes, comments, and DMs."
     },
     "/users_private/{userId}/stickers/{stickerId}": {
       "schema": { "$ref": "#/entities/UserSticker" },

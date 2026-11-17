@@ -11,6 +11,7 @@ interface ForwardModalProps {
   currentUser: UserPublic;
   chats: Chat[];
   usersMap: Record<string, UserPublic>;
+  friendIds: Set<string>;
   onForwarded: (targetChatId: string) => void;
   onClose: () => void;
   onNotify: (msg: string) => void;
@@ -22,6 +23,7 @@ export const ForwardModal: React.FC<ForwardModalProps> = ({
   currentUser,
   chats,
   usersMap,
+  friendIds,
   onForwarded,
   onClose,
   onNotify,
@@ -36,6 +38,11 @@ export const ForwardModal: React.FC<ForwardModalProps> = ({
       .filter((c) => !c.isSecret)
       .filter((c) => {
         if (c.type === 'channel' && c.createdBy !== currentUser.uid) return false;
+        if (c.type === 'private') {
+          if (c.id === `saved_${currentUser.uid}` || c.id.startsWith('dank_bot_')) return true;
+          const peerId = c.dmPeerIds?.find((id) => id !== currentUser.uid);
+          if (!peerId || !friendIds.has(peerId)) return false;
+        }
         return true;
       })
       .map((c) => {
@@ -56,7 +63,7 @@ export const ForwardModal: React.FC<ForwardModalProps> = ({
         return { chat: c, title, photo, specialType };
       })
       .filter((item) => !q || item.title.toLowerCase().includes(q));
-  }, [chats, currentUser.uid, search, t.common.chat, t.telegram.savedMessagesTitle, usersMap]);
+  }, [chats, currentUser.uid, friendIds, search, t.common.chat, t.telegram.savedMessagesTitle, usersMap]);
 
   const handleForward = async (targetChat: Chat) => {
     if (sendingTo) return;

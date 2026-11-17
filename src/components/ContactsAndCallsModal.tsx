@@ -1,35 +1,47 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Ban,
+  Check,
+  Clock,
   MessageSquare,
   Phone,
   PhoneIncoming,
   PhoneMissed,
   PhoneOutgoing,
-  Plus,
-  Trash2,
+  Search,
   UserCheck,
+  UserMinus,
+  UserPlus,
   X,
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
+import { blockUserAccount, canSeeOnlineStatus, canSeePrivacyField } from '../services/chatService';
 import {
-  addContactByUsername,
-  blockUserAccount,
-  removeUserContact,
-} from '../services/chatService';
-import type { CallRecord, UserContact, UserPublic } from '../types/dank';
-import { formatChatTime } from '../utils/timeFormat';
+  acceptFriendRequest,
+  cancelFriendRequest,
+  matchesUserQuery,
+  rejectFriendRequest,
+  removeFriend,
+  sendFriendRequest,
+} from '../services/socialService';
+import type { CallRecord, FriendRequest, UserPublic } from '../types/dank';
+import { formatChatTime, isUserActuallyOnline } from '../utils/timeFormat';
 import { Avatar } from './Avatar';
 import { UserBadges } from './UserBadges';
 
 interface ContactsAndCallsModalProps {
-  initialTab: 'contacts' | 'calls';
+  initialTab: 'friends' | 'calls';
   currentUser: UserPublic;
-  contacts: UserContact[];
+  allUsers: UserPublic[];
+  friendIds: Set<string>;
+  incomingRequests: FriendRequest[];
+  outgoingRequests: FriendRequest[];
+  blockedUserIds: Set<string>;
   calls: CallRecord[];
   usersMap: Record<string, UserPublic>;
   onMessageUser: (peer: UserPublic) => void;
   onCallUser: (peer: UserPublic) => void;
+  onViewProfile?: (user: UserPublic) => void;
   onClose: () => void;
   onNotify: (msg: string) => void;
 }
@@ -37,36 +49,261 @@ interface ContactsAndCallsModalProps {
 export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
   initialTab,
   currentUser,
-  contacts,
+  allUsers,
+  friendIds,
+  incomingRequests,
+  outgoingRequests,
+  blockedUserIds,
   calls,
   usersMap,
   onMessageUser,
   onCallUser,
+  onViewProfile,
   onClose,
   onNotify,
 }) => {
   const { t, language } = useLanguage();
-  const [tab, setTab] = useState<'contacts' | 'calls'>(initialTab);
-  const [usernameInput, setUsernameInput] = useState('');
-  const [adding, setAdding] = useState(false);
+  const [tab, setTab] = useState<'friends' | 'calls'>(initialTab);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [busyUid, setBusyUid] = useState<string | null>(null);
 
-  const handleAddContact = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!usernameInput.trim() || adding) return;
-    setAdding(true);
+  const incomingByUid = useMemo(() => {
+    const map: Record<string, FriendRequest> = {};
+    for (const r of incomingRequests) map[r.fromUid] = r;
+    return map;
+  }, [incomingRequests]);
+
+  const outgoingByUid = useMemo(() => {
+    const map: Record<string, FriendRequest> = {};
+    for (const r of outgoingRequests) map[r.toUid] = r;
+    return map;
+  }, [outgoingRequests]);
+
+  const friendsList = useMemo(() => {
+    return Array.from(friendIds)
+      .map((uid) => usersMap[uid])
+      .filter((u): u is UserPublic => Boolean(u) && !blockedUserIds.has(u.uid));
+  }, [friendIds, usersMap, blockedUserIds]);
+
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    return allUsers
+      .filter((u) => u.uid !== currentUser.uid && !blockedUserIds.has(u.uid))
+      .filter((u) => matchesUserQuery(u, searchQuery))
+      .slice(0, 25);
+  }, [allUsers, currentUser.uid, blockedUserIds, searchQuery]);
+
+  const handleSendRequest = async (peer: UserPublic) => {
+    if (busyUid) return;
+    setBusyUid(peer.uid);
     try {
-      await addContactByUsername(currentUser.uid, usernameInput);
-      setUsernameInput('');
-      onNotify(t.privacy.contactAdded);
+      const res = await sendFriendRequest(currentUser, peer);
+      onNotify(res === 'accepted' ? t.profile.requestAcceptedToast : t.profile.requestSentToast);
     } catch (err) {
-      if (err instanceof Error && err.message === 'USER_NOT_FOUND') {
-        onNotify(t.telegram.userNotFoundUsername);
-      } else {
-        onNotify(err instanceof Error ? err.message : t.errors.unexpected);
-      }
+      onNotify(err instanceof Error ? err.message : t.errors.unexpected);
     } finally {
-      setAdding(false);
+      setBusyUid(null);
     }
+  };
+
+  const handleCancelRequest = async (peerUid: string) => {
+    if (busyUid) return;
+    setBusyUid(peerUid);
+    try {
+      await cancelFriendRequest(currentUser.uid, peerUid);
+      onNotify(t.profile.requestCancelledToast);
+    } catch (err) {
+      onNotify(err instanceof Error ? err.message : t.errors.unexpected);
+    } finally {
+      setBusyUid(null);
+    }
+  };
+
+  const handleAccept = async (requester: UserPublic) => {
+    if (busyUid) return;
+    setBusyUid(requester.uid);
+    try {
+      await acceptFriendRequest(currentUser, requester);
+      onNotify(t.profile.requestAcceptedToast);
+    } catch (err) {
+      onNotify(err instanceof Error ? err.message : t.errors.unexpected);
+    } finally {
+      setBusyUid(null);
+    }
+  };
+
+  const handleReject = async (requesterUid: string) => {
+    if (busyUid) return;
+    setBusyUid(requesterUid);
+    try {
+      await rejectFriendRequest(currentUser.uid, requesterUid);
+      onNotify(t.profile.requestRejectedToast);
+    } catch (err) {
+      onNotify(err instanceof Error ? err.message : t.errors.unexpected);
+    } finally {
+      setBusyUid(null);
+    }
+  };
+
+  const handleUnfriend = async (friendUid: string) => {
+    if (busyUid) return;
+    setBusyUid(friendUid);
+    try {
+      await removeFriend(currentUser.uid, friendUid);
+      onNotify(t.profile.unfriendedToast);
+    } catch (err) {
+      onNotify(err instanceof Error ? err.message : t.errors.unexpected);
+    } finally {
+      setBusyUid(null);
+    }
+  };
+
+  const renderUserRow = (peer: UserPublic) => {
+    const isFriend = friendIds.has(peer.uid);
+    const hasIncoming = Boolean(incomingByUid[peer.uid]);
+    const hasOutgoing = Boolean(outgoingByUid[peer.uid]);
+    const canSeePhoto = canSeePrivacyField(
+      currentUser.uid,
+      peer,
+      peer.privacyProfilePhoto,
+      friendIds
+    );
+    const canSeeOnline = canSeeOnlineStatus(currentUser.uid, peer, friendIds);
+    const isOnline = canSeeOnline && isUserActuallyOnline(peer.isOnline, peer.lastSeen);
+    const isBusy = busyUid === peer.uid;
+
+    return (
+      <div key={peer.uid} className="py-2.5 flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => {
+            if (onViewProfile) {
+              onClose();
+              onViewProfile(peer);
+            }
+          }}
+          className="flex items-center gap-3 flex-1 min-w-0 text-start cursor-pointer"
+        >
+          <Avatar
+            src={canSeePhoto ? peer.photoURL : ''}
+            name={peer.name}
+            size="sm"
+            isOnline={isOnline}
+            showOnlineDot={canSeeOnline}
+          />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span
+                dir="auto"
+                className="min-w-0 text-sm font-semibold text-[var(--dank-text)] truncate"
+              >
+                {peer.name}
+              </span>
+              <UserBadges
+                isAdmin={peer.isAdmin}
+                isVerified={peer.isVerified}
+                isVip={peer.isVip || (peer.inviteCount ?? 0) >= 5}
+                isPlus={peer.isPlus}
+                size="xs"
+              />
+            </div>
+            <p dir="ltr" className="text-xs text-[var(--dank-accent)] truncate text-start">
+              @{peer.username}
+            </p>
+          </div>
+        </button>
+
+        <div className="flex items-center gap-1 shrink-0">
+          {isFriend ? (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onMessageUser(peer);
+                }}
+                title={t.common.message}
+                className="w-8 h-8 rounded-lg hover:bg-[var(--dank-hover)] text-[var(--dank-accent)] flex items-center justify-center cursor-pointer"
+              >
+                <MessageSquare className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onCallUser(peer);
+                }}
+                title={t.calls.voiceCall}
+                className="w-8 h-8 rounded-lg hover:bg-[var(--dank-hover)] text-[var(--dank-accent)] flex items-center justify-center cursor-pointer"
+              >
+                <Phone className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  void blockUserAccount(currentUser.uid, peer).then(() =>
+                    onNotify(t.privacy.blockedSuccess)
+                  )
+                }
+                title={t.privacy.blockUser}
+                className="w-8 h-8 rounded-lg hover:bg-red-500/15 text-[var(--dank-muted)] hover:text-red-500 flex items-center justify-center cursor-pointer"
+              >
+                <Ban className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                disabled={isBusy}
+                onClick={() => void handleUnfriend(peer.uid)}
+                title={t.profile.unfriend}
+                className="w-8 h-8 rounded-lg hover:bg-red-500/15 text-[var(--dank-muted)] hover:text-red-500 flex items-center justify-center cursor-pointer"
+              >
+                <UserMinus className="w-3.5 h-3.5" />
+              </button>
+            </>
+          ) : hasIncoming ? (
+            <>
+              <button
+                type="button"
+                disabled={isBusy}
+                onClick={() => void handleAccept(peer)}
+                className="h-8 px-2.5 rounded-lg bg-[var(--dank-accent)] text-[var(--dank-accent-fg)] text-xs font-bold flex items-center gap-1 cursor-pointer"
+              >
+                <Check className="w-3.5 h-3.5" />
+                {t.profile.acceptRequest}
+              </button>
+              <button
+                type="button"
+                disabled={isBusy}
+                onClick={() => void handleReject(peer.uid)}
+                className="h-8 px-2.5 rounded-lg bg-[var(--dank-elevated)] hover:bg-red-500/15 hover:text-red-500 text-xs font-semibold cursor-pointer"
+              >
+                {t.profile.rejectRequest}
+              </button>
+            </>
+          ) : hasOutgoing ? (
+            <button
+              type="button"
+              disabled={isBusy}
+              onClick={() => void handleCancelRequest(peer.uid)}
+              className="h-8 px-2.5 rounded-lg bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] text-xs font-semibold flex items-center gap-1 cursor-pointer"
+            >
+              <Clock className="w-3.5 h-3.5 text-[var(--dank-accent)]" />
+              {t.profile.cancelRequest}
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={isBusy}
+              onClick={() => void handleSendRequest(peer)}
+              className="h-8 px-3 rounded-lg bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-xs font-bold flex items-center gap-1 cursor-pointer"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              {t.profile.addFriend}
+            </button>
+          )}
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -77,15 +314,15 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setTab('contacts')}
+              onClick={() => setTab('friends')}
               className={`px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors ${
-                tab === 'contacts'
+                tab === 'friends'
                   ? 'bg-[var(--dank-accent)] text-[var(--dank-accent-fg)]'
                   : 'text-[var(--dank-muted)] hover:bg-[var(--dank-hover)] hover:text-[var(--dank-text)]'
               }`}
             >
               <UserCheck className="w-3.5 h-3.5" />
-              {t.drawer.contacts}
+              {t.drawer.friends} ({friendIds.size})
             </button>
             <button
               type="button"
@@ -110,115 +347,84 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
           </button>
         </div>
 
-        {tab === 'contacts' ? (
+        {tab === 'friends' ? (
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            <form onSubmit={handleAddContact} className="flex items-center gap-2">
+            <div className="relative">
+              <Search className="w-4 h-4 text-[var(--dank-muted)] absolute start-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 type="text"
-                dir="ltr"
-                value={usernameInput}
-                onChange={(e) => setUsernameInput(e.target.value)}
-                placeholder={t.privacy.addContactByUsername}
-                className="flex-1 h-10 px-3.5 rounded-xl bg-[var(--dank-elevated)] border border-[var(--dank-border)] text-base text-[var(--dank-text)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)]"
+                dir="auto"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={t.privacy.searchFriendsPlaceholder}
+                className="w-full h-10 ps-10 pe-9 rounded-xl bg-[var(--dank-elevated)] border border-[var(--dank-border)] text-base text-[var(--dank-text)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)]"
               />
-              <button
-                type="submit"
-                disabled={!usernameInput.trim() || adding}
-                className="h-10 px-3.5 rounded-xl bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] disabled:opacity-50 text-[var(--dank-accent-fg)] text-xs font-bold inline-flex items-center gap-1 cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                {t.common.add}
-              </button>
-            </form>
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  aria-label={t.sidebar.clearSearch}
+                  className="absolute end-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full hover:bg-[var(--dank-hover)] text-[var(--dank-muted)] flex items-center justify-center cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
 
-            {contacts.length === 0 ? (
-              <div className="py-12 text-center text-xs text-[var(--dank-muted)]">
-                {t.privacy.noContactsYet}
-              </div>
+            {searchQuery.trim() ? (
+              searchResults.length === 0 ? (
+                <div className="py-12 text-center text-xs text-[var(--dank-muted)]">
+                  {t.createChat.noMatchingUsers}
+                </div>
+              ) : (
+                <div className="divide-y divide-[var(--dank-border-subtle)]">
+                  {searchResults.map((peer) => renderUserRow(peer))}
+                </div>
+              )
             ) : (
-              <div className="divide-y divide-[var(--dank-border-subtle)]">
-                {contacts.map((c) => {
-                  const fullPeer = usersMap[c.uid] || ({
-                    uid: c.uid,
-                    name: c.name,
-                    username: c.username,
-                    photoURL: c.photoURL,
-                    isOnline: false,
-                    lastSeen: null,
-                    createdAt: null,
-                    updatedAt: null,
-                  } as UserPublic);
-                  return (
-                    <div key={c.uid} className="py-2.5 flex items-center gap-3">
-                      <Avatar src={fullPeer.photoURL} name={fullPeer.name} size="sm" />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span dir="auto" className="min-w-0 text-sm font-semibold text-[var(--dank-text)] truncate">
-                            {fullPeer.name}
-                          </span>
-                          <UserBadges
-                            isAdmin={fullPeer.isAdmin}
-                            isVerified={fullPeer.isVerified}
-                            isVip={fullPeer.isVip || (fullPeer.inviteCount ?? 0) >= 5}
-                            isPlus={fullPeer.isPlus}
-                            size="xs"
-                          />
-                        </div>
-                        <p className="text-xs text-[var(--dank-accent)] truncate">
-                          @{fullPeer.username}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            onClose();
-                            onMessageUser(fullPeer);
-                          }}
-                          title={t.common.message}
-                          className="w-8 h-8 rounded-lg hover:bg-[var(--dank-hover)] text-[var(--dank-accent)] flex items-center justify-center cursor-pointer"
-                        >
-                          <MessageSquare className="w-4 h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            onClose();
-                            onCallUser(fullPeer);
-                          }}
-                          title={t.calls.voiceCall}
-                          className="w-8 h-8 rounded-lg hover:bg-[var(--dank-hover)] text-[var(--dank-accent)] flex items-center justify-center cursor-pointer"
-                        >
-                          <Phone className="w-4 h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void blockUserAccount(currentUser.uid, fullPeer).then(() =>
-                              onNotify(t.privacy.blockedSuccess)
-                            )
-                          }
-                          title={t.privacy.blockUser}
-                          className="w-8 h-8 rounded-lg hover:bg-red-500/15 text-[var(--dank-muted)] hover:text-red-500 flex items-center justify-center cursor-pointer"
-                        >
-                          <Ban className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void removeUserContact(currentUser.uid, c.uid).then(() =>
-                              onNotify(t.privacy.contactRemoved)
-                            )
-                          }
-                          title={t.common.delete}
-                          className="w-8 h-8 rounded-lg hover:bg-red-500/15 text-[var(--dank-muted)] hover:text-red-500 flex items-center justify-center cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+              <div className="space-y-4">
+                {incomingRequests.length > 0 && (
+                  <div className="space-y-1.5">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--dank-accent)]">
+                      {t.profile.incomingRequestsTitle} ({incomingRequests.length})
+                    </h4>
+                    <div className="divide-y divide-[var(--dank-border-subtle)] rounded-xl bg-[var(--dank-canvas)] px-3 border border-[var(--dank-border)]">
+                      {incomingRequests.map((req) => {
+                        const sender = usersMap[req.fromUid];
+                        return sender ? renderUserRow(sender) : null;
+                      })}
                     </div>
-                  );
-                })}
+                  </div>
+                )}
+
+                {outgoingRequests.length > 0 && (
+                  <div className="space-y-1.5">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--dank-muted)]">
+                      {t.profile.sentRequestsTitle} ({outgoingRequests.length})
+                    </h4>
+                    <div className="divide-y divide-[var(--dank-border-subtle)] rounded-xl bg-[var(--dank-canvas)] px-3 border border-[var(--dank-border)]">
+                      {outgoingRequests.map((req) => {
+                        const recipient = usersMap[req.toUid];
+                        return recipient ? renderUserRow(recipient) : null;
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--dank-muted)]">
+                    {t.profile.friendsModalTitle} ({friendsList.length})
+                  </h4>
+                  {friendsList.length === 0 ? (
+                    <div className="py-10 text-center text-xs text-[var(--dank-muted)]">
+                      {t.privacy.noFriendsYet}
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-[var(--dank-border-subtle)]">
+                      {friendsList.map((peer) => renderUserRow(peer))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -246,10 +452,17 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
                     updatedAt: null,
                   } as UserPublic);
                   const isMissed = c.status === 'missed' || c.status === 'declined';
+                  const isFriend = friendIds.has(peerUid);
 
                   return (
                     <div key={c.id} className="py-2.5 flex items-center gap-3">
-                      <Avatar src={peerPhoto} name={peerName} size="sm" />
+                      <Avatar
+                        src={peerPhoto}
+                        name={peerName}
+                        size="sm"
+                        isOnline={false}
+                        showOnlineDot={false}
+                      />
                       <div className="flex-1 min-w-0">
                         <p
                           dir="auto"
@@ -279,20 +492,24 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
                               : t.calls.incomingLabel}
                           </span>
                           <span>·</span>
-                          <span className="shrink-0 whitespace-nowrap">{formatChatTime(c.startedAt, language)}</span>
+                          <span className="shrink-0 whitespace-nowrap">
+                            {formatChatTime(c.startedAt, language)}
+                          </span>
                         </p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onClose();
-                          onCallUser(peerUser);
-                        }}
-                        aria-label={t.calls.voiceCall}
-                        className="w-9 h-9 rounded-full hover:bg-[var(--dank-hover)] text-[var(--dank-accent)] flex items-center justify-center shrink-0 cursor-pointer"
-                      >
-                        <Phone className="w-4 h-4" />
-                      </button>
+                      {isFriend && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onClose();
+                            onCallUser(peerUser);
+                          }}
+                          aria-label={t.calls.voiceCall}
+                          className="w-9 h-9 rounded-full hover:bg-[var(--dank-hover)] text-[var(--dank-accent)] flex items-center justify-center shrink-0 cursor-pointer"
+                        >
+                          <Phone className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   );
                 })}

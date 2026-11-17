@@ -32,6 +32,7 @@ import {
 } from '../services/chatService';
 import { getStoredLanguage, getTranslations } from '../i18n';
 import type { AppLanguage, AppThemeId, UserPrivate, UserPublic } from '../types/dank';
+import type { NeonThemeColor } from './ThemeContext';
 import {
   handleFirestoreError,
   isFirestoreWritesPaused,
@@ -86,6 +87,8 @@ interface AuthContextValue {
     coverURL?: string;
     language?: AppLanguage;
     theme?: AppThemeId;
+    neonTheme?: NeonThemeColor;
+    ghostMode?: boolean;
   }) => Promise<void>;
   redeemReferralCode: (code: string) => Promise<void>;
   setActiveChatPresence: (chatId: string) => Promise<void>;
@@ -254,6 +257,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             isVerified: false,
             isBot: false,
             isPlus: false,
+            friendsCount: 0,
             inviteCount: 0,
             isVip: false,
             isBanned: false,
@@ -521,6 +525,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       coverURL?: string;
       language?: AppLanguage;
       theme?: AppThemeId;
+      neonTheme?: NeonThemeColor;
+      ghostMode?: boolean;
     }) => {
       if (!isUserAuthVerified(firebaseUser)) {
         throw new Error('You must be signed in with a verified email to update your profile.');
@@ -551,6 +557,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (updates.theme === 'arcade') {
         payload.theme = updates.theme;
       }
+      if (updates.neonTheme !== undefined) {
+        payload.neonTheme = updates.neonTheme;
+      }
+      if (updates.ghostMode !== undefined) {
+        payload.ghostMode = Boolean(updates.ghostMode);
+      }
 
       try {
         if (profile) {
@@ -563,6 +575,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             ...(payload.coverURL !== undefined ? { coverURL: String(payload.coverURL) } : {}),
             ...(payload.language !== undefined ? { language: payload.language as AppLanguage } : {}),
             ...(payload.theme !== undefined ? { theme: payload.theme as AppThemeId } : {}),
+            ...(payload.neonTheme !== undefined ? { neonTheme: payload.neonTheme as NeonThemeColor } : {}),
+            ...(payload.ghostMode !== undefined ? { ghostMode: Boolean(payload.ghostMode) } : {}),
           };
           setProfile(updatedLocal);
           localStorage.setItem(`dank_local_profile_${firebaseUser.uid}`, JSON.stringify(updatedLocal));
@@ -604,10 +618,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (now - lastPresenceWriteRef.current < 180_000) return;
       lastPresenceWriteRef.current = now;
       try {
+        const isGhost = profile?.ghostMode;
         await updateDoc(doc(db, 'users_public', firebaseUser.uid), {
-          isOnline: document.visibilityState === 'visible',
+          isOnline: isGhost ? false : (document.visibilityState === 'visible'),
           activeChatId: chatId,
-          lastSeen: serverTimestamp(),
+          lastSeen: isGhost ? null : serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
       } catch (err) {
@@ -616,7 +631,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
     },
-    [firebaseUser]
+    [firebaseUser, profile?.ghostMode]
   );
 
   const logout = useCallback(async () => {
