@@ -3,6 +3,8 @@ import React, { useId } from 'react';
 export interface DankLogoProps {
   size?: number | 'sm' | 'md' | 'lg';
   showText?: boolean;
+  asHeading?: boolean;
+  textLabel?: string;
   className?: string;
   textClassName?: string;
 }
@@ -16,6 +18,8 @@ const SIZE_MAP: Record<'sm' | 'md' | 'lg', number> = {
 export const DankLogo: React.FC<DankLogoProps> = ({
   size = 40,
   showText = false,
+  asHeading = false,
+  textLabel = 'DANK',
   className = '',
   textClassName = '',
 }) => {
@@ -120,13 +124,23 @@ export const DankLogo: React.FC<DankLogoProps> = ({
     <div className={`inline-flex items-center gap-2.5 ${className}`}>
       {svgEl}
       <div className="flex items-center gap-1 select-none">
-        <span
-          className={`dank-brand-wordmark font-black tracking-[-0.03em] text-[var(--dank-text)] leading-none ${
-            textClassName || 'text-[22px] sm:text-[24px]'
-          }`}
-        >
-          DANK
-        </span>
+        {asHeading ? (
+          <h1
+            className={`dank-brand-wordmark font-black tracking-[-0.03em] text-[var(--dank-text)] leading-none whitespace-nowrap ${
+              textClassName || 'text-[22px] sm:text-[24px]'
+            }`}
+          >
+            {textLabel}
+          </h1>
+        ) : (
+          <span
+            className={`dank-brand-wordmark font-black tracking-[-0.03em] text-[var(--dank-text)] leading-none ${
+              textClassName || 'text-[22px] sm:text-[24px]'
+            }`}
+          >
+            {textLabel}
+          </span>
+        )}
         <span className="w-1.5 h-1.5 rounded-full bg-[var(--dank-accent)] shrink-0 self-end mb-1" />
       </div>
     </div>

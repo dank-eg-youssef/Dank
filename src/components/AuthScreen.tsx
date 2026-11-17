@@ -151,9 +151,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ allowSignups = true }) =
         >
           <div className="flex items-center gap-2.5">
             <DankLogo size="sm" />
-            <span className="font-extrabold text-lg tracking-wider text-[var(--dank-accent)]">
-              DANK
-            </span>
+            <h1 className="font-extrabold text-lg tracking-wider text-[var(--dank-accent)]">
+              Dank Chat
+            </h1>
           </div>
 
           <div className="inline-flex items-center gap-1 p-1 rounded-full bg-[var(--dank-surface)] text-[var(--dank-text)] border border-[var(--dank-border)]">
@@ -255,9 +255,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ allowSignups = true }) =
                 <div className="flex justify-center mb-3">
                   <DankLogo size="lg" />
                 </div>
-                <h1 className="text-2xl font-extrabold text-[var(--dank-text)] tracking-tight">
+                <h2 className="text-2xl font-extrabold text-[var(--dank-text)] tracking-tight">
                   {mode === 'signin' ? t.auth.welcomeBack : t.auth.joinDank}
-                </h1>
+                </h2>
                 <p className="text-xs text-[var(--dank-muted)] mt-1">
                   {mode === 'signin' ? t.auth.signInDesc : t.auth.signUpDesc}
                 </p>

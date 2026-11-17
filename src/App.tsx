@@ -1336,9 +1336,9 @@ export default function App() {
               <KeyRound className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-[var(--dank-text)]">
+              <h2 className="text-xl font-bold text-[var(--dank-text)]">
                 {t.privacy.twoStepChallengeTitle}
-              </h1>
+              </h2>
               <p className="mt-1.5 text-xs text-[var(--dank-muted)] leading-relaxed">
                 {t.privacy.twoStepChallengeDesc}
               </p>
@@ -1390,9 +1390,9 @@ export default function App() {
               <Ban className="w-7 h-7" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-[var(--dank-text)]">
+              <h2 className="text-xl font-bold text-[var(--dank-text)]">
                 {t.errors.accountSuspended}
-              </h1>
+              </h2>
               <p className="mt-2 text-sm text-[var(--dank-muted)] leading-relaxed">
                 {t.errors.accountSuspendedDesc}
               </p>
@@ -1418,9 +1418,9 @@ export default function App() {
               <Wrench className="w-7 h-7" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-[var(--dank-text)]">
+              <h2 className="text-xl font-bold text-[var(--dank-text)]">
                 {t.admin.maintenanceScreenTitle}
-              </h1>
+              </h2>
               <p dir="auto" className="mt-2 text-sm text-[var(--dank-muted)] leading-relaxed">
                 {systemSettings.maintenanceMessage?.trim() || t.admin.maintenanceScreenDefault}
               </p>
@@ -1575,7 +1575,7 @@ export default function App() {
               className="flex items-center text-start cursor-pointer transition-transform duration-150 active:scale-95 shrink-0"
               aria-label={t.appName}
             >
-              <DankLogo size={36} showText={true} />
+              <DankLogo size={36} showText={true} asHeading={true} textLabel="Dank Chat" />
             </button>
             <UserBadges
               isAdmin={profile.isAdmin}
