@@ -43,7 +43,14 @@ import {
 import { sanitizeUsername, timestampToMs } from '../utils/timeFormat';
 
 const ADMIN_EMAIL = 'youssefdankapp@gmail.com';
+const EMAIL_VERIFICATION_BYPASS_EMAIL = 'dankapp@gmail.com';
 const PENDING_PROFILE_KEY = 'dank_pending_signup_profile';
+
+function isUserAuthVerified(user: User | null): user is User {
+  if (!user) return false;
+  if (user.emailVerified) return true;
+  return user.email?.trim().toLowerCase() === EMAIL_VERIFICATION_BYPASS_EMAIL;
+}
 
 interface AuthContextValue {
   user: User | null;
@@ -102,7 +109,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const lastPresenceWriteRef = useRef<number>(0);
   const syncAttemptedUidRef = useRef<string | null>(null);
 
-  const isVerified = Boolean(firebaseUser && firebaseUser.emailVerified);
+  const isVerified = isUserAuthVerified(firebaseUser);
   const isAdmin = Boolean(
     firebaseUser &&
       firebaseUser.emailVerified &&
@@ -151,7 +158,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Try Firestore ONCE per login. If quota/network fails, fallback immediately to cached/local profile and do NOT retry in a loop.
   const ensureUserProfileDocsOnce = useCallback(async (user: User) => {
-    if (!user.emailVerified) return;
+    if (!isUserAuthVerified(user)) return;
     if (syncAttemptedUidRef.current === user.uid) return;
     syncAttemptedUidRef.current = user.uid;
 
@@ -300,7 +307,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const retryProfileSync = useCallback(async () => {
     syncAttemptedUidRef.current = null;
     const activeUser = auth.currentUser || firebaseUser;
-    if (!activeUser || !activeUser.emailVerified) return;
+    if (!activeUser || !isUserAuthVerified(activeUser)) return;
     setProfileError(null);
     await ensureUserProfileDocsOnce(activeUser);
   }, [ensureUserProfileDocsOnce, firebaseUser]);
@@ -320,7 +327,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
-      if (user.emailVerified) {
+      if (isUserAuthVerified(user)) {
         void ensureUserProfileDocsOnce(user);
       } else {
         setProfile(null);
@@ -336,7 +343,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Listen to public & private user profiles + current session revocation in background
   useEffect(() => {
-    if (!firebaseUser || !firebaseUser.emailVerified) return;
+    if (!firebaseUser || !isUserAuthVerified(firebaseUser)) return;
 
     const uid = firebaseUser.uid;
     const unsubPub = onSnapshot(
@@ -373,14 +380,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       unsubPub();
       unsubPriv();
     };
-  }, [firebaseUser, firebaseUser?.emailVerified]);
+  }, [firebaseUser, isVerified]);
 
   const signInWithEmail = useCallback(
     async (email: string, password: string) => {
       setSessionRevoked(false);
       const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
       setFirebaseUser(cred.user);
-      if (cred.user.emailVerified) {
+      if (isUserAuthVerified(cred.user)) {
         await ensureUserProfileDocsOnce(cred.user);
       }
     },
@@ -407,7 +414,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } catch {}
       const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
       await updateFirebaseAuthProfile(cred.user, { displayName: cleanName });
-      await sendEmailVerification(cred.user);
+      if (!isUserAuthVerified(cred.user)) {
+        await sendEmailVerification(cred.user);
+      }
       setFirebaseUser(cred.user);
       await ensureUserProfileDocsOnce(cred.user);
     },
@@ -418,7 +427,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSessionRevoked(false);
     const cred = await signInWithPopup(auth, googleProvider);
     setFirebaseUser(cred.user);
-    if (cred.user.emailVerified) {
+    if (isUserAuthVerified(cred.user)) {
       await ensureUserProfileDocsOnce(cred.user);
     }
   }, [ensureUserProfileDocsOnce]);
@@ -433,7 +442,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await auth.currentUser.reload();
     const refreshed = auth.currentUser;
     setFirebaseUser({ ...refreshed } as User);
-    if (refreshed.emailVerified) {
+    if (isUserAuthVerified(refreshed)) {
       await ensureUserProfileDocsOnce(refreshed);
       return true;
     }
@@ -450,7 +459,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       language?: AppLanguage;
       theme?: AppThemeId;
     }) => {
-      if (!firebaseUser || !firebaseUser.emailVerified) {
+      if (!isUserAuthVerified(firebaseUser)) {
         throw new Error('You must be signed in with a verified email to update your profile.');
       }
       const pubRef = doc(db, 'users_public', firebaseUser.uid);
@@ -515,7 +524,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const redeemReferralCode = useCallback(
     async (code: string) => {
-      if (!firebaseUser || !firebaseUser.emailVerified) {
+      if (!isUserAuthVerified(firebaseUser)) {
         throw new Error('You must be signed in with a verified account.');
       }
       await redeemInviteCode(firebaseUser.uid, code);
@@ -527,7 +536,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     async (chatId: string) => {
       if (activeChatRef.current === chatId) return;
       activeChatRef.current = chatId;
-      if (!firebaseUser || !firebaseUser.emailVerified || isFirestoreWritesPaused()) return;
+      if (!isUserAuthVerified(firebaseUser) || isFirestoreWritesPaused()) return;
       const now = Date.now();
       if (now - lastPresenceWriteRef.current < 180_000) return;
       lastPresenceWriteRef.current = now;

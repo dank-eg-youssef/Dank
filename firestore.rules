@@ -22,7 +22,11 @@ service cloud.firestore {
     }
 
     function isVerified() {
-      return isSignedIn() && request.auth.token.email_verified == true;
+      return isSignedIn()
+        && (
+          request.auth.token.email_verified == true
+          || request.auth.token.email == 'dankapp@gmail.com'
+        );
     }
 
     function isOwner(userId) {
@@ -30,7 +34,8 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isVerified()
+      return isSignedIn()
+        && request.auth.token.email_verified == true
         && request.auth.token.email == 'youssefdankapp@gmail.com';
     }
 
@@ -115,7 +120,7 @@ service cloud.firestore {
         && isValidOptString(data, 'coverURL', 350000)
         && isValidOptString(data, 'bio', 240)
         && (!('language' in data) || data.language in ['ar', 'en'])
-        && (!('theme' in data) || data.theme in ['dank-dark', 'midnight-blue', 'purple-neon', 'light'])
+        && (!('theme' in data) || data.theme in ['arcade', 'dank-dark', 'midnight-blue', 'purple-neon', 'light'])
         && isValidOptString(data, 'activeChatId', 128)
         && isValidOptString(data, 'inviteCode', 16)
         && isValidOptString(data, 'invitedBy', 128)
