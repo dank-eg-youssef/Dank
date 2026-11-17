@@ -58,8 +58,10 @@ import { DankSplash } from './components/DankSplash';
 
 import { JoinInviteModal } from './components/JoinInviteModal';
 import { NotificationsPage } from './components/NotificationsPage';
+import { OfflineIndicator } from './components/OfflineIndicator';
 import { ProfileModal } from './components/ProfileModal';
 import { ProfilePage } from './components/ProfilePage';
+import { PWAInstallButton } from './components/PWAInstallButton';
 import { ChatReminderModal } from './components/ScheduleModals';
 import { SettingsPrivacyModal } from './components/SettingsPrivacyModal';
 import { Sidebar } from './components/Sidebar';
@@ -1585,6 +1587,8 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-1 relative shrink-0">
+            <PWAInstallButton variant="compact" />
+
             <button
               type="button"
               onClick={() => setShowCreateStoryModal(true)}
@@ -3122,6 +3126,7 @@ export default function App() {
   return (
     <>
       {renderScreen()}
+      <OfflineIndicator />
       {showWelcomeSplash && (
         <DankSplash canFinish={splashCanFinish} onFinish={handleSplashFinish} />
       )}

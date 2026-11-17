@@ -11,7 +11,9 @@ export default defineConfig(() => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
+        manifest: false,
         includeAssets: [
+          'manifest.json',
           'favicon.ico',
           'apple-touch-icon.png',
           'icon.svg',
@@ -20,41 +22,13 @@ export default defineConfig(() => {
           'pwa-maskable-512x512.png',
           'sw-notifications.js',
         ],
-        manifest: {
-          id: '/',
-          name: 'DANK',
-          short_name: 'DANK',
-          description:
-            'DANK is a real-time messaging and social platform for private chats, groups, channels, stories, posts, and reels.',
-          theme_color: '#0E1621',
-          background_color: '#0E1621',
-          display: 'standalone',
-          start_url: '/',
-          scope: '/',
-          icons: [
-            {
-              src: '/pwa-192x192.png',
-              sizes: '192x192',
-              type: 'image/png',
-              purpose: 'any',
-            },
-            {
-              src: '/pwa-512x512.png',
-              sizes: '512x512',
-              type: 'image/png',
-              purpose: 'any',
-            },
-            {
-              src: '/pwa-maskable-512x512.png',
-              sizes: '512x512',
-              type: 'image/png',
-              purpose: 'maskable',
-            },
-          ],
-        },
         workbox: {
           maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
-          globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,json}'],
+          navigateFallback: '/index.html',
+          cleanupOutdatedCaches: true,
+          clientsClaim: true,
+          skipWaiting: true,
           importScripts: ['/sw-notifications.js'],
           runtimeCaching: [
             {

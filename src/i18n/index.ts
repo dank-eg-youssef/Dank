@@ -764,6 +764,7 @@ export const en = {
     iosTitle: 'Install DANK on iPhone / iPad',
     iosStep1: 'Tap the Share button in Safari toolbar.',
     iosStep2: 'Scroll down and tap Add to Home Screen.',
+    offlineNotice: 'Offline mode — showing cached data',
   },
   drawer: {
     menu: 'Menu',
@@ -1747,6 +1748,7 @@ export const ar: Translations = {
     iosTitle: 'تثبيت DANK على iPhone / iPad',
     iosStep1: 'اضغط على زر المشاركة في شريط متصفح Safari.',
     iosStep2: 'مرّر للأسفل واضغط على إضافة إلى الشاشة الرئيسية.',
+    offlineNotice: 'وضع عدم الاتصال — يتم عرض البيانات المحفوظة',
   },
   drawer: {
     menu: 'القائمة',
