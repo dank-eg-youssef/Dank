@@ -13,6 +13,7 @@ import {
   Megaphone,
   Pin,
   PinOff,
+  Search,
   Trash2,
   Users,
   X,
@@ -47,6 +48,7 @@ interface SidebarProps {
   adsBanner?: AdsBanner | null;
   activeChatId: string | null;
   searchQuery?: string;
+  onSearchQueryChange?: (q: string) => void;
   onSelectChat: (chatId: string) => void;
   onStartPrivateChat: (peer: UserPublic) => void;
   onJoinPublicChannel: (chatId: string) => void;
@@ -68,7 +70,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   remindersByChatId,
   adsBanner,
   activeChatId,
-  searchQuery = '',
+  searchQuery,
+  onSearchQueryChange,
   onSelectChat,
   onStartPrivateChat,
   onJoinPublicChannel,
@@ -77,6 +80,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onNotify,
 }) => {
   const { t, language } = useLanguage();
+  const [internalSearch, setInternalSearch] = useState('');
+  const activeSearch = searchQuery !== undefined && searchQuery !== '' ? searchQuery : internalSearch;
+
+  const handleSearchChange = (val: string) => {
+    setInternalSearch(val);
+    if (onSearchQueryChange) {
+      onSearchQueryChange(val);
+    }
+  };
+
   const [showArchivedFolder, setShowArchivedFolder] = useState(false);
   const [swipedChatId, setSwipedChatId] = useState<string | null>(null);
   const [contextMenuChat, setContextMenuChat] = useState<{
@@ -147,7 +160,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const { inboxChats, archivedChats } = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
+    const q = activeSearch.trim().toLowerCase();
     const visible = chats.filter((chat) => {
       const pref = chatPrefsById[chat.id];
       const deletedMs = timestampToMs(pref?.deletedAt);
@@ -186,10 +199,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     inbox.sort(sortFn);
     archived.sort(sortFn);
     return { inboxChats: inbox, archivedChats: archived };
-  }, [chats, chatPrefsById, searchQuery, usersMap, contactIds, currentUser.uid]);
+  }, [chats, chatPrefsById, activeSearch, usersMap, contactIds, currentUser.uid]);
 
   const discoverPeople = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
+    const q = activeSearch.trim().toLowerCase();
     if (!q) return [];
     const cleanQ = q.replace(/^@/, '');
     return allUsers
@@ -200,10 +213,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
           u.username.toLowerCase().includes(cleanQ)
       )
       .slice(0, 20);
-  }, [allUsers, currentUser.uid, searchQuery]);
+  }, [allUsers, currentUser.uid, activeSearch]);
 
   const discoverChannels = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
+    const q = activeSearch.trim().toLowerCase();
     if (!q) return [];
     const joinedIds = new Set(chats.map((c) => c.id));
     return publicChannels.filter(
@@ -212,7 +225,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         ((ch.name || '').toLowerCase().includes(q) ||
           (ch.description || '').toLowerCase().includes(q))
     );
-  }, [publicChannels, chats, searchQuery]);
+  }, [publicChannels, chats, activeSearch]);
 
   const safeAdHref = useMemo(() => {
     const raw = adsBanner?.link?.trim() || '';
@@ -250,7 +263,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return (
       <div
         key={chat.id}
-        className="relative overflow-hidden border-b border-[var(--dank-border-subtle)] last:border-b-0"
+        className={`relative rounded-[20px] overflow-hidden border transition-all duration-150 shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] ${
+          isActive
+            ? 'border-[var(--dank-accent)] ring-1 ring-[var(--dank-accent)] bg-[var(--dank-surface)]'
+            : 'border-[var(--dank-border)] bg-[var(--dank-surface)]'
+        }`}
         onTouchStart={(e) => {
           const touch = e.touches[0];
           touchStartRef.current = { x: touch.clientX, y: touch.clientY, chatId: chat.id };
@@ -288,7 +305,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       >
         {/* Swipe Left Revealed Quick Actions */}
         {isSwiped && (
-          <div className="absolute inset-y-0 end-0 flex items-stretch z-10">
+          <div className="absolute inset-y-0 end-0 flex items-stretch z-10 rounded-e-[20px] overflow-hidden">
             <button
               type="button"
               onClick={(e) => {
@@ -296,7 +313,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 setSwipedChatId(null);
                 void setUserChatPref(currentUser.uid, chat.id, { muted: !isMuted });
               }}
-              className="px-3 bg-amber-500 text-black text-[11px] font-bold flex flex-col items-center justify-center gap-0.5 cursor-pointer"
+              className="px-3.5 bg-amber-500 text-black text-[11px] font-bold flex flex-col items-center justify-center gap-0.5 cursor-pointer"
             >
               {isMuted ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
               <span>{isMuted ? t.chat.unmuteChat : t.chat.muteChat}</span>
@@ -308,7 +325,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 setSwipedChatId(null);
                 void setUserChatPref(currentUser.uid, chat.id, { archived: !isArchived });
               }}
-              className="px-3 bg-[var(--dank-accent)] text-[var(--dank-accent-fg)] text-[11px] font-bold flex flex-col items-center justify-center gap-0.5 cursor-pointer"
+              className="px-3.5 bg-[var(--dank-accent)] text-[var(--dank-accent-fg)] text-[11px] font-bold flex flex-col items-center justify-center gap-0.5 cursor-pointer"
             >
               {isArchived ? <ArchiveRestore className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
               <span>{isArchived ? t.telegram.unarchiveChat : t.telegram.archiveChat}</span>
@@ -320,7 +337,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 setSwipedChatId(null);
                 void setUserChatPref(currentUser.uid, chat.id, { deleted: true });
               }}
-              className="px-3 bg-red-600 text-white text-[11px] font-bold flex flex-col items-center justify-center gap-0.5 cursor-pointer"
+              className="px-3.5 bg-red-600 text-white text-[11px] font-bold flex flex-col items-center justify-center gap-0.5 cursor-pointer"
             >
               <Trash2 className="w-4 h-4" />
               <span>{t.common.delete}</span>
@@ -346,12 +363,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onSelectChat(chat.id);
             }
           }}
-          className={`w-full px-4 py-3 flex items-center gap-3 text-start transition-colors cursor-pointer ${
+          className={`w-full px-4 py-3.5 flex items-center gap-3 text-start transition-colors cursor-pointer ${
             isSwiped ? '-translate-x-44 rtl:translate-x-44' : ''
           } ${
             isActive
-              ? 'bg-[var(--dank-surface)] text-[var(--dank-text)]'
-              : 'bg-[var(--dank-canvas)] hover:bg-[var(--dank-hover)] active:bg-[var(--dank-surface)] text-[var(--dank-text)]'
+              ? 'bg-[var(--dank-hover)] text-[var(--dank-text)]'
+              : 'bg-[var(--dank-surface)] hover:bg-[var(--dank-hover)] active:bg-[var(--dank-elevated)] text-[var(--dank-text)]'
           }`}
         >
           {disp.peer && onOpenProfile ? (
@@ -486,17 +503,42 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <aside className="w-full md:w-[360px] lg:w-[390px] shrink-0 h-full flex flex-col bg-[var(--dank-canvas)] md:border-e md:border-[var(--dank-border)]">
-      {/* Main Chats List ONLY (No stories row, no top filter tabs) */}
-      <div className="flex-1 overflow-y-auto overscroll-contain pb-4">
+      {/* Front Search Card (Independent from conversations) */}
+      <div className="px-3.5 pt-3 pb-1.5 shrink-0">
+        <div className="relative rounded-[20px] bg-[var(--dank-surface)] border border-[var(--dank-border)] shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] flex items-center px-3.5 h-11 transition-all focus-within:border-[var(--dank-accent)] focus-within:ring-1 focus-within:ring-[var(--dank-accent)]">
+          <Search className="w-4 h-4 text-[var(--dank-muted)] shrink-0 me-2.5" />
+          <input
+            type="text"
+            dir="auto"
+            value={activeSearch}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            placeholder={t.sidebar.searchPlaceholder}
+            className="flex-1 bg-transparent border-0 outline-none text-sm text-[var(--dank-text)] placeholder:text-[var(--dank-muted)]"
+          />
+          {activeSearch && (
+            <button
+              type="button"
+              onClick={() => handleSearchChange('')}
+              aria-label={t.sidebar.clearSearch}
+              className="w-6 h-6 rounded-full hover:bg-[var(--dank-elevated)] text-[var(--dank-muted)] hover:text-[var(--dank-text)] flex items-center justify-center cursor-pointer transition-colors"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Main Chats List ONLY */}
+      <div className="flex-1 overflow-y-auto overscroll-contain px-3.5 py-2 space-y-[12px]">
         {/* Admin Ads Banner */}
         {adsBanner?.enabled && (adsBanner.text || adsBanner.imageData) && (
-          <div className="px-3 pt-2.5 pb-1.5">
+          <div className="pt-0.5">
             {safeAdHref ? (
               <a
                 href={safeAdHref}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="block rounded-2xl bg-[var(--dank-surface)] text-[var(--dank-text)] border border-[var(--dank-accent-border)] overflow-hidden hover:border-[var(--dank-accent)] transition-colors"
+                className="block rounded-[20px] bg-[var(--dank-surface)] text-[var(--dank-text)] border border-[var(--dank-accent-border)] shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] overflow-hidden hover:border-[var(--dank-accent)] transition-colors"
               >
                 {adsBanner.imageData?.trim() && (
                   <img
@@ -507,7 +549,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     className="w-full h-24 object-cover"
                   />
                 )}
-                <div className="p-2.5 flex items-center justify-between gap-2">
+                <div className="p-3 flex items-center justify-between gap-2">
                   <div className="min-w-0">
                     <span className="text-[10px] font-bold text-[var(--dank-accent)]">
                       {t.common.sponsored}
@@ -522,7 +564,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </div>
               </a>
             ) : (
-              <div className="rounded-2xl bg-[var(--dank-surface)] text-[var(--dank-text)] border border-[var(--dank-accent-border)] overflow-hidden">
+              <div className="rounded-[20px] bg-[var(--dank-surface)] text-[var(--dank-text)] border border-[var(--dank-accent-border)] shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] overflow-hidden">
                 {adsBanner.imageData?.trim() && (
                   <img
                     src={adsBanner.imageData.trim()}
@@ -532,7 +574,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     className="w-full h-24 object-cover"
                   />
                 )}
-                <div className="p-2.5">
+                <div className="p-3">
                   <span className="text-[10px] font-bold text-[var(--dank-accent)]">
                     {t.common.sponsored}
                   </span>
@@ -552,10 +594,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <button
             type="button"
             onClick={() => setShowArchivedFolder((prev) => !prev)}
-            className="w-full px-4 py-3 border-b border-[var(--dank-border-subtle)] flex items-center justify-between gap-3 text-start hover:bg-[var(--dank-hover)] cursor-pointer"
+            className="w-full px-4 py-3.5 rounded-[20px] border border-[var(--dank-border)] shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] bg-[var(--dank-surface)] flex items-center justify-between gap-3 text-start hover:bg-[var(--dank-hover)] cursor-pointer transition-colors"
           >
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-full bg-[var(--dank-surface)] text-[var(--dank-accent)] flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-full bg-[var(--dank-elevated)] text-[var(--dank-accent)] flex items-center justify-center shrink-0">
                 <Archive className="w-4.5 h-4.5" />
               </div>
               <div className="min-w-0">
@@ -576,7 +618,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {displayedChats.length === 0 &&
           discoverPeople.length === 0 &&
           discoverChannels.length === 0 && (
-            <div className="px-6 py-16 text-center">
+            <div className="rounded-[20px] bg-[var(--dank-surface)] border border-[var(--dank-border)] shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] px-6 py-14 text-center my-4">
               <p className="text-sm font-bold text-[var(--dank-text)]">{t.sidebar.noConversations}</p>
               <p className="mt-1.5 text-xs text-[var(--dank-muted)] leading-relaxed">
                 {t.sidebar.noConversationsDesc}
@@ -588,8 +630,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Search-Only People Discovery */}
         {discoverPeople.length > 0 && (
-          <div className="pt-3">
-            <div className="px-4 pb-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--dank-muted)]">
+          <div className="pt-2 space-y-[12px]">
+            <div className="px-2 text-[11px] font-bold uppercase tracking-wider text-[var(--dank-muted)]">
               {t.sidebar.peopleOnDank}
             </div>
             {discoverPeople.map((person) => {
@@ -620,7 +662,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       onStartPrivateChat(person);
                     }
                   }}
-                  className="w-full px-4 py-2.5 flex items-center gap-3 text-start hover:bg-[var(--dank-hover)] transition-colors cursor-pointer"
+                  className="w-full px-4 py-3 rounded-[20px] border border-[var(--dank-border)] shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] bg-[var(--dank-surface)] flex items-center gap-3 text-start hover:bg-[var(--dank-hover)] transition-colors cursor-pointer"
                 >
                   {onOpenProfile ? (
                     <button
@@ -665,7 +707,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       @{person.username}
                     </div>
                   </div>
-                  <span className="text-xs font-bold text-[var(--dank-accent-fg)] bg-[var(--dank-accent)] px-3 py-1 rounded-full">
+                  <span className="text-xs font-bold text-[var(--dank-accent-fg)] bg-[var(--dank-accent)] px-3 py-1 rounded-full shrink-0">
                     {t.common.chat}
                   </span>
                 </div>
@@ -676,8 +718,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Search-Only Public Channels */}
         {discoverChannels.length > 0 && (
-          <div className="pt-3">
-            <div className="px-4 pb-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--dank-muted)]">
+          <div className="pt-2 space-y-[12px]">
+            <div className="px-2 text-[11px] font-bold uppercase tracking-wider text-[var(--dank-muted)]">
               {t.sidebar.publicChannels}
             </div>
             {discoverChannels.map((ch) => (
@@ -685,7 +727,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 key={ch.id}
                 type="button"
                 onClick={() => onJoinPublicChannel(ch.id)}
-                className="w-full px-4 py-2.5 flex items-center gap-3 text-start hover:bg-[var(--dank-hover)] transition-colors cursor-pointer"
+                className="w-full px-4 py-3 rounded-[20px] border border-[var(--dank-border)] shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] bg-[var(--dank-surface)] flex items-center gap-3 text-start hover:bg-[var(--dank-hover)] transition-colors cursor-pointer"
               >
                 <Avatar
                   src={ch.photoURL}
@@ -701,7 +743,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     {ch.memberCount} {t.common.subscribers}
                   </div>
                 </div>
-                <span className="text-xs font-bold text-[var(--dank-accent-fg)] bg-[var(--dank-accent)] px-3 py-1 rounded-full">
+                <span className="text-xs font-bold text-[var(--dank-accent-fg)] bg-[var(--dank-accent)] px-3 py-1 rounded-full shrink-0">
                   {t.common.join}
                 </span>
               </button>

@@ -35,8 +35,8 @@ export const THEME_OPTIONS: ThemePresetMeta[] = [
   },
   {
     id: 'light',
-    canvas: '#FFFFFF',
-    surface: '#F4F5F7',
+    canvas: '#F2F7FF',
+    surface: '#FFFFFF',
     accent: '#1DB954',
     isDark: false,
   },

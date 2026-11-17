@@ -141,9 +141,14 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
+    const cleanUsername = username.trim().toLowerCase().replace(/[^a-z0-9_.]/g, '');
+    if (cleanUsername.length < 3) {
+      onNotify('Username must be at least 3 characters long.');
+      return;
+    }
     setSaving(true);
     try {
-      await updateUserProfile({ name, username, bio, photoURL, coverURL });
+      await updateUserProfile({ name, username: cleanUsername, bio, photoURL, coverURL });
       onNotify(t.profile.profileUpdated);
       if (initialEditMode) {
         onClose();
@@ -552,7 +557,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 required
                 maxLength={32}
                 value={username}
-                onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_.]/g, ''))}
                 className="w-full h-11 px-3.5 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] text-base text-[var(--dank-text)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)]"
               />
             </div>
@@ -610,15 +615,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   showOnlineDot={true}
                 />
 
-                <div className="flex-1 grid grid-cols-3 gap-2 text-center">
-                  <div>
-                    <p className="text-base font-bold text-[var(--dank-text)] tabular-nums">
-                      {userPosts.length}
-                    </p>
-                    <p className="text-[11px] text-[var(--dank-muted)]">
-                      {t.profile.postsCount}
-                    </p>
-                  </div>
+                <div className="flex-1 grid grid-cols-2 gap-2 text-center">
                   <div>
                     <p className="text-base font-bold text-[var(--dank-text)] tabular-nums">
                       {followersCount}
@@ -739,59 +736,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               )}
             </div>
 
-            <div className="border-b border-[var(--dank-border)] bg-[var(--dank-surface)] shrink-0">
-              <div className="h-11 flex items-center justify-center gap-1.5 text-xs font-bold border-b-2 border-[var(--dank-accent)] text-[var(--dank-accent)]">
-                <Grid className="w-4 h-4" />
-                <span>
-                  {t.profile.postsCount} ({userPosts.length})
-                </span>
-              </div>
-            </div>
 
-            <div className="p-2 flex-1">
-              {userPosts.length === 0 ? (
-                <div className="py-12 text-center text-xs text-[var(--dank-muted)]">
-                  {t.profile.noPhotoPosts}
-                </div>
-              ) : (
-                <div className="grid grid-cols-3 gap-1.5">
-                  {userPosts.map((post) => (
-                    <button
-                      key={post.id}
-                      type="button"
-                      onClick={() => {
-                        if (onOpenPost) {
-                          onOpenPost(post.id);
-                          onClose();
-                        }
-                      }}
-                      className="relative aspect-square rounded-lg overflow-hidden bg-[var(--dank-canvas)] group cursor-pointer"
-                    >
-                      {post.images?.[0]?.trim() ? (
-                        <img
-                          src={post.images[0]}
-                          alt={post.caption || t.posts.title}
-                          loading="lazy"
-                          referrerPolicy="no-referrer"
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                        />
-                      ) : null}
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/35 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                        <span className="text-white text-xs font-bold flex items-center gap-1 tabular-nums">
-                          <Heart className="w-3.5 h-3.5 fill-white" />
-                          {post.likeCount}
-                        </span>
-                      </div>
-                      {post.images.length > 1 && (
-                        <span className="absolute top-1.5 end-1.5 px-1.5 py-0.5 rounded bg-black/60 text-white text-[10px] font-semibold tabular-nums">
-                          {post.images.length}
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
         )}
       </div>

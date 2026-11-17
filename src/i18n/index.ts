@@ -115,7 +115,7 @@ export const en = {
   },
   brand: {
     splashTagline: 'DANK - Communicate Freely',
-    footerCopyright: '© 2027 DANK — All Rights Reserved',
+    footerCopyright: '© 2027 YOUSSEF DANK — All Rights Reserved',
     privacyNotice: 'DANK respects your privacy. Your phone number and data are private.',
   },
   theme: {
@@ -991,7 +991,7 @@ export const ar: Translations = {
   },
   brand: {
     splashTagline: 'DANK - تواصل بحرية',
-    footerCopyright: '© 2027 DANK — All Rights Reserved',
+    footerCopyright: '© 2027 YOUSSEF DANK — All Rights Reserved',
     privacyNotice: 'DANK يحترم خصوصيتك. رقم هاتفك وبياناتك خاصة ومحمية.',
   },
   theme: {

@@ -132,9 +132,9 @@ export function containsArabic(text: string): boolean {
 export function sanitizeUsername(raw: string): string {
   const cleaned = raw
     .toLowerCase()
-    .replace(/[^a-z0-9_]/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_+|_+$/g, '');
-  if (cleaned.length >= 2) return cleaned.slice(0, 32);
+    .replace(/[^a-z0-9_.]/g, '_')
+    .replace(/[_.]+/g, '_')
+    .replace(/^[_.]+|[_.]+$/g, '');
+  if (cleaned.length >= 3) return cleaned.slice(0, 32);
   return `user_${Math.random().toString(36).slice(2, 7)}`;
 }

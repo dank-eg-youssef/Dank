@@ -1572,10 +1572,18 @@ export default function App() {
         } flex-col bg-[var(--dank-canvas)] border-b border-[var(--dank-border)] shrink-0 z-20`}
       >
         <div className="px-4 py-2.5 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <h1 className="text-[26px] font-extrabold tracking-tight text-[var(--dank-text)] leading-none">
-              {t.appName}
-            </h1>
+          <div className="flex items-center gap-2.5 min-w-0">
+            <button
+              type="button"
+              onClick={() => {
+                setViewedProfileUser(null);
+                setMainTab('chats');
+              }}
+              className="flex items-center text-start cursor-pointer transition-transform duration-150 active:scale-95 shrink-0"
+              aria-label={t.appName}
+            >
+              <DankLogo size={36} showText={true} />
+            </button>
             <UserBadges
               isAdmin={profile.isAdmin}
               isVerified={profile.isVerified}
@@ -1772,6 +1780,7 @@ export default function App() {
               adsBanner={adsBanner}
               activeChatId={activeChatId}
               searchQuery={headerSearchQuery}
+              onSearchQueryChange={setHeaderSearchQuery}
               onSelectChat={(id) => {
                 setActiveChatId(id);
                 void setUserChatPref(profile.uid, id, { markRead: true });
@@ -1924,27 +1933,7 @@ export default function App() {
                 </button>
               </div>
 
-              {/* Community Posts Feed Shortcut Card */}
-              <button
-                type="button"
-                onClick={() => setShowPostsModal(true)}
-                className="w-full p-3.5 rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] hover:border-[var(--dank-accent)] flex items-center justify-between gap-3 text-start transition-colors cursor-pointer"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-11 h-11 rounded-2xl bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] flex items-center justify-center shrink-0">
-                    <LayoutGrid className="w-5 h-5" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold text-[var(--dank-text)] truncate">
-                      {t.whatsapp.openPostsFeed}
-                    </p>
-                    <p className="text-xs text-[var(--dank-muted)] truncate">
-                      {posts.length} {t.tabs.posts}
-                    </p>
-                  </div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-[var(--dank-muted)] rtl:rotate-180 shrink-0" />
-              </button>
+
 
               {filteredJoinedGroups.length === 0 ? (
                 <div className="rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] p-6 text-center">
@@ -2515,12 +2504,12 @@ export default function App() {
         )}
       </div>
 
-      {/* Persistent iPhone WhatsApp 5-Tab Bottom Bar */}
+      {/* Persistent iPhone WhatsApp 5-Tab Bottom Bar with Independent Round Cards */}
       <nav
         aria-label={t.tabs.chats}
         className={`${
           activeChat ? 'hidden md:grid' : 'grid'
-        } grid-cols-5 items-center bg-[var(--dank-surface)] border-t border-[var(--dank-border)] min-h-[60px] pb-safe px-1 shrink-0 z-20`}
+        } grid-cols-5 items-stretch gap-1.5 sm:gap-2 bg-[var(--dank-canvas)] border-t border-[var(--dank-border)]/50 px-2 py-2 pb-safe shrink-0 z-20`}
       >
         <button
           type="button"
@@ -2528,10 +2517,10 @@ export default function App() {
             setViewedProfileUser(null);
             setMainTab('chats');
           }}
-          className={`min-h-[48px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold transition-colors cursor-pointer ${
+          className={`relative rounded-[20px] overflow-hidden border min-h-[54px] py-1.5 px-1 flex flex-col items-center justify-center gap-0.5 transition-all duration-150 cursor-pointer shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] select-none active:scale-[0.98] ${
             mainTab === 'chats'
-              ? 'text-[var(--dank-accent)]'
-              : 'text-[var(--dank-muted)] hover:text-[var(--dank-text)]'
+              ? 'border-[var(--dank-accent)] ring-1 ring-[var(--dank-accent)] bg-[var(--dank-surface)] text-[var(--dank-accent)]'
+              : 'border-[var(--dank-border)] bg-[var(--dank-surface)] text-[var(--dank-muted)] hover:text-[var(--dank-text)] hover:border-[var(--dank-border-strong)]'
           }`}
         >
           <div className="relative">
@@ -2542,7 +2531,7 @@ export default function App() {
               </span>
             )}
           </div>
-          <span className="truncate max-w-full px-1">{t.tabs.chats}</span>
+          <span className="truncate max-w-full px-1 text-[11px] font-semibold">{t.tabs.chats}</span>
         </button>
 
         <button
@@ -2551,14 +2540,14 @@ export default function App() {
             setViewedProfileUser(null);
             setMainTab('updates');
           }}
-          className={`min-h-[48px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold transition-colors cursor-pointer ${
+          className={`relative rounded-[20px] overflow-hidden border min-h-[54px] py-1.5 px-1 flex flex-col items-center justify-center gap-0.5 transition-all duration-150 cursor-pointer shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] select-none active:scale-[0.98] ${
             mainTab === 'updates'
-              ? 'text-[var(--dank-accent)]'
-              : 'text-[var(--dank-muted)] hover:text-[var(--dank-text)]'
+              ? 'border-[var(--dank-accent)] ring-1 ring-[var(--dank-accent)] bg-[var(--dank-surface)] text-[var(--dank-accent)]'
+              : 'border-[var(--dank-border)] bg-[var(--dank-surface)] text-[var(--dank-muted)] hover:text-[var(--dank-text)] hover:border-[var(--dank-border-strong)]'
           }`}
         >
           <CircleDot className="w-5 h-5 shrink-0" />
-          <span className="truncate max-w-full px-1">{t.tabs.updates}</span>
+          <span className="truncate max-w-full px-1 text-[11px] font-semibold">{t.tabs.updates}</span>
         </button>
 
         <button
@@ -2567,14 +2556,14 @@ export default function App() {
             setViewedProfileUser(null);
             setMainTab('communities');
           }}
-          className={`min-h-[48px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold transition-colors cursor-pointer ${
+          className={`relative rounded-[20px] overflow-hidden border min-h-[54px] py-1.5 px-1 flex flex-col items-center justify-center gap-0.5 transition-all duration-150 cursor-pointer shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] select-none active:scale-[0.98] ${
             mainTab === 'communities'
-              ? 'text-[var(--dank-accent)]'
-              : 'text-[var(--dank-muted)] hover:text-[var(--dank-text)]'
+              ? 'border-[var(--dank-accent)] ring-1 ring-[var(--dank-accent)] bg-[var(--dank-surface)] text-[var(--dank-accent)]'
+              : 'border-[var(--dank-border)] bg-[var(--dank-surface)] text-[var(--dank-muted)] hover:text-[var(--dank-text)] hover:border-[var(--dank-border-strong)]'
           }`}
         >
           <Users className="w-5 h-5 shrink-0" />
-          <span className="truncate max-w-full px-1">{t.tabs.communities}</span>
+          <span className="truncate max-w-full px-1 text-[11px] font-semibold">{t.tabs.communities}</span>
         </button>
 
         <button
@@ -2583,14 +2572,14 @@ export default function App() {
             setViewedProfileUser(null);
             setMainTab('calls');
           }}
-          className={`min-h-[48px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold transition-colors cursor-pointer ${
+          className={`relative rounded-[20px] overflow-hidden border min-h-[54px] py-1.5 px-1 flex flex-col items-center justify-center gap-0.5 transition-all duration-150 cursor-pointer shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] select-none active:scale-[0.98] ${
             mainTab === 'calls'
-              ? 'text-[var(--dank-accent)]'
-              : 'text-[var(--dank-muted)] hover:text-[var(--dank-text)]'
+              ? 'border-[var(--dank-accent)] ring-1 ring-[var(--dank-accent)] bg-[var(--dank-surface)] text-[var(--dank-accent)]'
+              : 'border-[var(--dank-border)] bg-[var(--dank-surface)] text-[var(--dank-muted)] hover:text-[var(--dank-text)] hover:border-[var(--dank-border-strong)]'
           }`}
         >
           <Phone className="w-5 h-5 shrink-0" />
-          <span className="truncate max-w-full px-1">{t.tabs.calls}</span>
+          <span className="truncate max-w-full px-1 text-[11px] font-semibold">{t.tabs.calls}</span>
         </button>
 
         <button
@@ -2599,14 +2588,14 @@ export default function App() {
             setViewedProfileUser(null);
             setMainTab('settings');
           }}
-          className={`min-h-[48px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold transition-colors cursor-pointer ${
+          className={`relative rounded-[20px] overflow-hidden border min-h-[54px] py-1.5 px-1 flex flex-col items-center justify-center gap-0.5 transition-all duration-150 cursor-pointer shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] select-none active:scale-[0.98] ${
             mainTab === 'settings'
-              ? 'text-[var(--dank-accent)]'
-              : 'text-[var(--dank-muted)] hover:text-[var(--dank-text)]'
+              ? 'border-[var(--dank-accent)] ring-1 ring-[var(--dank-accent)] bg-[var(--dank-surface)] text-[var(--dank-accent)]'
+              : 'border-[var(--dank-border)] bg-[var(--dank-surface)] text-[var(--dank-muted)] hover:text-[var(--dank-text)] hover:border-[var(--dank-border-strong)]'
           }`}
         >
           <SettingsIcon className="w-5 h-5 shrink-0" />
-          <span className="truncate max-w-full px-1">{t.tabs.settings}</span>
+          <span className="truncate max-w-full px-1 text-[11px] font-semibold">{t.tabs.settings}</span>
         </button>
       </nav>
 
@@ -2876,39 +2865,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Community Posts Feed Overlay Modal */}
-      {showPostsModal && (
-        <div className="fixed inset-0 z-40 flex flex-col bg-[var(--dank-canvas)]">
-          <div className="bg-[var(--dank-surface)] border-b border-[var(--dank-border)] px-4 py-2.5 flex items-center justify-between shrink-0">
-            <span className="text-sm font-bold text-[var(--dank-text)]">
-              {t.whatsapp.openPostsFeed}
-            </span>
-            <button
-              type="button"
-              onClick={() => setShowPostsModal(false)}
-              className="w-9 h-9 rounded-full hover:bg-[var(--dank-hover)] text-[var(--dank-text)] flex items-center justify-center cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-          <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-            <PostsFeed
-              currentUser={profile}
-              posts={posts}
-              usersMap={usersMap}
-              savedPostIds={savedPostIds}
-              highlightedPostId={highlightedPostId}
-              onClearHighlightedPost={() => setHighlightedPostId(null)}
-              onOpenDrawer={() => setShowPostsModal(false)}
-              onOpenProfile={(user) => {
-                setShowPostsModal(false);
-                openProfileFor(user);
-              }}
-              onNotify={notify}
-            />
-          </div>
-        </div>
-      )}
+
 
       {/* Overlay ProfilePage for viewing other users' profiles */}
       {liveViewedUser && (

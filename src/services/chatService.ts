@@ -1627,23 +1627,7 @@ export async function unblockUserAccount(uid: string, blockedUid: string): Promi
   }
 }
 
-export async function updateUserPhone(uid: string, phone: string): Promise<void> {
-  const clean = phone.trim().slice(0, 32);
-  try {
-    const batch = writeBatch(db);
-    batch.update(doc(db, 'users_private', uid), {
-      phone: clean,
-      updatedAt: serverTimestamp(),
-    });
-    batch.update(doc(db, 'users_public', uid), {
-      hasPhone: clean.length > 0,
-      updatedAt: serverTimestamp(),
-    });
-    await batch.commit();
-  } catch (error) {
-    handleFirestoreError(error, OperationType.UPDATE, `users_private/${uid}`);
-  }
-}
+
 
 export async function updatePrivacySettings(
   uid: string,

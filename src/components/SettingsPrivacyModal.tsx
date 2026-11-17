@@ -25,7 +25,6 @@ import {
   revokeActiveSession,
   unblockUserAccount,
   updatePrivacySettings,
-  updateUserPhone,
 } from '../services/chatService';
 import type {
   ActiveSession,
@@ -58,8 +57,6 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
   const { language, setLanguage, t } = useLanguage();
   const { theme, setTheme } = useTheme();
 
-  const [phone, setPhone] = useState(privateProfile?.phone || '');
-  const [savingPhone, setSavingPhone] = useState(false);
 
   const [privacyPhone, setPrivacyPhone] = useState<PrivacyVisibility>(
     currentUser.privacyPhone || 'nobody'
@@ -112,17 +109,7 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
     return () => unsub();
   }, [currentUser.uid]);
 
-  const handleSavePhone = async () => {
-    setSavingPhone(true);
-    try {
-      await updateUserPhone(currentUser.uid, phone);
-      onNotify(t.profile.profileUpdated);
-    } catch (err) {
-      onNotify(err instanceof Error ? err.message : t.errors.unexpected);
-    } finally {
-      setSavingPhone(false);
-    }
-  };
+
 
   const handleSavePrivacy = async () => {
     setSavingPrivacy(true);
@@ -314,37 +301,7 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
             </button>
           )}
 
-          {/* Phone Number */}
-          <section className="p-4 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] space-y-2.5">
-            <div className="flex items-center gap-2">
-              <Phone className="w-4 h-4 text-[var(--dank-accent)]" />
-              <h4 className="text-sm font-bold text-[var(--dank-text)]">
-                {t.privacy.phoneNumber}
-              </h4>
-            </div>
-            <p className="text-[11px] text-[var(--dank-muted)]">
-              {t.privacy.phoneHiddenNote}
-            </p>
-            <div className="flex items-center gap-2">
-              <input
-                type="tel"
-                dir="ltr"
-                value={phone}
-                maxLength={32}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder={t.privacy.phonePlaceholder}
-                className="flex-1 h-10 px-3 rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)] text-base text-[var(--dank-text)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)]"
-              />
-              <button
-                type="button"
-                disabled={savingPhone}
-                onClick={() => void handleSavePhone()}
-                className="h-10 px-4 rounded-xl bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-xs font-bold cursor-pointer"
-              >
-                {savingPhone ? t.common.saving : t.common.save}
-              </button>
-            </div>
-          </section>
+
 
           {/* Privacy Controls */}
           <section className="p-4 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] space-y-3">

@@ -375,16 +375,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
             </div>
           )}
 
-          {chat.type === 'private' && peer && (
-            <div className="p-3 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] text-xs flex items-center justify-between gap-2">
-              <span className="font-semibold text-[var(--dank-text)]">
-                {t.privacy.phoneNumber}
-              </span>
-              <span className="text-[11px] text-[var(--dank-muted)]">
-                {t.privacy.phoneHiddenNote}
-              </span>
-            </div>
-          )}
+
 
           {chat.type === 'private' && peer && (
             <div className="space-y-2">
