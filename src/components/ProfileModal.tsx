@@ -207,15 +207,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
   const getThemeLabel = (id: AppThemeId) => {
     switch (id) {
-      case 'midnight-blue':
-        return t.theme.midnightBlue;
-      case 'purple-neon':
-        return t.theme.purpleNeon;
       case 'light':
         return t.theme.lightMode;
-      case 'dank-dark':
+      case 'arcade':
       default:
-        return t.theme.dankDark;
+        return t.theme.arcade;
     }
   };
 
@@ -271,9 +267,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           </span>
         </div>
 
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 gap-2.5">
           {THEME_OPTIONS.map((opt) => {
             const active = theme === opt.id;
+            const swatchBg =
+              opt.id === 'arcade'
+                ? 'linear-gradient(135deg, #040409 42%, #A855F7 70%, #22D3EE 100%)'
+                : 'linear-gradient(135deg, #FFFFFF 50%, #DBEAFE 50%)';
             return (
               <button
                 key={opt.id}
@@ -282,7 +282,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   setTheme(opt.id);
                   void updateUserProfile({ theme: opt.id });
                 }}
-                className={`p-2 rounded-xl border flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
+                className={`p-2.5 rounded-xl border flex flex-col items-center gap-1.5 transition-colors cursor-pointer ${
                   active
                     ? 'bg-[var(--dank-accent-soft)] border-[var(--dank-accent)]'
                     : 'bg-[var(--dank-surface)] border-[var(--dank-border)] hover:border-[var(--dank-muted)]'
@@ -291,7 +291,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 <span
                   className="relative w-9 h-9 rounded-full border border-[var(--dank-border)] shadow-sm overflow-hidden flex items-center justify-center"
                   style={{
-                    background: `linear-gradient(135deg, ${opt.canvas} 50%, ${opt.accent} 50%)`,
+                    background: swatchBg,
                   }}
                 >
                   {active && (
@@ -300,7 +300,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     </span>
                   )}
                 </span>
-                <span className="text-[10px] font-semibold text-[var(--dank-text)] text-center leading-tight line-clamp-2">
+                <span className="text-xs font-semibold text-[var(--dank-text)] text-center leading-tight">
                   {getThemeLabel(opt.id)}
                 </span>
               </button>

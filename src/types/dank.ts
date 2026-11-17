@@ -12,7 +12,7 @@ export type MessageType =
 export type MessageStatus = 'sent' | 'delivered' | 'seen';
 export type MemberRole = 'admin' | 'member';
 export type AppLanguage = 'ar' | 'en';
-export type AppThemeId = 'dank-dark' | 'midnight-blue' | 'purple-neon' | 'light';
+export type AppThemeId = 'arcade' | 'light';
 export type PrivacyVisibility = 'everyone' | 'contacts' | 'nobody';
 
 export interface UserPublic {

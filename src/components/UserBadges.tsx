@@ -60,10 +60,10 @@ export const UserBadges: React.FC<UserBadgesProps> = ({
           className="inline-flex items-center justify-center"
         >
           <svg viewBox="0 0 24 24" fill="none" className={iconSize}>
-            <circle cx="12" cy="12" r="10" fill="#1DB954" />
+            <circle cx="12" cy="12" r="10" fill="var(--dank-accent)" />
             <path
               d="M8.5 12.4l2.3 2.3 4.8-5.1"
-              stroke="#000000"
+              stroke="var(--dank-accent-fg)"
               strokeWidth="2.4"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -76,7 +76,7 @@ export const UserBadges: React.FC<UserBadgesProps> = ({
         <span
           title="DANK Plus"
           aria-label="DANK Plus"
-          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-[#1DB954]/18 border border-[#1DB954]/45 text-[#1DB954] font-bold leading-none text-[9px] tracking-wide"
+          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-[var(--dank-accent-soft)] border border-[var(--dank-accent-border)] text-[var(--dank-accent)] font-bold leading-none text-[9px] tracking-wide"
         >
           <Sparkles className="w-2.5 h-2.5" />
           <span>PLUS</span>

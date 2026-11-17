@@ -3,84 +3,54 @@
 
 @layer base {
   :root,
-  [data-theme='dank-dark'] {
+  [data-theme='arcade'] {
     color-scheme: dark;
-    --dank-canvas: #121212;
-    --dank-surface: #1E1E1E;
-    --dank-elevated: #282828;
-    --dank-hover: #242424;
-    --dank-bubble-in: #262626;
-    --dank-accent: #1DB954;
-    --dank-accent-hover: #1ED760;
-    --dank-accent-soft: rgba(29, 185, 84, 0.16);
-    --dank-accent-border: rgba(29, 185, 84, 0.42);
-    --dank-accent-fg: #000000;
-    --dank-text: #FFFFFF;
-    --dank-muted: #A1A1AA;
-    --dank-border: rgba(255, 255, 255, 0.10);
-    --dank-border-subtle: rgba(255, 255, 255, 0.06);
-    --dank-dot: rgba(29, 185, 84, 0.08);
-    --dank-primary: #1E1E1E;
-  }
-
-  [data-theme='midnight-blue'] {
-    color-scheme: dark;
-    --dank-canvas: #0A1628;
-    --dank-surface: #11223D;
-    --dank-elevated: #1A3154;
-    --dank-hover: #162B4D;
-    --dank-bubble-in: #162B4D;
-    --dank-accent: #2E86FF;
-    --dank-accent-hover: #4D99FF;
-    --dank-accent-soft: rgba(46, 134, 255, 0.18);
-    --dank-accent-border: rgba(46, 134, 255, 0.45);
-    --dank-accent-fg: #FFFFFF;
-    --dank-text: #FFFFFF;
-    --dank-muted: #94A3B8;
-    --dank-border: rgba(255, 255, 255, 0.12);
-    --dank-border-subtle: rgba(255, 255, 255, 0.07);
-    --dank-dot: rgba(46, 134, 255, 0.13);
-    --dank-primary: #11223D;
-  }
-
-  [data-theme='purple-neon'] {
-    color-scheme: dark;
-    --dank-canvas: #121212;
-    --dank-surface: #1E1E1E;
-    --dank-elevated: #2B2238;
-    --dank-hover: #272133;
-    --dank-bubble-in: #262130;
-    --dank-accent: #A855F7;
-    --dank-accent-hover: #C084FC;
-    --dank-accent-soft: rgba(168, 85, 247, 0.18);
-    --dank-accent-border: rgba(168, 85, 247, 0.48);
-    --dank-accent-fg: #FFFFFF;
-    --dank-text: #FFFFFF;
-    --dank-muted: #A1A1AA;
-    --dank-border: rgba(168, 85, 247, 0.20);
-    --dank-border-subtle: rgba(255, 255, 255, 0.07);
-    --dank-dot: rgba(168, 85, 247, 0.13);
-    --dank-primary: #1E1E1E;
+    --dank-canvas: #040409;
+    --dank-surface: #0b0b18;
+    --dank-elevated: #14122b;
+    --dank-hover: #1d193d;
+    --dank-bubble-out: #4c1d95;
+    --dank-bubble-out-fg: #ffffff;
+    --dank-bubble-in: #0f233a;
+    --dank-bubble-in-fg: #e0f2fe;
+    --dank-accent: #a855f7;
+    --dank-accent-hover: #c084fc;
+    --dank-neon-pink: #ec4899;
+    --dank-neon-cyan: #22d3ee;
+    --dank-accent-soft: rgba(168, 85, 247, 0.22);
+    --dank-accent-border: rgba(34, 211, 238, 0.55);
+    --dank-accent-fg: #ffffff;
+    --dank-text: #f5f3ff;
+    --dank-muted: #a5b4fc;
+    --dank-border: rgba(168, 85, 247, 0.34);
+    --dank-border-subtle: rgba(236, 72, 153, 0.16);
+    --dank-dot: rgba(34, 211, 238, 0.16);
+    --dank-primary: #0b0b18;
   }
 
   [data-theme='light'] {
     color-scheme: light;
-    --dank-canvas: #F2F7FF;
-    --dank-surface: #FFFFFF;
-    --dank-elevated: #E5EFFE;
-    --dank-hover: #F8FAFD;
-    --dank-bubble-in: #EDF3FC;
-    --dank-accent: #1DB954;
-    --dank-accent-hover: #1AA34A;
-    --dank-accent-soft: rgba(29, 185, 84, 0.14);
-    --dank-accent-border: rgba(29, 185, 84, 0.38);
-    --dank-accent-fg: #000000;
-    --dank-text: #0F172A;
-    --dank-muted: #64748B;
-    --dank-border: rgba(15, 23, 42, 0.09);
-    --dank-border-subtle: rgba(15, 23, 42, 0.05);
-    --dank-dot: rgba(29, 185, 84, 0.10);
-    --dank-primary: #FFFFFF;
+    --dank-canvas: #ffffff;
+    --dank-surface: #f3f4f6;
+    --dank-elevated: #e5e7eb;
+    --dank-hover: #eff6ff;
+    --dank-bubble-out: #dbeafe;
+    --dank-bubble-out-fg: #0f172a;
+    --dank-bubble-in: #f3f4f6;
+    --dank-bubble-in-fg: #0f172a;
+    --dank-accent: #3b82f6;
+    --dank-accent-hover: #2563eb;
+    --dank-neon-pink: #60a5fa;
+    --dank-neon-cyan: #3b82f6;
+    --dank-accent-soft: #dbeafe;
+    --dank-accent-border: #93c5fd;
+    --dank-accent-fg: #ffffff;
+    --dank-text: #0f172a;
+    --dank-muted: #6b7280;
+    --dank-border: #e5e7eb;
+    --dank-border-subtle: #f3f4f6;
+    --dank-dot: rgba(148, 163, 184, 0.1);
+    --dank-primary: #ffffff;
   }
 
   * {
@@ -91,6 +61,9 @@
   html,
   body,
   #root {
+    position: fixed;
+    inset: 0;
+    width: 100%;
     height: 100%;
     margin: 0;
     padding: 0;
@@ -108,6 +81,44 @@
     font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
 
+  html[data-theme='arcade'],
+  html[data-theme='arcade'] body {
+    font-family: 'Handjet', 'Silkscreen', 'Cairo', monospace;
+    letter-spacing: 0.015em;
+  }
+
+  html[data-theme='arcade'] h1,
+  html[data-theme='arcade'] h2,
+  html[data-theme='arcade'] h3,
+  html[data-theme='arcade'] .dank-brand-wordmark {
+    font-family: 'Silkscreen', 'Handjet', 'Cairo', monospace;
+    text-shadow: 0 0 10px rgba(34, 211, 238, 0.45), 0 0 20px rgba(168, 85, 247, 0.35);
+  }
+
+  html[data-theme='arcade'] button {
+    text-shadow: 0 0 6px rgba(168, 85, 247, 0.25);
+  }
+
+  html[data-theme='arcade'] button[class*='bg-[var(--dank-accent)]'] {
+    box-shadow: 0 0 12px rgba(168, 85, 247, 0.48), 0 0 5px rgba(236, 72, 153, 0.35);
+  }
+
+  html[data-theme='arcade'] [class*='border-[var(--dank-accent)]'] {
+    box-shadow: 0 0 12px rgba(34, 211, 238, 0.26), 0 0 6px rgba(168, 85, 247, 0.24);
+  }
+
+  html[data-theme='light'] h1,
+  html[data-theme='light'] h2,
+  html[data-theme='light'] h3,
+  html[data-theme='light'] button {
+    text-shadow: none;
+  }
+
+  html[data-theme='light'] button[class*='bg-[var(--dank-accent)]'],
+  html[data-theme='light'] [class*='border-[var(--dank-accent)]'] {
+    box-shadow: none;
+  }
+
   body {
     background-color: var(--dank-canvas);
     color: var(--dank-text);
@@ -122,8 +133,31 @@
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
+  .dank-fixed-chrome {
+    touch-action: none;
+    overscroll-behavior: none;
+    -webkit-user-select: none;
+    user-select: none;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+  }
+
+  .dank-scroll-list {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    overscroll-behavior-x: none;
+    touch-action: pan-y;
+    will-change: scroll-position;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+  }
+
+  .dank-chat-card {
+    contain: layout style paint;
+  }
+
   .dank-auth-scroll {
-    height: 100vh;
+    height: 100%;
     height: 100dvh;
     overflow-y: auto;
     overflow-x: hidden;
@@ -140,6 +174,11 @@
     radial-gradient(var(--dank-border-subtle) 1px, transparent 1px);
   background-size: 26px 26px;
   background-position: 0 0, 13px 13px;
+}
+
+[data-theme='light'] .dank-chat-bg {
+  background-color: #ffffff;
+  background-image: none;
 }
 
 /* Custom sleek scrollbars */

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>DANK — تواصل بحرية</title>
     <meta name="description" content="DANK - تواصل بحرية. Real-time private messaging, communities, channels, updates, and calls." />
-    <meta name="theme-color" content="#121212" />
+    <meta name="theme-color" content="#040409" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -87,8 +87,9 @@
           document.documentElement.dir = 'rtl';
         }
         var storedTheme = localStorage.getItem('dank_theme');
-        var useDark = storedTheme === 'light' ? false : true;
-        if (useDark) {
+        var isLight = storedTheme === 'light';
+        document.documentElement.dataset.theme = isLight ? 'light' : 'arcade';
+        if (!isLight) {
           document.documentElement.classList.add('dark');
         } else {
           document.documentElement.classList.remove('dark');
@@ -97,9 +98,9 @@
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Handjet:wght@400;500;600;700&family=Poppins:wght@400;500;600;700;800&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
   </head>
-  <body class="bg-[#000000] text-white antialiased selection:bg-[#1DB954]/30">
+  <body class="bg-[#000000] text-white antialiased selection:bg-[#A855F7]/30">
     <div id="root">
       <div id="dank-boot-splash" aria-label="Welcome">
         <span id="dank-boot-hello" dir="rtl" lang="ar">مرحبًا</span>

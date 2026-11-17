@@ -54,7 +54,7 @@ export const NotificationsPage: React.FC<NotificationsPageProps> = ({
         );
       case 'comment':
         return (
-          <span className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center ring-2 ring-[var(--dank-surface)]">
+          <span className="w-5 h-5 rounded-full bg-[var(--dank-neon-cyan)] text-black flex items-center justify-center ring-2 ring-[var(--dank-surface)]">
             <MessageCircle className="w-2.5 h-2.5" />
           </span>
         );

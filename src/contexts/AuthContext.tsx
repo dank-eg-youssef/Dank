@@ -476,12 +476,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (updates.language === 'ar' || updates.language === 'en') {
         payload.language = updates.language;
       }
-      if (
-        updates.theme === 'dank-dark' ||
-        updates.theme === 'midnight-blue' ||
-        updates.theme === 'purple-neon' ||
-        updates.theme === 'light'
-      ) {
+      if (updates.theme === 'arcade' || updates.theme === 'light') {
         payload.theme = updates.theme;
       }
 

@@ -263,7 +263,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return (
       <div
         key={chat.id}
-        className={`relative rounded-[20px] overflow-hidden border transition-all duration-150 shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] ${
+        className={`dank-chat-card relative rounded-[20px] overflow-hidden border transition-colors duration-100 shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] ${
           isActive
             ? 'border-[var(--dank-accent)] ring-1 ring-[var(--dank-accent)] bg-[var(--dank-surface)]'
             : 'border-[var(--dank-border)] bg-[var(--dank-surface)]'
@@ -280,13 +280,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
           if (!touchStartRef.current || touchStartRef.current.chatId !== chat.id) return;
           const dx = e.touches[0].clientX - touchStartRef.current.x;
           const dy = e.touches[0].clientY - touchStartRef.current.y;
-          if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+          const absDx = Math.abs(dx);
+          const absDy = Math.abs(dy);
+          if (absDx > 8 || absDy > 8) {
             if (longPressTimerRef.current) {
               window.clearTimeout(longPressTimerRef.current);
               longPressTimerRef.current = null;
             }
           }
-          if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.4) {
+          if (absDy > 10 && absDy > absDx) {
+            touchStartRef.current = null;
+            return;
+          }
+          if (absDx > 40 && absDx > absDy * 1.4) {
             if (dx < -40) setSwipedChatId(chat.id);
             else if (dx > 30) setSwipedChatId(null);
           }
@@ -505,10 +511,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   return (
-    <aside className="w-full md:w-[360px] lg:w-[390px] shrink-0 h-full min-h-0 overflow-hidden flex flex-col bg-[var(--dank-canvas)] md:border-e md:border-[var(--dank-border)]">
+    <aside className="w-full md:w-[360px] lg:w-[390px] shrink-0 h-full min-h-0 overflow-hidden overscroll-none flex flex-col bg-[var(--dank-canvas)] md:border-e md:border-[var(--dank-border)]">
       {/* Front Search Card (Independent from conversations) */}
-      <div className="px-3.5 pt-3 pb-1.5 shrink-0">
-        <div className="relative rounded-[20px] bg-[var(--dank-surface)] border border-[var(--dank-border)] shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] flex items-center px-3.5 h-11 transition-all focus-within:border-[var(--dank-accent)] focus-within:ring-1 focus-within:ring-[var(--dank-accent)]">
+      <div className="px-3.5 pt-3 pb-1.5 shrink-0 dank-fixed-chrome">
+        <div className="relative rounded-[20px] bg-[var(--dank-surface)] border border-[var(--dank-border)] shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] flex items-center px-3.5 h-11 transition-[border-color,box-shadow] duration-150 focus-within:border-[var(--dank-accent)] focus-within:ring-1 focus-within:ring-[var(--dank-accent)]">
           <Search className="w-4 h-4 text-[var(--dank-muted)] shrink-0 me-2.5" />
           <input
             type="text"
@@ -516,7 +522,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             value={activeSearch}
             onChange={(e) => handleSearchChange(e.target.value)}
             placeholder={t.sidebar.searchPlaceholder}
-            className="flex-1 bg-transparent border-0 outline-none text-sm text-[var(--dank-text)] placeholder:text-[var(--dank-muted)]"
+            className="flex-1 bg-transparent border-0 outline-none text-sm text-[var(--dank-text)] placeholder:text-[var(--dank-muted)] touch-manipulation select-text"
           />
           {activeSearch && (
             <button
@@ -531,8 +537,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
 
-      {/* Main Chats List ONLY (ScrollView) */}
-      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3.5 py-2 space-y-[12px]">
+      {/* Main Chats List ONLY (GPU-Composited 60fps ScrollView) */}
+      <div className="flex-1 min-h-0 overflow-y-auto dank-scroll-list px-3.5 py-2 space-y-[12px]">
         {/* Admin Ads Banner */}
         {adsBanner?.enabled && (adsBanner.text || adsBanner.imageData) && (
           <div className="pt-0.5">

@@ -727,7 +727,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                                   onClick={() => void handleToggleBan(u)}
                                   className={`h-8 px-2.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors disabled:opacity-50 cursor-pointer whitespace-nowrap ${
                                     u.isBanned
-                                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                      ? 'bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)]'
                                       : 'bg-red-600 hover:bg-red-700 text-white'
                                   }`}
                                 >

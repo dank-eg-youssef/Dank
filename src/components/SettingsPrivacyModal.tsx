@@ -216,17 +216,14 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
                   {t.theme.appearanceTitle}
                 </span>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 gap-2.5">
                 {THEME_OPTIONS.map((opt) => {
                   const selected = theme === opt.id;
-                  const label =
-                    opt.id === 'dank-dark'
-                      ? t.theme.dankDark
-                      : opt.id === 'midnight-blue'
-                      ? t.theme.midnightBlue
-                      : opt.id === 'purple-neon'
-                      ? t.theme.purpleNeon
-                      : t.theme.lightMode;
+                  const label = opt.id === 'arcade' ? t.theme.arcade : t.theme.lightMode;
+                  const swatchBg =
+                    opt.id === 'arcade'
+                      ? 'linear-gradient(135deg, #040409 42%, #A855F7 70%, #22D3EE 100%)'
+                      : 'linear-gradient(135deg, #FFFFFF 50%, #DBEAFE 50%)';
                   return (
                     <button
                       key={opt.id}
@@ -235,19 +232,19 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
                         setTheme(opt.id);
                         void updateUserProfile({ theme: opt.id }).catch(() => {});
                       }}
-                      className={`p-2 rounded-xl border text-center flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
+                      className={`p-2.5 rounded-xl border text-center flex flex-col items-center gap-1.5 transition-colors cursor-pointer ${
                         selected
                           ? 'bg-[var(--dank-accent-soft)] border-[var(--dank-accent)]'
                           : 'bg-[var(--dank-surface)] border-[var(--dank-border)] hover:bg-[var(--dank-hover)]'
                       }`}
                     >
                       <span
-                        className="w-8 h-8 rounded-full border border-[var(--dank-border)] relative overflow-hidden"
+                        className="w-9 h-9 rounded-full border border-[var(--dank-border)] relative overflow-hidden"
                         style={{
-                          background: `linear-gradient(135deg, ${opt.canvas} 50%, ${opt.accent} 50%)`,
+                          background: swatchBg,
                         }}
                       />
-                      <span className="text-[11px] font-semibold text-[var(--dank-text)] leading-tight">
+                      <span className="text-xs font-semibold text-[var(--dank-text)] leading-tight">
                         {label}
                       </span>
                     </button>

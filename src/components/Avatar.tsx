@@ -70,6 +70,8 @@ export const Avatar: React.FC<AvatarProps> = ({
           src={cleanSrc}
           alt={name}
           loading="lazy"
+          decoding="async"
+          draggable={false}
           referrerPolicy="no-referrer"
           onError={() => setFailedSrc(cleanSrc)}
           className={`${sizeCls} rounded-full object-cover ring-1 ring-[var(--dank-border)]`}

@@ -285,15 +285,11 @@ export default function App() {
 
   const getThemeLabel = (id: AppThemeId) => {
     switch (id) {
-      case 'midnight-blue':
-        return t.theme.midnightBlue;
-      case 'purple-neon':
-        return t.theme.purpleNeon;
       case 'light':
         return t.theme.lightMode;
-      case 'dank-dark':
+      case 'arcade':
       default:
-        return t.theme.dankDark;
+        return t.theme.arcade;
     }
   };
 
@@ -1554,7 +1550,7 @@ export default function App() {
   return (
     <div
       onClick={() => setShowHeaderPlusMenu(false)}
-      className="fixed inset-0 h-[100dvh] w-full overflow-hidden bg-[var(--dank-canvas)] text-[var(--dank-text)] flex flex-col"
+      className="fixed inset-0 h-[100dvh] w-full overflow-hidden overscroll-none bg-[var(--dank-canvas)] text-[var(--dank-text)] flex flex-col"
     >
       {quotaPaused && !quotaBannerDismissed && (
         <div className="bg-amber-500/15 border-b border-amber-500/40 px-4 py-2 flex items-center justify-between gap-2 text-xs text-amber-200 shrink-0 z-30">
@@ -1575,11 +1571,11 @@ export default function App() {
           </button>
         </div>
       )}
-      {/* iPhone WhatsApp Shared Top Header (hidden on mobile when ChatWindow is open fullscreen) */}
+      {/* iPhone WhatsApp Shared Top Header (locked non-scrollable chrome) */}
       <header
         className={`${
           activeChat ? 'hidden md:flex' : 'flex'
-        } flex-col bg-[var(--dank-canvas)] border-b border-[var(--dank-border)] shrink-0 z-20`}
+        } flex-col bg-[var(--dank-canvas)] border-b border-[var(--dank-border)] shrink-0 z-30 dank-fixed-chrome`}
       >
         <div className="px-4 py-2.5 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5 min-w-0">
@@ -1750,7 +1746,7 @@ export default function App() {
                 value={headerSearchQuery}
                 onChange={(e) => setHeaderSearchQuery(e.target.value)}
                 placeholder={t.sidebar.searchPlaceholder}
-                className="w-full h-10 ps-10 pe-10 rounded-full bg-[var(--dank-elevated)] border border-[var(--dank-border)] text-base text-[var(--dank-text)] placeholder:text-[var(--dank-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)]"
+                className="w-full h-10 ps-10 pe-10 rounded-full bg-[var(--dank-elevated)] border border-[var(--dank-border)] text-base text-[var(--dank-text)] placeholder:text-[var(--dank-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)] touch-manipulation select-text"
               />
               {headerSearchQuery && (
                 <button
@@ -1809,7 +1805,7 @@ export default function App() {
           <div
             className={`${
               activeChat ? 'hidden md:flex' : 'flex'
-            } w-full md:w-[360px] lg:w-[390px] shrink-0 h-full min-h-0 flex-col bg-[var(--dank-canvas)] md:border-e md:border-[var(--dank-border)] overflow-y-auto overscroll-contain`}
+            } w-full md:w-[360px] lg:w-[390px] shrink-0 h-full min-h-0 flex-col bg-[var(--dank-canvas)] md:border-e md:border-[var(--dank-border)] overflow-y-auto dank-scroll-list`}
           >
             {/* Stories / Status Row */}
             <StoriesBar
@@ -1926,7 +1922,7 @@ export default function App() {
           <div
             className={`${
               activeChat ? 'hidden md:flex' : 'flex'
-            } w-full md:w-[360px] lg:w-[390px] shrink-0 h-full min-h-0 flex-col bg-[var(--dank-canvas)] md:border-e md:border-[var(--dank-border)] overflow-y-auto overscroll-contain`}
+            } w-full md:w-[360px] lg:w-[390px] shrink-0 h-full min-h-0 flex-col bg-[var(--dank-canvas)] md:border-e md:border-[var(--dank-border)] overflow-y-auto dank-scroll-list`}
           >
             <div className="p-4 space-y-4">
               <div className="flex items-center justify-between gap-2">
@@ -2101,7 +2097,7 @@ export default function App() {
 
         {/* TAB 4: CALLS (Voice Calls ONLY) */}
         {mainTab === 'calls' && (
-          <div className="flex-1 h-full min-h-0 overflow-y-auto overscroll-contain bg-[var(--dank-canvas)] p-4">
+          <div className="flex-1 h-full min-h-0 overflow-y-auto dank-scroll-list bg-[var(--dank-canvas)] p-4">
             <div className="max-w-2xl mx-auto space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-bold text-[var(--dank-text)]">
@@ -2212,7 +2208,7 @@ export default function App() {
 
         {/* TAB 5: SETTINGS (Exact iPhone WhatsApp Settings Layout + Appearance 4 Themes) */}
         {mainTab === 'settings' && (
-          <div className="flex-1 h-full min-h-0 overflow-y-auto overscroll-contain bg-[var(--dank-canvas)] p-4 pb-8">
+          <div className="flex-1 h-full min-h-0 overflow-y-auto dank-scroll-list bg-[var(--dank-canvas)] p-4 pb-8">
             <div className="max-w-2xl mx-auto space-y-4">
               {/* Top Profile Card: Photo + Name + About */}
               <button
@@ -2267,15 +2263,19 @@ export default function App() {
                   <ChevronRight className="w-4 h-4 text-[var(--dank-muted)] rtl:rotate-180 shrink-0" />
                 </button>
 
-                <div className="grid grid-cols-4 gap-2 pt-1">
+                <div className="grid grid-cols-2 gap-3 pt-1">
                   {THEME_OPTIONS.map((opt) => {
                     const active = theme === opt.id;
+                    const swatchBg =
+                      opt.id === 'arcade'
+                        ? 'linear-gradient(135deg, #040409 42%, #A855F7 70%, #22D3EE 100%)'
+                        : 'linear-gradient(135deg, #FFFFFF 50%, #DBEAFE 50%)';
                     return (
                       <button
                         key={opt.id}
                         type="button"
                         onClick={() => handleSelectTheme(opt.id)}
-                        className={`p-2 rounded-2xl border flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
+                        className={`p-3 rounded-2xl border flex flex-col items-center gap-2 transition-colors cursor-pointer ${
                           active
                             ? 'bg-[var(--dank-accent-soft)] border-[var(--dank-accent)] shadow-xs'
                             : 'bg-[var(--dank-canvas)] border-[var(--dank-border)] hover:border-[var(--dank-muted)]'
@@ -2285,7 +2285,7 @@ export default function App() {
                           className="relative w-11 h-11 rounded-full border-2 shadow-sm overflow-hidden flex items-center justify-center transition-transform active:scale-95"
                           style={{
                             borderColor: active ? opt.accent : 'var(--dank-border)',
-                            background: `linear-gradient(135deg, ${opt.canvas} 50%, ${opt.accent} 50%)`,
+                            background: swatchBg,
                           }}
                         >
                           {active && (
@@ -2294,7 +2294,7 @@ export default function App() {
                             </span>
                           )}
                         </span>
-                        <span className="text-[11px] font-semibold text-[var(--dank-text)] text-center leading-tight line-clamp-2">
+                        <span className="text-xs font-semibold text-[var(--dank-text)] text-center leading-tight">
                           {getThemeLabel(opt.id)}
                         </span>
                       </button>
@@ -2515,12 +2515,12 @@ export default function App() {
         )}
       </div>
 
-      {/* Persistent iPhone WhatsApp 5-Tab Bottom Bar with Independent Round Cards */}
+      {/* Persistent iPhone WhatsApp 5-Tab Bottom Bar with Independent Round Cards (locked non-scrollable chrome) */}
       <nav
         aria-label={t.tabs.chats}
         className={`${
           activeChat ? 'hidden md:grid' : 'grid'
-        } grid-cols-5 items-stretch gap-1.5 sm:gap-2 bg-[var(--dank-canvas)] border-t border-[var(--dank-border)]/50 px-2 py-2 pb-safe shrink-0 z-20`}
+        } grid-cols-5 items-stretch gap-1.5 sm:gap-2 bg-[var(--dank-canvas)] border-t border-[var(--dank-border)]/50 px-2 py-2 pb-safe shrink-0 z-30 dank-fixed-chrome`}
       >
         <button
           type="button"
@@ -2528,7 +2528,7 @@ export default function App() {
             setViewedProfileUser(null);
             setMainTab('chats');
           }}
-          className={`relative rounded-[20px] overflow-hidden border min-h-[54px] py-1.5 px-1 flex flex-col items-center justify-center gap-0.5 transition-all duration-150 cursor-pointer shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] select-none active:scale-[0.98] ${
+          className={`relative rounded-[20px] overflow-hidden border min-h-[54px] py-1.5 px-1 flex flex-col items-center justify-center gap-0.5 transition-[transform,border-color,color] duration-150 cursor-pointer shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] select-none active:scale-[0.98] ${
             mainTab === 'chats'
               ? 'border-[var(--dank-accent)] ring-1 ring-[var(--dank-accent)] bg-[var(--dank-surface)] text-[var(--dank-accent)]'
               : 'border-[var(--dank-border)] bg-[var(--dank-surface)] text-[var(--dank-muted)] hover:text-[var(--dank-text)] hover:border-[var(--dank-border-strong)]'
@@ -2551,7 +2551,7 @@ export default function App() {
             setViewedProfileUser(null);
             setMainTab('updates');
           }}
-          className={`relative rounded-[20px] overflow-hidden border min-h-[54px] py-1.5 px-1 flex flex-col items-center justify-center gap-0.5 transition-all duration-150 cursor-pointer shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] select-none active:scale-[0.98] ${
+          className={`relative rounded-[20px] overflow-hidden border min-h-[54px] py-1.5 px-1 flex flex-col items-center justify-center gap-0.5 transition-[transform,border-color,color] duration-150 cursor-pointer shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] select-none active:scale-[0.98] ${
             mainTab === 'updates'
               ? 'border-[var(--dank-accent)] ring-1 ring-[var(--dank-accent)] bg-[var(--dank-surface)] text-[var(--dank-accent)]'
               : 'border-[var(--dank-border)] bg-[var(--dank-surface)] text-[var(--dank-muted)] hover:text-[var(--dank-text)] hover:border-[var(--dank-border-strong)]'
@@ -2567,7 +2567,7 @@ export default function App() {
             setViewedProfileUser(null);
             setMainTab('communities');
           }}
-          className={`relative rounded-[20px] overflow-hidden border min-h-[54px] py-1.5 px-1 flex flex-col items-center justify-center gap-0.5 transition-all duration-150 cursor-pointer shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] select-none active:scale-[0.98] ${
+          className={`relative rounded-[20px] overflow-hidden border min-h-[54px] py-1.5 px-1 flex flex-col items-center justify-center gap-0.5 transition-[transform,border-color,color] duration-150 cursor-pointer shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] select-none active:scale-[0.98] ${
             mainTab === 'communities'
               ? 'border-[var(--dank-accent)] ring-1 ring-[var(--dank-accent)] bg-[var(--dank-surface)] text-[var(--dank-accent)]'
               : 'border-[var(--dank-border)] bg-[var(--dank-surface)] text-[var(--dank-muted)] hover:text-[var(--dank-text)] hover:border-[var(--dank-border-strong)]'
@@ -2583,7 +2583,7 @@ export default function App() {
             setViewedProfileUser(null);
             setMainTab('calls');
           }}
-          className={`relative rounded-[20px] overflow-hidden border min-h-[54px] py-1.5 px-1 flex flex-col items-center justify-center gap-0.5 transition-all duration-150 cursor-pointer shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] select-none active:scale-[0.98] ${
+          className={`relative rounded-[20px] overflow-hidden border min-h-[54px] py-1.5 px-1 flex flex-col items-center justify-center gap-0.5 transition-[transform,border-color,color] duration-150 cursor-pointer shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] select-none active:scale-[0.98] ${
             mainTab === 'calls'
               ? 'border-[var(--dank-accent)] ring-1 ring-[var(--dank-accent)] bg-[var(--dank-surface)] text-[var(--dank-accent)]'
               : 'border-[var(--dank-border)] bg-[var(--dank-surface)] text-[var(--dank-muted)] hover:text-[var(--dank-text)] hover:border-[var(--dank-border-strong)]'
@@ -2599,7 +2599,7 @@ export default function App() {
             setViewedProfileUser(null);
             setMainTab('settings');
           }}
-          className={`relative rounded-[20px] overflow-hidden border min-h-[54px] py-1.5 px-1 flex flex-col items-center justify-center gap-0.5 transition-all duration-150 cursor-pointer shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] select-none active:scale-[0.98] ${
+          className={`relative rounded-[20px] overflow-hidden border min-h-[54px] py-1.5 px-1 flex flex-col items-center justify-center gap-0.5 transition-[transform,border-color,color] duration-150 cursor-pointer shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] select-none active:scale-[0.98] ${
             mainTab === 'settings'
               ? 'border-[var(--dank-accent)] ring-1 ring-[var(--dank-accent)] bg-[var(--dank-surface)] text-[var(--dank-accent)]'
               : 'border-[var(--dank-border)] bg-[var(--dank-surface)] text-[var(--dank-muted)] hover:text-[var(--dank-text)] hover:border-[var(--dank-border-strong)]'
@@ -2730,6 +2730,10 @@ export default function App() {
             <div className="p-3 space-y-2">
               {THEME_OPTIONS.map((opt) => {
                 const active = theme === opt.id;
+                const swatchBg =
+                  opt.id === 'arcade'
+                    ? 'linear-gradient(135deg, #040409 42%, #A855F7 70%, #22D3EE 100%)'
+                    : 'linear-gradient(135deg, #FFFFFF 50%, #DBEAFE 50%)';
                 return (
                   <button
                     key={opt.id}
@@ -2748,7 +2752,7 @@ export default function App() {
                       <span
                         className="w-9 h-9 rounded-full border border-[var(--dank-border)] shrink-0 shadow-xs"
                         style={{
-                          background: `linear-gradient(135deg, ${opt.canvas} 50%, ${opt.accent} 50%)`,
+                          background: swatchBg,
                         }}
                       />
                       <span className="text-sm font-semibold text-[var(--dank-text)] truncate">

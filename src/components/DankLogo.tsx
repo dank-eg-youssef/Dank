@@ -41,21 +41,21 @@ export const DankLogo: React.FC<DankLogoProps> = ({
 
         {/* Paper Plane Main Wing Gradient */}
         <linearGradient id={`${id}-wing1`} x1="174" y1="184" x2="342" y2="330" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="var(--dank-accent, #1DB954)" />
-          <stop offset="100%" stopColor="#22C55E" />
+          <stop offset="0%" stopColor="var(--dank-neon-cyan, #22D3EE)" />
+          <stop offset="100%" stopColor="var(--dank-accent, #A855F7)" />
         </linearGradient>
 
         {/* Paper Plane Fold Shadow Gradient */}
         <linearGradient id={`${id}-wing2`} x1="237" y1="184" x2="342" y2="339" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#15803D" />
-          <stop offset="100%" stopColor="var(--dank-accent-hover, #169C46)" />
+          <stop offset="0%" stopColor="var(--dank-accent, #A855F7)" />
+          <stop offset="100%" stopColor="var(--dank-neon-pink, #EC4899)" />
         </linearGradient>
 
         {/* Subtle Ambient Radial Glow */}
         <radialGradient id={`${id}-glow`} cx="256" cy="256" r="220" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="var(--dank-accent, #1DB954)" stopOpacity="0.22" />
-          <stop offset="70%" stopColor="var(--dank-accent, #1DB954)" stopOpacity="0.04" />
-          <stop offset="100%" stopColor="var(--dank-accent, #1DB954)" stopOpacity="0" />
+          <stop offset="0%" stopColor="var(--dank-accent, #A855F7)" stopOpacity="0.26" />
+          <stop offset="70%" stopColor="var(--dank-neon-cyan, #22D3EE)" stopOpacity="0.06" />
+          <stop offset="100%" stopColor="var(--dank-accent, #A855F7)" stopOpacity="0" />
         </radialGradient>
       </defs>
 
@@ -67,7 +67,7 @@ export const DankLogo: React.FC<DankLogoProps> = ({
         height="488"
         rx="124"
         fill={`url(#${id}-bg)`}
-        stroke="var(--dank-border, rgba(255,255,255,0.08))"
+        stroke="var(--dank-border, rgba(168,85,247,0.34))"
         strokeWidth="12"
       />
 
@@ -80,16 +80,16 @@ export const DankLogo: React.FC<DankLogoProps> = ({
         cy="256"
         r="180"
         fill="none"
-        stroke="var(--dank-accent, #1DB954)"
+        stroke="var(--dank-neon-cyan, #22D3EE)"
         strokeWidth="10"
-        strokeOpacity="0.3"
+        strokeOpacity="0.32"
       />
 
       {/* Chat Bubble Silhouette */}
       <path
         d="M256 108c-81.7 0-148 66.3-148 148 0 31.3 9.7 60.4 26.3 84.3L116 396l57.7-17.8c23.7 15.1 51.9 23.8 82.3 23.8 81.7 0 148-66.3 148-148S337.7 108 256 108Z"
-        fill="var(--dank-canvas, #121212)"
-        stroke="var(--dank-accent, #1DB954)"
+        fill="var(--dank-canvas, #040409)"
+        stroke="var(--dank-accent, #A855F7)"
         strokeWidth="20"
         strokeLinejoin="round"
       />
@@ -107,7 +107,7 @@ export const DankLogo: React.FC<DankLogoProps> = ({
       {/* Crisp Center Wing Crease */}
       <path
         d="M174 252l63 22"
-        stroke="rgba(255,255,255,0.55)"
+        stroke="rgba(255,255,255,0.6)"
         strokeWidth="4"
         strokeLinecap="round"
       />
@@ -121,7 +121,7 @@ export const DankLogo: React.FC<DankLogoProps> = ({
       {svgEl}
       <div className="flex items-center gap-1 select-none">
         <span
-          className={`font-black tracking-[-0.03em] text-[var(--dank-text)] leading-none ${
+          className={`dank-brand-wordmark font-black tracking-[-0.03em] text-[var(--dank-text)] leading-none ${
             textClassName || 'text-[22px] sm:text-[24px]'
           }`}
         >

@@ -8,51 +8,44 @@ export interface ThemePresetMeta {
   canvas: string;
   surface: string;
   accent: string;
+  secondaryAccent?: string;
   isDark: boolean;
 }
 
 export const THEME_OPTIONS: ThemePresetMeta[] = [
   {
-    id: 'dank-dark',
-    canvas: '#121212',
-    surface: '#1E1E1E',
-    accent: '#1DB954',
-    isDark: true,
-  },
-  {
-    id: 'midnight-blue',
-    canvas: '#0A1628',
-    surface: '#11223D',
-    accent: '#2E86FF',
-    isDark: true,
-  },
-  {
-    id: 'purple-neon',
-    canvas: '#121212',
-    surface: '#1E1E1E',
+    id: 'arcade',
+    canvas: '#040409',
+    surface: '#0B0B16',
     accent: '#A855F7',
+    secondaryAccent: '#22D3EE',
     isDark: true,
   },
   {
     id: 'light',
-    canvas: '#F2F7FF',
-    surface: '#FFFFFF',
-    accent: '#1DB954',
+    canvas: '#FFFFFF',
+    surface: '#F4F5F7',
+    accent: '#3B82F6',
+    secondaryAccent: '#DBEAFE',
     isDark: false,
   },
 ];
 
-const VALID_THEME_IDS = new Set<AppThemeId>([
-  'dank-dark',
-  'midnight-blue',
-  'purple-neon',
-  'light',
-]);
+const VALID_THEME_IDS = new Set<AppThemeId>(['arcade', 'light']);
 
 const THEME_STORAGE_KEY = 'dank_theme';
 
 export function normalizeThemeId(raw: unknown): AppThemeId | null {
-  if (raw === 'dark') return 'dank-dark';
+  if (raw === 'light') return 'light';
+  if (
+    raw === 'arcade' ||
+    raw === 'dark' ||
+    raw === 'dank-dark' ||
+    raw === 'midnight-blue' ||
+    raw === 'purple-neon'
+  ) {
+    return 'arcade';
+  }
   if (typeof raw === 'string' && VALID_THEME_IDS.has(raw as AppThemeId)) {
     return raw as AppThemeId;
   }
@@ -74,7 +67,7 @@ function resolveInitialTheme(): AppThemeId {
     const saved = localStorage.getItem(THEME_STORAGE_KEY);
     const normalized = normalizeThemeId(saved);
     if (normalized) {
-      if (saved === 'dark') {
+      if (saved !== normalized) {
         localStorage.setItem(THEME_STORAGE_KEY, normalized);
       }
       return normalized;
@@ -82,7 +75,7 @@ function resolveInitialTheme(): AppThemeId {
   } catch {
     // ignore storage access issues
   }
-  return 'dank-dark';
+  return 'arcade';
 }
 
 function applyThemeToDocument(theme: AppThemeId): void {
@@ -110,7 +103,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [theme]);
 
   const setTheme = useCallback((next: AppThemeId) => {
-    const normalized = normalizeThemeId(next) || 'dank-dark';
+    const normalized = normalizeThemeId(next) || 'arcade';
     setThemeState(normalized);
     applyThemeToDocument(normalized);
     try {
@@ -136,7 +129,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   );
 
   const toggleTheme = useCallback(() => {
-    setTheme(theme === 'light' ? 'dank-dark' : 'light');
+    setTheme(theme === 'light' ? 'arcade' : 'light');
   }, [setTheme, theme]);
 
   const value = useMemo<ThemeContextValue>(

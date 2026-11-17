@@ -1385,8 +1385,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                       msg.type === 'sticker'
                         ? 'bg-transparent !p-0 shadow-none'
                         : isMine
-                        ? 'min-w-[120px] rounded-[12px] rounded-ee-[2px] py-[12px] px-[16px] drop-shadow-[0_1px_2px_rgba(0,0,0,0.08)] bg-[var(--dank-accent)] text-[var(--dank-accent-fg)]'
-                        : 'min-w-[120px] rounded-[12px] rounded-es-[2px] py-[12px] px-[16px] drop-shadow-[0_1px_2px_rgba(0,0,0,0.08)] bg-[var(--dank-surface)] text-[var(--dank-text)]'
+                        ? 'min-w-[120px] rounded-[12px] rounded-ee-[2px] py-[12px] px-[16px] bg-[var(--dank-bubble-out)] text-[var(--dank-bubble-out-fg)] dark:shadow-[0_0_12px_rgba(168,85,247,0.28)]'
+                        : 'min-w-[120px] rounded-[12px] rounded-es-[2px] py-[12px] px-[16px] bg-[var(--dank-bubble-in)] text-[var(--dank-bubble-in-fg)] dark:shadow-[0_0_10px_rgba(34,211,238,0.18)]'
                     } ${isSearchMatch ? 'ring-2 ring-[var(--dank-accent)] rounded-[12px]' : ''}`}
                   >
                     {/* Small Triangle Tail at Bottom Corner of Bubble */}
@@ -1397,8 +1397,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         aria-hidden="true"
                         className={`pointer-events-none absolute bottom-0 w-[9px] h-[11px] ${
                           isMine
-                            ? '-end-[7px] text-[var(--dank-accent)] rtl:-scale-x-100'
-                            : '-start-[7px] text-[var(--dank-surface)] -scale-x-100 rtl:scale-x-100'
+                            ? '-end-[7px] text-[var(--dank-bubble-out)] rtl:-scale-x-100'
+                            : '-start-[7px] text-[var(--dank-bubble-in)] -scale-x-100 rtl:scale-x-100'
                         }`}
                       >
                         <path d="M0 1 L9 11 L0 11 Z" fill="currentColor" />
@@ -1619,7 +1619,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         {msg.expiresAt && (
                           <Timer
                             className={`w-3 h-3 ${
-                              msg.type === 'sticker' ? 'text-[#1DB954]' : ''
+                              msg.type === 'sticker' ? 'text-[var(--dank-accent)]' : ''
                             }`}
                             aria-label="Self-destruct"
                           />
