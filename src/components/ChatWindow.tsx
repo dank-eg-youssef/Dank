@@ -1312,6 +1312,15 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           }, {});
           const myReaction = msgReactions.find((r) => r.uid === currentUser.uid)?.emoji;
           const displayText = getDisplayText(msg);
+          const isRtl =
+            /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/.test(displayText) ||
+            (language === 'ar' && !/^[a-zA-Z]/.test(displayText));
+          const spacerClass =
+            chat.type === 'channel'
+              ? (msg.isEdited ? 'w-[105px]' : 'w-[80px]')
+              : isMine
+              ? (msg.isEdited ? 'w-[92px]' : 'w-[64px]')
+              : (msg.isEdited ? 'w-[76px]' : 'w-[48px]');
           const isSearchMatch =
             Boolean(searchQuery.trim()) &&
             displayText.toLowerCase().includes(searchQuery.trim().toLowerCase());
@@ -1378,13 +1387,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         setActiveActionMsgId((cur) => (cur === msg.id ? null : msg.id));
                       }
                     }}
-                    className={`relative max-w-[84%] sm:max-w-[70%] cursor-pointer transition-shadow ${
+                    className={`relative w-fit max-w-[75%] cursor-pointer transition-shadow ${
                       msg.type === 'sticker'
-                        ? 'bg-transparent px-1 py-0.5'
+                        ? 'bg-transparent !p-0 shadow-none'
                         : isMine
-                        ? 'rounded-[20px] px-3.5 py-2 shadow-xs bg-[var(--dank-accent)] text-[var(--dank-accent-fg)] rounded-ee-md'
-                        : 'rounded-[20px] px-3.5 py-2 shadow-xs bg-[var(--dank-bubble-in)] text-[var(--dank-text)] border border-[var(--dank-border-subtle)] rounded-es-md'
-                    } ${isSearchMatch ? 'ring-2 ring-[var(--dank-accent)] rounded-2xl' : ''}`}
+                        ? 'rounded-[18px] py-[12px] px-[16px] shadow-xs bg-[var(--dank-accent)] text-[var(--dank-accent-fg)]'
+                        : 'rounded-[18px] py-[12px] px-[16px] shadow-xs bg-[var(--dank-bubble-in)] text-[var(--dank-text)] border border-[var(--dank-border-subtle)]'
+                    } ${isSearchMatch ? 'ring-2 ring-[var(--dank-accent)] rounded-[18px]' : ''}`}
                   >
                     {/* Sender Name & Badges */}
                     {!isMine &&
@@ -1538,82 +1547,109 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                       </div>
                     )}
 
-                    {/* Message Text (with Inline DANK 3D Glossy Emojis) */}
+                    {/* Message Text with WhatsApp-Style Spacer & Positioned Meta */}
                     {msg.type !== 'sticker' && displayText && (
-                      <p
-                        dir="auto"
-                        className="text-[15px] leading-snug whitespace-pre-wrap break-words"
-                      >
-                        <RichEmojiText text={displayText} />
-                      </p>
+                      <div dir={isRtl ? 'rtl' : 'ltr'} className="relative">
+                        <p className="text-[15px] leading-relaxed break-normal [overflow-wrap:break-word] whitespace-pre-wrap text-start select-text">
+                          <RichEmojiText text={displayText} />
+                          {/* Invisible inline spacer reserving room for the timestamp & ticks on the last line */}
+                          <span
+                            className={`inline-block pointer-events-none select-none ${spacerClass} h-[15px] ms-1.5 align-baseline`}
+                            aria-hidden="true"
+                          />
+                        </p>
+
+                        {/* Metadata positioned at the bottom-end of the text box */}
+                        <div
+                          className={`absolute bottom-0 end-0 flex items-center gap-1.5 select-none whitespace-nowrap ${
+                            isMine ? 'text-[var(--dank-accent-fg)]/75' : 'text-[var(--dank-muted)]'
+                          }`}
+                        >
+                          {chat.type === 'channel' && (
+                            <span className="inline-flex items-center gap-0.5 text-[10px] tabular-nums">
+                              <Eye className="w-3 h-3" />
+                              {msg.viewCount || 1}
+                            </span>
+                          )}
+
+                          {msg.expiresAt && (
+                            <Timer
+                              className={`w-3 h-3 ${
+                                isMine ? 'text-[var(--dank-accent-fg)]/85' : 'text-[var(--dank-accent)]'
+                              }`}
+                              aria-label="Self-destruct"
+                            />
+                          )}
+
+                          {msg.isEdited && (
+                            <span className="text-[10px] italic">{t.telegram.edited}</span>
+                          )}
+
+                          <span className="text-[10.5px] font-medium tabular-nums">
+                            {formatMessageTime(msg.createdAt, language)}
+                          </span>
+
+                          {isMine && (
+                            <MessageStatusTicks status={msg.status} onSpotifyBubble={true} />
+                          )}
+                        </div>
+                      </div>
                     )}
 
-                    {/* Bottom Meta Row: Views (channels) + Edited + Self-Destruct + Time + Ticks */}
-                    <div
-                      className={`mt-1 flex items-center justify-end gap-1.5 select-none ${
-                        msg.type === 'sticker'
-                          ? 'px-2.5 py-0.5 rounded-full bg-black/65 text-white w-fit ms-auto backdrop-blur-xs'
-                          : ''
-                      }`}
-                    >
-                      {chat.type === 'channel' && (
-                        <span
-                          className={`inline-flex items-center gap-0.5 text-[10px] tabular-nums ${
-                            msg.type === 'sticker'
-                              ? 'text-white/85'
-                              : isMine
-                              ? 'opacity-70'
-                              : 'text-[var(--dank-muted)]'
-                          }`}
-                        >
-                          <Eye className="w-3 h-3" />
-                          {msg.viewCount || 1}
-                        </span>
-                      )}
-
-                      {msg.expiresAt && (
-                        <Timer
-                          className={`w-3 h-3 ${
-                            msg.type === 'sticker'
-                              ? 'text-[#1DB954]'
-                              : isMine
-                              ? 'opacity-75'
-                              : 'text-[var(--dank-accent)]'
-                          }`}
-                          aria-label="Self-destruct"
-                        />
-                      )}
-
-                      {msg.isEdited && (
-                        <span
-                          className={`text-[10px] italic ${
-                            msg.type === 'sticker'
-                              ? 'text-white/80'
-                              : isMine
-                              ? 'opacity-70'
-                              : 'text-[var(--dank-muted)]'
-                          }`}
-                        >
-                          {t.telegram.edited}
-                        </span>
-                      )}
-
-                      <span
-                        className={`text-[10px] font-medium tabular-nums ${
+                    {/* Fallback Meta Row for Media or Stickers without text */}
+                    {(!displayText || msg.type === 'sticker') && (
+                      <div
+                        className={`mt-1 flex items-center justify-end gap-1.5 select-none ${
                           msg.type === 'sticker'
-                            ? 'text-white/90'
+                            ? 'px-2.5 py-0.5 rounded-full bg-black/65 text-white w-fit ms-auto backdrop-blur-xs'
                             : isMine
-                            ? 'opacity-75'
+                            ? 'text-[var(--dank-accent-fg)]/75'
                             : 'text-[var(--dank-muted)]'
                         }`}
                       >
-                        {formatMessageTime(msg.createdAt, language)}
-                      </span>
+                        {chat.type === 'channel' && (
+                          <span
+                            className={`inline-flex items-center gap-0.5 text-[10px] tabular-nums ${
+                              msg.type === 'sticker' ? 'text-white/85' : ''
+                            }`}
+                          >
+                            <Eye className="w-3 h-3" />
+                            {msg.viewCount || 1}
+                          </span>
+                        )}
 
-                      {isMine && (
-                        <MessageStatusTicks status={msg.status} onSpotifyBubble={true} />
-                      )}
-                    </div>
+                        {msg.expiresAt && (
+                          <Timer
+                            className={`w-3 h-3 ${
+                              msg.type === 'sticker'
+                                ? 'text-[#1DB954]'
+                                : isMine
+                                ? 'text-[var(--dank-accent-fg)]/85'
+                                : 'text-[var(--dank-accent)]'
+                            }`}
+                            aria-label="Self-destruct"
+                          />
+                        )}
+
+                        {msg.isEdited && (
+                          <span className={`text-[10px] italic ${msg.type === 'sticker' ? 'text-white/80' : ''}`}>
+                            {t.telegram.edited}
+                          </span>
+                        )}
+
+                        <span
+                          className={`text-[10px] font-medium tabular-nums ${
+                            msg.type === 'sticker' ? 'text-white/90' : ''
+                          }`}
+                        >
+                          {formatMessageTime(msg.createdAt, language)}
+                        </span>
+
+                        {isMine && (
+                          <MessageStatusTicks status={msg.status} onSpotifyBubble={true} />
+                        )}
+                      </div>
+                    )}
 
                     {/* Quick Action Floating Bar */}
                     {activeActionMsgId === msg.id && (
@@ -1776,7 +1812,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         {/* Pending Scheduled Messages in this chat */}
         {chatScheduledMessages.map((sched) => (
           <div key={sched.id} className="flex flex-col items-end">
-            <div className="max-w-[85%] sm:max-w-[70%] rounded-2xl rounded-ee-md bg-[var(--dank-surface)] border border-dashed border-[var(--dank-accent)] px-3.5 py-2.5 shadow-sm space-y-1.5">
+            <div className="w-fit max-w-[75%] rounded-[18px] py-[12px] px-[16px] bg-[var(--dank-surface)] border border-dashed border-[var(--dank-accent)] shadow-sm space-y-1.5">
               <div className="flex items-center gap-1.5 text-[11px] font-bold text-[var(--dank-accent)]">
                 <Clock className="w-3.5 h-3.5 shrink-0" />
                 <span>
