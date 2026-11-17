@@ -7,12 +7,14 @@ interface MessageStatusTicksProps {
   status?: MessageStatus | '';
   onDarkBubble?: boolean;
   onSpotifyBubble?: boolean;
+  inheritColor?: boolean;
 }
 
 export const MessageStatusTicks: React.FC<MessageStatusTicksProps> = ({
   status,
   onDarkBubble = false,
   onSpotifyBubble = false,
+  inheritColor = false,
 }) => {
   const { t } = useLanguage();
   if (!status) return null;
@@ -22,7 +24,9 @@ export const MessageStatusTicks: React.FC<MessageStatusTicksProps> = ({
       <span title={t.chat.statusSent} className="inline-flex items-center">
         <Check
           className={`w-3.5 h-3.5 stroke-[2.25] ${
-            onSpotifyBubble
+            inheritColor
+              ? 'text-current'
+              : onSpotifyBubble
               ? 'text-[var(--dank-accent-fg)] opacity-65'
               : onDarkBubble
               ? 'text-[var(--dank-muted)]'
@@ -38,7 +42,9 @@ export const MessageStatusTicks: React.FC<MessageStatusTicksProps> = ({
       <span title={t.chat.statusDelivered} className="inline-flex items-center">
         <CheckCheck
           className={`w-4 h-4 stroke-[2.25] ${
-            onSpotifyBubble
+            inheritColor
+              ? 'text-current'
+              : onSpotifyBubble
               ? 'text-[var(--dank-accent-fg)] opacity-65'
               : onDarkBubble
               ? 'text-[var(--dank-muted)]'
@@ -53,7 +59,11 @@ export const MessageStatusTicks: React.FC<MessageStatusTicksProps> = ({
     <span title={t.chat.statusSeen} className="inline-flex items-center">
       <CheckCheck
         className={`w-4 h-4 stroke-[2.5] ${
-          onSpotifyBubble ? 'text-[var(--dank-accent-fg)]' : 'text-[var(--dank-accent)]'
+          inheritColor
+            ? 'text-current'
+            : onSpotifyBubble
+            ? 'text-[var(--dank-accent-fg)]'
+            : 'text-[var(--dank-accent)]'
         }`}
       />
     </span>
