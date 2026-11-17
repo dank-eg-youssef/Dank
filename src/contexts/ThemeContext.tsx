@@ -52,6 +52,31 @@ export function normalizeThemeId(raw: unknown): AppThemeId | null {
   return null;
 }
 
+function readStoredTheme(): AppThemeId | null {
+  try {
+    if (typeof window === 'undefined') return null;
+    const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
+    if (!saved) return null;
+    const normalized = normalizeThemeId(saved);
+    if (normalized && saved !== normalized) {
+      window.localStorage.setItem(THEME_STORAGE_KEY, normalized);
+    }
+    return normalized;
+  } catch {
+    return null;
+  }
+}
+
+function persistThemeToStorage(theme: AppThemeId): void {
+  try {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+    }
+  } catch {
+    // ignore storage errors
+  }
+}
+
 interface ThemeContextValue {
   theme: AppThemeId;
   isDark: boolean;
@@ -63,26 +88,17 @@ interface ThemeContextValue {
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
 function resolveInitialTheme(): AppThemeId {
-  try {
-    const saved = localStorage.getItem(THEME_STORAGE_KEY);
-    const normalized = normalizeThemeId(saved);
-    if (normalized) {
-      if (saved !== normalized) {
-        localStorage.setItem(THEME_STORAGE_KEY, normalized);
-      }
-      return normalized;
-    }
-  } catch {
-    // ignore storage access issues
-  }
-  return 'arcade';
+  return readStoredTheme() || 'arcade';
 }
 
 function applyThemeToDocument(theme: AppThemeId): void {
   if (typeof document === 'undefined') return;
   const html = document.documentElement;
-  html.dataset.theme = theme;
   const isDark = theme !== 'light';
+  const preset = THEME_OPTIONS.find((t) => t.id === theme) || THEME_OPTIONS[0];
+  html.dataset.theme = theme;
+  html.style.colorScheme = isDark ? 'dark' : 'light';
+  html.style.backgroundColor = preset.canvas;
   if (isDark) {
     html.classList.add('dark');
   } else {
@@ -90,10 +106,12 @@ function applyThemeToDocument(theme: AppThemeId): void {
   }
   const metaTheme = document.querySelector('meta[name="theme-color"]');
   if (metaTheme) {
-    const preset = THEME_OPTIONS.find((t) => t.id === theme) || THEME_OPTIONS[0];
     metaTheme.setAttribute('content', preset.canvas);
   }
 }
+
+// Apply saved theme immediately before React mounts any screens
+applyThemeToDocument(resolveInitialTheme());
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [theme, setThemeState] = useState<AppThemeId>(() => resolveInitialTheme());
@@ -102,28 +120,35 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     applyThemeToDocument(theme);
   }, [theme]);
 
+  useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key !== THEME_STORAGE_KEY) return;
+      const normalized = normalizeThemeId(e.newValue);
+      if (normalized) {
+        setThemeState(normalized);
+        applyThemeToDocument(normalized);
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
+
   const setTheme = useCallback((next: AppThemeId) => {
     const normalized = normalizeThemeId(next) || 'arcade';
-    setThemeState(normalized);
+    persistThemeToStorage(normalized);
     applyThemeToDocument(normalized);
-    try {
-      localStorage.setItem(THEME_STORAGE_KEY, normalized);
-    } catch {
-      // ignore storage errors
-    }
+    setThemeState(normalized);
   }, []);
 
   const hydrateThemeFromProfile = useCallback(
     (serverTheme?: AppThemeId | string | null) => {
+      // Never override an explicitly saved local preference with stale server/cache profile data
+      if (readStoredTheme() !== null) return;
       const normalized = normalizeThemeId(serverTheme);
       if (!normalized) return;
-      setThemeState(normalized);
+      persistThemeToStorage(normalized);
       applyThemeToDocument(normalized);
-      try {
-        localStorage.setItem(THEME_STORAGE_KEY, normalized);
-      } catch {
-        // ignore storage errors
-      }
+      setThemeState(normalized);
     },
     []
   );

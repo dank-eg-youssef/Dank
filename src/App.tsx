@@ -250,7 +250,6 @@ export default function App() {
   const [quotaBannerDismissed, setQuotaBannerDismissed] = useState(false);
   const toastTimerRef = useRef<number | null>(null);
   const swRegRef = useRef<ServiceWorkerRegistration | null>(null);
-  const lastHydratedThemeRef = useRef<string | null>(null);
 
   useEffect(() => {
     return subscribeQuotaPaused((paused) => {
@@ -267,14 +266,11 @@ export default function App() {
 
   useEffect(() => {
     if (!profile?.theme) return;
-    if (lastHydratedThemeRef.current === profile.theme) return;
-    lastHydratedThemeRef.current = profile.theme;
     hydrateThemeFromProfile(profile.theme);
   }, [profile?.theme, hydrateThemeFromProfile]);
 
   const handleSelectTheme = useCallback(
     (nextTheme: AppThemeId) => {
-      lastHydratedThemeRef.current = nextTheme;
       setTheme(nextTheme);
       if (profile) {
         void updateUserProfile({ theme: nextTheme });
@@ -1352,7 +1348,7 @@ export default function App() {
 
   const renderScreen = (): React.ReactNode => {
     if (!splashCanFinish && showWelcomeSplash) {
-      return <div className="fixed inset-0 bg-[#000000]" />;
+      return <div className="fixed inset-0 bg-[var(--dank-canvas)]" />;
     }
 
     if (!firebaseUser || !isVerified || !profile) {

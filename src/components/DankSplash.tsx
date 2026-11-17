@@ -64,7 +64,7 @@ export const DankSplash: React.FC<DankSplashProps> = ({
     <div
       role="presentation"
       aria-label="Welcome"
-      className={`fixed inset-0 z-[200] bg-[#000000] flex items-center justify-center p-6 select-none overflow-hidden transition-opacity duration-[360ms] ease-out ${
+      className={`fixed inset-0 z-[200] bg-[var(--dank-canvas)] flex items-center justify-center p-6 select-none overflow-hidden transition-opacity duration-[360ms] ease-out ${
         isFadingOut ? 'opacity-0 pointer-events-none' : 'opacity-100'
       }`}
     >
@@ -79,6 +79,7 @@ export const DankSplash: React.FC<DankSplashProps> = ({
               dir={item.dir}
               lang={item.lang}
               aria-hidden={!isCurrent}
+              style={{ fontFamily: "'Cairo', 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif" }}
               className={`col-start-1 row-start-1 inline-block px-3 py-2 text-center font-extrabold tracking-tight leading-[1.3] text-[clamp(3rem,11vw,5rem)] dank-hello-gradient transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[opacity,transform,filter] ${
                 isCurrent && !isFadingOut
                   ? 'opacity-100 scale-100 translate-y-0 blur-0'
@@ -95,7 +96,7 @@ export const DankSplash: React.FC<DankSplashProps> = ({
 
       <p
         dir="rtl"
-        className="absolute bottom-[24px] inset-x-0 px-4 text-center text-[12px] font-normal text-[#A1A1AA] tracking-[0.01em] pointer-events-none"
+        className="absolute bottom-[24px] inset-x-0 px-4 text-center text-[12px] font-normal text-[#6B7280] dark:text-[#A1A1AA] tracking-[0.01em] pointer-events-none"
       >
         © 2027 YOUSSEF DANK - جميع الحقوق محفوظة
       </p>
