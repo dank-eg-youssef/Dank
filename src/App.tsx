@@ -1303,7 +1303,11 @@ export default function App() {
 
   const renderScreen = (): React.ReactNode => {
     if (!splashCanFinish && showWelcomeSplash) {
-      return <div className="fixed inset-0 bg-[var(--dank-canvas)]" />;
+      return (
+        <div className="fixed inset-0 bg-[var(--dank-canvas)]">
+          <h1 className="sr-only">Dank Chat</h1>
+        </div>
+      );
     }
 
     if (!firebaseUser || !isVerified || !profile) {
