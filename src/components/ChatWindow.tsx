@@ -1315,12 +1315,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           const isRtl =
             /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/.test(displayText) ||
             (language === 'ar' && !/^[a-zA-Z]/.test(displayText));
-          const spacerClass =
-            chat.type === 'channel'
-              ? (msg.isEdited ? 'w-[105px]' : 'w-[80px]')
-              : isMine
-              ? (msg.isEdited ? 'w-[92px]' : 'w-[64px]')
-              : (msg.isEdited ? 'w-[76px]' : 'w-[48px]');
           const isSearchMatch =
             Boolean(searchQuery.trim()) &&
             displayText.toLowerCase().includes(searchQuery.trim().toLowerCase());
@@ -1358,7 +1352,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 }}
                 className={`flex flex-col ${isMine ? 'items-end' : 'items-start'} group transition-all rounded-2xl`}
               >
-                <div className={`flex items-end gap-2 max-w-full ${isMine ? 'flex-row-reverse' : ''}`}>
+                <div className={`w-full flex items-end gap-2 ${isMine ? 'justify-end' : 'justify-start'}`}>
                   {!isMine && chat.type === 'group' && (
                     <button
                       type="button"
@@ -1391,8 +1385,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                       msg.type === 'sticker'
                         ? 'bg-transparent !p-0 shadow-none'
                         : isMine
-                        ? 'rounded-[12px] rounded-ee-[2px] py-[12px] px-[16px] drop-shadow-[0_1px_2px_rgba(0,0,0,0.08)] bg-[var(--dank-accent)] text-[var(--dank-accent-fg)]'
-                        : 'rounded-[12px] rounded-es-[2px] py-[12px] px-[16px] drop-shadow-[0_1px_2px_rgba(0,0,0,0.08)] bg-[var(--dank-surface)] text-[var(--dank-text)]'
+                        ? 'min-w-[120px] rounded-[12px] rounded-ee-[2px] py-[12px] px-[16px] drop-shadow-[0_1px_2px_rgba(0,0,0,0.08)] bg-[var(--dank-accent)] text-[var(--dank-accent-fg)]'
+                        : 'min-w-[120px] rounded-[12px] rounded-es-[2px] py-[12px] px-[16px] drop-shadow-[0_1px_2px_rgba(0,0,0,0.08)] bg-[var(--dank-surface)] text-[var(--dank-text)]'
                     } ${isSearchMatch ? 'ring-2 ring-[var(--dank-accent)] rounded-[12px]' : ''}`}
                   >
                     {/* Small Triangle Tail at Bottom Corner of Bubble */}
@@ -1562,71 +1556,43 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                       </div>
                     )}
 
-                    {/* Message Text with Bottom-Right Time & Ticks (60% opacity of text color) */}
+                    {/* Message Text + Fixed-Size Time & Ticks in Same Flow Row (never overflows or squeezes text) */}
                     {msg.type !== 'sticker' && displayText && (
-                      isRtl ? (
-                        <div dir="rtl">
-                          <p className="text-[15px] leading-relaxed break-normal [overflow-wrap:break-word] whitespace-pre-wrap text-right select-text">
-                            <RichEmojiText text={displayText} />
-                          </p>
-                          <div
-                            dir="ltr"
-                            className="mt-1 flex items-center justify-end gap-1.5 select-none whitespace-nowrap text-current opacity-60"
-                          >
-                            {chat.type === 'channel' && (
-                              <span className="inline-flex items-center gap-0.5 text-[10px] tabular-nums">
-                                <Eye className="w-3 h-3" />
-                                {msg.viewCount || 1}
-                              </span>
-                            )}
-                            {msg.expiresAt && (
-                              <Timer className="w-3 h-3" aria-label="Self-destruct" />
-                            )}
-                            {msg.isEdited && (
-                              <span className="text-[10px] italic">{t.telegram.edited}</span>
-                            )}
-                            <span className="text-[10.5px] font-medium tabular-nums">
-                              {formatMessageTime(msg.createdAt, language)}
+                      <div
+                        dir={isRtl ? 'rtl' : 'ltr'}
+                        className="flex flex-wrap items-end gap-x-3 gap-y-1"
+                      >
+                        <p
+                          className={`max-w-full text-[15px] leading-relaxed whitespace-pre-wrap break-normal [overflow-wrap:break-word] select-text ${
+                            isRtl ? 'text-right' : 'text-left'
+                          }`}
+                        >
+                          <RichEmojiText text={displayText} />
+                        </p>
+                        <div
+                          dir="ltr"
+                          className="ms-auto shrink-0 flex items-center gap-1.5 select-none whitespace-nowrap text-current opacity-60 leading-none pb-[2px]"
+                        >
+                          {chat.type === 'channel' && (
+                            <span className="inline-flex items-center gap-0.5 text-[10px] tabular-nums">
+                              <Eye className="w-3 h-3" />
+                              {msg.viewCount || 1}
                             </span>
-                            {isMine && (
-                              <MessageStatusTicks status={msg.status} inheritColor={true} />
-                            )}
-                          </div>
+                          )}
+                          {msg.expiresAt && (
+                            <Timer className="w-3 h-3" aria-label="Self-destruct" />
+                          )}
+                          {msg.isEdited && (
+                            <span className="text-[10px] italic">{t.telegram.edited}</span>
+                          )}
+                          <span className="text-[10.5px] font-medium tabular-nums">
+                            {formatMessageTime(msg.createdAt, language)}
+                          </span>
+                          {isMine && (
+                            <MessageStatusTicks status={msg.status} inheritColor={true} />
+                          )}
                         </div>
-                      ) : (
-                        <div dir="ltr" className="relative">
-                          <p className="text-[15px] leading-relaxed break-normal [overflow-wrap:break-word] whitespace-pre-wrap text-left select-text">
-                            <RichEmojiText text={displayText} />
-                            <span
-                              className={`inline-block pointer-events-none select-none ${spacerClass} h-[15px] ms-1.5 align-baseline`}
-                              aria-hidden="true"
-                            />
-                          </p>
-                          <div
-                            dir="ltr"
-                            className="absolute bottom-0 right-0 flex items-center gap-1.5 select-none whitespace-nowrap text-current opacity-60"
-                          >
-                            {chat.type === 'channel' && (
-                              <span className="inline-flex items-center gap-0.5 text-[10px] tabular-nums">
-                                <Eye className="w-3 h-3" />
-                                {msg.viewCount || 1}
-                              </span>
-                            )}
-                            {msg.expiresAt && (
-                              <Timer className="w-3 h-3" aria-label="Self-destruct" />
-                            )}
-                            {msg.isEdited && (
-                              <span className="text-[10px] italic">{t.telegram.edited}</span>
-                            )}
-                            <span className="text-[10.5px] font-medium tabular-nums">
-                              {formatMessageTime(msg.createdAt, language)}
-                            </span>
-                            {isMine && (
-                              <MessageStatusTicks status={msg.status} inheritColor={true} />
-                            )}
-                          </div>
-                        </div>
-                      )
+                      </div>
                     )}
 
                     {/* Fallback Meta Row for Media or Stickers without text */}
