@@ -502,7 +502,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   return (
-    <aside className="w-full md:w-[360px] lg:w-[390px] shrink-0 h-full flex flex-col bg-[var(--dank-canvas)] md:border-e md:border-[var(--dank-border)]">
+    <aside className="w-full md:w-[360px] lg:w-[390px] shrink-0 h-full min-h-0 overflow-hidden flex flex-col bg-[var(--dank-canvas)] md:border-e md:border-[var(--dank-border)]">
       {/* Front Search Card (Independent from conversations) */}
       <div className="px-3.5 pt-3 pb-1.5 shrink-0">
         <div className="relative rounded-[20px] bg-[var(--dank-surface)] border border-[var(--dank-border)] shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] flex items-center px-3.5 h-11 transition-all focus-within:border-[var(--dank-accent)] focus-within:ring-1 focus-within:ring-[var(--dank-accent)]">
@@ -528,8 +528,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
 
-      {/* Main Chats List ONLY */}
-      <div className="flex-1 overflow-y-auto overscroll-contain px-3.5 py-2 space-y-[12px]">
+      {/* Main Chats List ONLY (ScrollView) */}
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3.5 py-2 space-y-[12px]">
         {/* Admin Ads Banner */}
         {adsBanner?.enabled && (adsBanner.text || adsBanner.imageData) && (
           <div className="pt-0.5">

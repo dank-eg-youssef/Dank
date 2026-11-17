@@ -1544,7 +1544,7 @@ export default function App() {
   return (
     <div
       onClick={() => setShowHeaderPlusMenu(false)}
-      className="h-[100dvh] w-screen overflow-hidden bg-[var(--dank-canvas)] text-[var(--dank-text)] flex flex-col"
+      className="fixed inset-0 h-[100dvh] w-full overflow-hidden bg-[var(--dank-canvas)] text-[var(--dank-text)] flex flex-col"
     >
       {quotaPaused && !quotaBannerDismissed && (
         <div className="bg-amber-500/15 border-b border-amber-500/40 px-4 py-2 flex items-center justify-between gap-2 text-xs text-amber-200 shrink-0 z-30">
@@ -1764,7 +1764,7 @@ export default function App() {
           <div
             className={`${
               activeChat ? 'hidden md:flex' : 'flex'
-            } w-full md:w-auto h-full`}
+            } w-full md:w-auto h-full min-h-0 overflow-hidden`}
           >
             <Sidebar
               currentUser={profile}
@@ -1799,7 +1799,7 @@ export default function App() {
           <div
             className={`${
               activeChat ? 'hidden md:flex' : 'flex'
-            } w-full md:w-[360px] lg:w-[390px] shrink-0 h-full flex-col bg-[var(--dank-canvas)] md:border-e md:border-[var(--dank-border)] overflow-y-auto overscroll-contain`}
+            } w-full md:w-[360px] lg:w-[390px] shrink-0 h-full min-h-0 flex-col bg-[var(--dank-canvas)] md:border-e md:border-[var(--dank-border)] overflow-y-auto overscroll-contain`}
           >
             {/* Stories / Status Row */}
             <StoriesBar
@@ -1916,7 +1916,7 @@ export default function App() {
           <div
             className={`${
               activeChat ? 'hidden md:flex' : 'flex'
-            } w-full md:w-[360px] lg:w-[390px] shrink-0 h-full flex-col bg-[var(--dank-canvas)] md:border-e md:border-[var(--dank-border)] overflow-y-auto overscroll-contain`}
+            } w-full md:w-[360px] lg:w-[390px] shrink-0 h-full min-h-0 flex-col bg-[var(--dank-canvas)] md:border-e md:border-[var(--dank-border)] overflow-y-auto overscroll-contain`}
           >
             <div className="p-4 space-y-4">
               <div className="flex items-center justify-between gap-2">
@@ -2091,7 +2091,7 @@ export default function App() {
 
         {/* TAB 4: CALLS (Voice Calls ONLY) */}
         {mainTab === 'calls' && (
-          <div className="flex-1 h-full overflow-y-auto overscroll-contain bg-[var(--dank-canvas)] p-4">
+          <div className="flex-1 h-full min-h-0 overflow-y-auto overscroll-contain bg-[var(--dank-canvas)] p-4">
             <div className="max-w-2xl mx-auto space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-bold text-[var(--dank-text)]">
@@ -2201,7 +2201,7 @@ export default function App() {
 
         {/* TAB 5: SETTINGS (Exact iPhone WhatsApp Settings Layout + Appearance 4 Themes) */}
         {mainTab === 'settings' && (
-          <div className="flex-1 h-full overflow-y-auto overscroll-contain bg-[var(--dank-canvas)] p-4 pb-8">
+          <div className="flex-1 h-full min-h-0 overflow-y-auto overscroll-contain bg-[var(--dank-canvas)] p-4 pb-8">
             <div className="max-w-2xl mx-auto space-y-4">
               {/* Top Profile Card: Photo + Name + About */}
               <button
