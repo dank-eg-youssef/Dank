@@ -156,6 +156,33 @@ class DankAudioEngine {
       // ignore audio errors
     }
   }
+
+  // 5. Arcade Milestone Fanfare: Energetic retro celebration
+  public playArcadeFanfare(golden = false) {
+    if (this.muted) return;
+    try {
+      const ctx = this.getContext();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+      const notes = golden ? [523.25, 659.25, 783.99, 1046.50, 1318.51] : [440, 554.37, 659.25, 880];
+      notes.forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = golden ? 'triangle' : 'sine';
+        osc.frequency.setValueAtTime(freq, now + idx * 0.1);
+        gain.gain.setValueAtTime(0.001, now);
+        gain.gain.setValueAtTime(0.12, now + idx * 0.1);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.1 + 0.35);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + idx * 0.1);
+        osc.stop(now + idx * 0.1 + 0.4);
+      });
+    } catch {
+      // ignore audio errors
+    }
+  }
 }
 
 export const dankAudio = new DankAudioEngine();
+

@@ -186,7 +186,21 @@ export const NotificationsPage: React.FC<NotificationsPageProps> = ({
                     >
                       {notif.text}
                     </p>
-                    <p className="text-[11px] text-[var(--dank-muted)] mt-0.5 tabular-nums">
+                    {Boolean(notif.targetId && notif.text?.includes('سلسلتك')) && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!notif.read) onMarkRead(notif.id);
+                          onSelectNotification(notif);
+                        }}
+                        className="mt-2 inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 text-black text-xs font-black shadow-[0_0_12px_rgba(249,115,22,0.45)] hover:brightness-110 active:scale-95 transition-all cursor-pointer"
+                      >
+                        <span>🔥</span>
+                        <span>ابعت دلوقتي</span>
+                      </button>
+                    )}
+                    <p className="text-[11px] text-[var(--dank-muted)] mt-1 tabular-nums">
                       {notif.createdAt
                         ? formatMessageTime(notif.createdAt, language)
                         : t.notifications.justNow}

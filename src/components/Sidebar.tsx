@@ -436,6 +436,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   isPlus={disp.isPlus}
                   size="xs"
                 />
+                {chat.type === 'private' && Boolean(chat.streakCount && chat.streakCount > 0) && (
+                  <span
+                    title={`سلسلة دانك: ${chat.streakCount} يوم`}
+                    className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-black shrink-0 ${
+                      chat.isGoldenTheme || (chat.streakCount ?? 0) >= 100
+                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/50 shadow-[0_0_8px_rgba(245,158,11,0.5)]'
+                        : 'bg-orange-500/15 text-orange-400 border border-orange-500/30'
+                    }`}
+                  >
+                    <span>🔥</span>
+                    <span className="tabular-nums">{chat.streakCount}</span>
+                  </span>
+                )}
               </div>
 
               <div className="flex items-center gap-1 shrink-0 whitespace-nowrap">

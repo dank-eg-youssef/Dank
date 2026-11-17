@@ -960,6 +960,41 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "uid", "chatId", "chatTitle", "remindAt", "status", "createdAt", "updatedAt"]
+    },
+    "ChatStreak": {
+      "title": "ChatStreak",
+      "description": "Daily chat streak tracking, frozen status, and milestones between two friends.",
+      "type": "object",
+      "properties": {
+        "chatId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "users": { "type": "array" },
+        "streakCount": { "type": "integer" },
+        "lastMessageAt": { "type": "string", "format": "date-time" },
+        "lastSenderId": { "type": "string", "maxLength": 128 },
+        "expiresAt": { "type": "string", "format": "date-time" },
+        "frozenAt": { "type": "string", "format": "date-time" },
+        "frozenUntil": { "type": "string", "format": "date-time" },
+        "celebrated7": { "type": "boolean" },
+        "celebrated30": { "type": "boolean" },
+        "celebrated100": { "type": "boolean" },
+        "isGoldenTheme": { "type": "boolean" },
+        "goldenThemeExpiresAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["chatId", "users", "streakCount", "updatedAt"]
+    },
+    "UserStreakInventory": {
+      "title": "UserStreakInventory",
+      "description": "Streak freezes count, Dank points balance, and weekly refill timestamp.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "freezesCount": { "type": "integer" },
+        "dankPoints": { "type": "integer" },
+        "lastWeeklyRefillAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "freezesCount", "dankPoints", "updatedAt"]
     }
   },
   "firestore": {
@@ -1114,6 +1149,14 @@
     "/users_private/{userId}/chat_reminders/{reminderId}": {
       "schema": { "$ref": "#/entities/ChatReminder" },
       "description": "User reminders attached to specific chats."
+    },
+    "/streaks/{chatId}": {
+      "schema": { "$ref": "#/entities/ChatStreak" },
+      "description": "Daily chat streak state, frozen days, and milestone tracking."
+    },
+    "/users_private/{userId}/streak_inventory/{invId}": {
+      "schema": { "$ref": "#/entities/UserStreakInventory" },
+      "description": "User streak freezes count, Dank points, and weekly refill timestamp."
     }
   }
 }

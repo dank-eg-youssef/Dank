@@ -40,6 +40,8 @@ export interface UserPublic {
   isVip?: boolean;
   isBanned?: boolean;
   mutedUntil?: Timestamp | null;
+  freezesCount?: number;
+  dankPoints?: number;
   // Privacy Settings (visibility flags stored cleanly on public profile)
   hasPhone?: boolean;
   privacyPhone?: PrivacyVisibility;
@@ -182,6 +184,9 @@ export interface Chat {
   isOnline?: boolean;
   bio?: string;
   username?: string;
+  streakCount?: number;
+  streakExpiresAt?: Timestamp | null;
+  isGoldenTheme?: boolean;
 }
 
 export interface ChatMember {
@@ -442,6 +447,31 @@ export interface ChatReminder {
   remindAt: Timestamp;
   status: 'pending' | 'fired' | 'dismissed';
   createdAt: Timestamp | null;
+  updatedAt: Timestamp | null;
+}
+
+export interface ChatStreak {
+  chatId: string;
+  users: string[]; // [uid1, uid2]
+  streakCount: number;
+  lastMessageAt: Timestamp | null;
+  lastSenderId: string;
+  expiresAt: Timestamp | null;
+  frozenAt?: Timestamp | null;
+  frozenUntil?: Timestamp | null;
+  celebrated7?: boolean;
+  celebrated30?: boolean;
+  celebrated100?: boolean;
+  isGoldenTheme?: boolean;
+  goldenThemeExpiresAt?: Timestamp | null;
+  updatedAt: Timestamp | null;
+}
+
+export interface UserStreakInventory {
+  uid: string;
+  freezesCount: number;
+  dankPoints: number;
+  lastWeeklyRefillAt: Timestamp | null;
   updatedAt: Timestamp | null;
 }
 

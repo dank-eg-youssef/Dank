@@ -275,4 +275,58 @@
   will-change: opacity, filter;
 }
 
+/* 100 Days Golden Streak Theme */
+.dank-golden-chat-theme {
+  --dank-accent: #f59e0b !important;
+  --dank-accent-hover: #fbbf24 !important;
+  --dank-bubble-out: #78350f !important;
+  --dank-accent-soft: rgba(245, 158, 11, 0.25) !important;
+  --dank-accent-border: rgba(245, 158, 11, 0.65) !important;
+  --dank-border: rgba(245, 158, 11, 0.45) !important;
+  box-shadow: inset 0 0 25px rgba(245, 158, 11, 0.22) !important;
+}
+
+@keyframes dankNeonScreenBurst {
+  0% {
+    opacity: 0;
+    transform: scale(0.96);
+    box-shadow: inset 0 0 0px transparent;
+  }
+  30% {
+    opacity: 1;
+    transform: scale(1.02);
+    box-shadow: inset 0 0 80px rgba(236, 72, 153, 0.8), 0 0 80px rgba(34, 211, 238, 0.8);
+  }
+  70% {
+    opacity: 0.85;
+    box-shadow: inset 0 0 50px rgba(168, 85, 247, 0.7);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1);
+    box-shadow: inset 0 0 0px transparent;
+  }
+}
+
+.dank-neon-screen-burst {
+  animation: dankNeonScreenBurst 1.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  pointer-events: none;
+}
+
+@keyframes dankGoldShimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.dank-gold-shimmer-badge {
+  background: linear-gradient(90deg, #b45309 0%, #fef08a 50%, #b45309 100%);
+  background-size: 200% 100%;
+  animation: dankGoldShimmer 2.2s linear infinite;
+}
+
+
 

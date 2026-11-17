@@ -30,6 +30,8 @@ import {
   Trash2,
   UserMinus,
   UserPlus,
+  Flame,
+  Snowflake,
   X,
 } from 'lucide-react';
 import {
@@ -70,9 +72,16 @@ import {
   rejectFriendRequest,
   sendFriendRequest,
 } from '../services/socialService';
+import {
+  ensureUserStreakInventory,
+  recordMessageStreak,
+  subscribeChatStreak,
+  triggerRescueNotificationIfNeeded,
+} from '../services/streakService';
 import type {
   Chat,
   ChatMember,
+  ChatStreak,
   FriendRequest,
   Message,
   Reaction,
@@ -80,6 +89,7 @@ import type {
   TypingState,
   UserPublic,
   UserSticker,
+  UserStreakInventory,
 } from '../types/dank';
 import { getCachedChatMessages, setCachedChatMessages } from '../utils/chatCache';
 import {
@@ -108,6 +118,8 @@ import { DankEmojiIcon, RichEmojiText } from './RichEmojiText';
 import { formatScheduledTarget, ScheduleMessageModal } from './ScheduleModals';
 import { StickerMakerModal } from './StickerMakerModal';
 import { StickerVisual } from './StickerVisual';
+import { StreakModal } from './StreakModal';
+import { StreakCelebrationModal } from './StreakCelebrationModal';
 import { UserBadges } from './UserBadges';
 
 const QUICK_EMOJIS = ['❤️', '👍', '😂', '🔥', '😮', '🙏'];
@@ -243,6 +255,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const msgRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
+  const textInputRef = useRef<HTMLTextAreaElement | null>(null);
   const typingTimerRef = useRef<number | null>(null);
   const isTypingSentRef = useRef(false);
   const prevChatIdRef = useRef<string>(chat.id);
@@ -281,6 +294,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       setEditingScheduledMsg(null);
       setForwardTargetMsg(null);
       setCommentsDrawerMsg(null);
+      setShowStreakModal(false);
+      setStreakCelebration(null);
       shouldScrollToBottomRef.current = true;
       viewedIdsSentRef.current.clear();
     }
@@ -566,6 +581,76 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     }).length;
   }, [currentUser.uid, friendIds, members, usersMap]);
 
+  const [chatStreak, setChatStreak] = useState<ChatStreak | null>(null);
+  const [streakInventory, setStreakInventory] = useState<UserStreakInventory | null>(null);
+  const [showStreakModal, setShowStreakModal] = useState(false);
+  const [streakCelebration, setStreakCelebration] = useState<{
+    milestone: 7 | 30 | 100;
+    stickerUrl?: string;
+  } | null>(null);
+
+  // Subscribe to Chat Streak & User Streak Inventory
+  useEffect(() => {
+    void ensureUserStreakInventory(currentUser.uid).then((inv) => {
+      setStreakInventory(inv);
+    });
+
+    const handleInventoryUpdate = () => {
+      void ensureUserStreakInventory(currentUser.uid).then(setStreakInventory);
+    };
+    window.addEventListener('dank:streak-inventory-updated', handleInventoryUpdate);
+
+    if (chat.type !== 'private' || isSavedMessages) {
+      setChatStreak(null);
+      return () => {
+        window.removeEventListener('dank:streak-inventory-updated', handleInventoryUpdate);
+      };
+    }
+
+    const unsub = subscribeChatStreak(chat.id, (st) => {
+      setChatStreak(st);
+    });
+
+    return () => {
+      unsub();
+      window.removeEventListener('dank:streak-inventory-updated', handleInventoryUpdate);
+    };
+  }, [chat.id, chat.type, currentUser.uid, isSavedMessages]);
+
+  // Periodic rescue alert check
+  useEffect(() => {
+    if (!chatStreak || !peerUser || isSavedMessages || !isFriendWithPeer) return;
+
+    void triggerRescueNotificationIfNeeded({
+      chat,
+      streak: chatStreak,
+      currentUser,
+      peerUser,
+    });
+
+    const timer = setInterval(() => {
+      void triggerRescueNotificationIfNeeded({
+        chat,
+        streak: chatStreak,
+        currentUser,
+        peerUser,
+      });
+    }, 60 * 1000);
+
+    return () => clearInterval(timer);
+  }, [chat, chatStreak, currentUser, isFriendWithPeer, isSavedMessages, peerUser]);
+
+  const isRescueActive = useMemo(() => {
+    if (!chatStreak || chatStreak.streakCount <= 0 || !chatStreak.expiresAt) return false;
+    const diff = chatStreak.expiresAt.toMillis() - Date.now();
+    return diff > 0 && diff <= 60 * 60 * 1000;
+  }, [chatStreak]);
+
+  const isGoldenThemeActive = Boolean(
+    (chatStreak?.isGoldenTheme || chat.isGoldenTheme) &&
+      (!chatStreak?.goldenThemeExpiresAt || chatStreak.goldenThemeExpiresAt.toMillis() > Date.now())
+  );
+
   const reactionsByMessage = useMemo(() => {
     const map: Record<string, Reaction[]> = {};
     for (const r of reactions) {
@@ -685,6 +770,18 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         dankAudio.playArcadeStickerBleep();
       } else {
         dankAudio.playSendTick();
+      }
+      if (chat.type === 'private' && peerUser && !isSavedMessages) {
+        void recordMessageStreak({
+          chat,
+          sender: currentUser,
+          peerUser,
+          onMilestoneCelebration: (milestone, customStickerUrl) => {
+            setStreakCelebration({ milestone, stickerUrl: customStickerUrl });
+          },
+        }).then(() => {
+          void ensureUserStreakInventory(currentUser.uid).then(setStreakInventory);
+        });
       }
     } catch (err) {
       setOptimisticMsgs((prev) => prev.filter((m) => m.id !== msgId));
@@ -998,7 +1095,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
   return (
     <section
-      className="flex-1 h-full w-full flex flex-col min-w-0 overflow-hidden overscroll-none bg-[var(--dank-canvas)] text-[var(--dank-text)] relative"
+      className={`flex-1 h-full w-full flex flex-col min-w-0 overflow-hidden overscroll-none bg-[var(--dank-canvas)] text-[var(--dank-text)] relative ${
+        isGoldenThemeActive ? 'dank-golden-chat-theme' : ''
+      }`}
       onTouchStart={(e) => {
         const touch = e.touches[0];
         if (touch.clientX < 36) {
@@ -1092,6 +1191,39 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         </div>
 
         <div className="flex items-center gap-0.5 shrink-0">
+          {chat.type === 'private' && peerUser && !isSavedMessages && isFriendWithPeer && (
+            <button
+              type="button"
+              onClick={() => setShowStreakModal(true)}
+              title="سلسلة دانك والتجميد"
+              aria-label="سلسلة دانك والتجميد"
+              className={`h-8 px-2.5 rounded-full border flex items-center gap-1.5 text-xs font-black transition-all cursor-pointer me-0.5 ${
+                isGoldenThemeActive
+                  ? 'bg-amber-500/20 border-amber-400 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.55)]'
+                  : isRescueActive
+                  ? 'bg-orange-500/20 border-orange-500 text-orange-300 animate-pulse shadow-[0_0_12px_rgba(249,115,22,0.5)]'
+                  : (chatStreak?.streakCount ?? 0) > 0
+                  ? 'bg-[var(--dank-elevated)] border-orange-500/40 text-orange-400 hover:bg-[var(--dank-hover)]'
+                  : 'bg-[var(--dank-elevated)] border-[var(--dank-border)] text-[var(--dank-muted)] hover:text-[var(--dank-text)] hover:bg-[var(--dank-hover)]'
+              }`}
+            >
+              <Flame
+                className={`w-3.5 h-3.5 ${
+                  isGoldenThemeActive
+                    ? 'text-amber-400 fill-current'
+                    : (chatStreak?.streakCount ?? 0) > 0
+                    ? 'text-orange-400 fill-current'
+                    : ''
+                }`}
+              />
+              <span className="tabular-nums">{chatStreak?.streakCount ?? 0}</span>
+              <span className="opacity-35">|</span>
+              <Snowflake className="w-3.5 h-3.5 text-cyan-400" />
+              <span className="tabular-nums text-cyan-300">
+                {streakInventory?.freezesCount ?? 1}
+              </span>
+            </button>
+          )}
           {peerUser && !isSavedMessages && isFriendWithPeer && (
             <button
               type="button"
@@ -1165,6 +1297,27 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           </button>
         </div>
       </header>
+
+      {/* Emergency Streak Rescue Banner (<= 1h remaining) */}
+      {isRescueActive && peerUser && !isSavedMessages && isFriendWithPeer && (
+        <div className="bg-gradient-to-r from-orange-950/90 via-[#1a0f06] to-amber-950/90 text-white border-b border-orange-500/60 px-3 sm:px-4 py-2 flex items-center justify-between gap-2 text-xs shrink-0 shadow-[0_0_18px_rgba(249,115,22,0.28)]">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-base shrink-0 animate-bounce">🔥</span>
+            <span className="font-bold truncate" dir="auto">
+              الحق! سلسلتك مع {peerUser.name} هتتقطع بعد ساعة، ابعتله بسرعة
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              textInputRef.current?.focus();
+            }}
+            className="shrink-0 px-3 py-1 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 text-black text-[11px] font-black shadow-[0_0_12px_rgba(249,115,22,0.5)] hover:brightness-110 active:scale-95 transition-all cursor-pointer"
+          >
+            ابعت دلوقتي
+          </button>
+        </div>
+      )}
 
       {/* Secret Chat Banner + Self-Destruct Timer */}
       {chat.isSecret && (
@@ -2234,6 +2387,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               </button>
 
               <textarea
+                ref={textInputRef}
                 rows={1}
                 dir="auto"
                 value={text}
@@ -2483,6 +2637,36 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           isChatAdmin={isChatAdmin}
           onClose={() => setCommentsDrawerMsg(null)}
           onNotify={onNotify}
+        />
+      )}
+
+      {/* Dank Streak & Freeze Modal */}
+      {showStreakModal && peerUser && (
+        <StreakModal
+          streak={chatStreak}
+          currentUser={currentUser}
+          peerUser={peerUser}
+          onClose={() => setShowStreakModal(false)}
+          onNotify={onNotify}
+          onInventoryUpdate={(inv) => setStreakInventory(inv)}
+        />
+      )}
+
+      {/* Streak Milestone Celebration Modal */}
+      {streakCelebration && peerUser && (
+        <StreakCelebrationModal
+          milestone={streakCelebration.milestone}
+          user1Name={currentUser.name}
+          user2Name={peerUser.name}
+          stickerUrl={streakCelebration.stickerUrl}
+          onClose={() => setStreakCelebration(null)}
+          onSendSticker={(stickerUrl) => {
+            setStreakCelebration(null);
+            void handleSendSticker({
+              imageUrl: stickerUrl,
+              label: `${streakCelebration.milestone} يوم دانك`,
+            });
+          }}
         />
       )}
     </section>
