@@ -151,14 +151,14 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
                     <div key={c.uid} className="py-2.5 flex items-center gap-3">
                       <Avatar src={fullPeer.photoURL} name={fullPeer.name} size="sm" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-[var(--dank-text)] truncate">
+                        <p dir="auto" className="text-sm font-semibold text-[var(--dank-text)] truncate">
                           {fullPeer.name}
                         </p>
                         <p className="text-xs text-[var(--dank-accent)] truncate">
                           @{fullPeer.username}
                         </p>
                       </div>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 shrink-0">
                         <button
                           type="button"
                           onClick={() => {
@@ -242,6 +242,7 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
                       <Avatar src={peerPhoto} name={peerName} size="sm" />
                       <div className="flex-1 min-w-0">
                         <p
+                          dir="auto"
                           className={`text-sm font-semibold truncate ${
                             isMissed ? 'text-red-500' : 'text-[var(--dank-text)]'
                           }`}
@@ -254,13 +255,13 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
                           }`}
                         >
                           {isMissed ? (
-                            <PhoneMissed className="w-3 h-3" />
+                            <PhoneMissed className="w-3 h-3 shrink-0" />
                           ) : outgoing ? (
-                            <PhoneOutgoing className="w-3 h-3 text-[var(--dank-accent)]" />
+                            <PhoneOutgoing className="w-3 h-3 text-[var(--dank-accent)] shrink-0" />
                           ) : (
-                            <PhoneIncoming className="w-3 h-3 text-[var(--dank-accent)]" />
+                            <PhoneIncoming className="w-3 h-3 text-[var(--dank-accent)] shrink-0" />
                           )}
-                          <span>
+                          <span className="truncate">
                             {isMissed
                               ? t.calls.missed
                               : outgoing
@@ -268,7 +269,7 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
                               : t.calls.incomingLabel}
                           </span>
                           <span>·</span>
-                          <span>{formatChatTime(c.startedAt, language)}</span>
+                          <span className="shrink-0 whitespace-nowrap">{formatChatTime(c.startedAt, language)}</span>
                         </p>
                       </div>
                       <button
@@ -278,7 +279,7 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
                           onCallUser(peerUser);
                         }}
                         aria-label={t.calls.voiceCall}
-                        className="w-9 h-9 rounded-full hover:bg-[var(--dank-hover)] text-[var(--dank-accent)] flex items-center justify-center cursor-pointer"
+                        className="w-9 h-9 rounded-full hover:bg-[var(--dank-hover)] text-[var(--dank-accent)] flex items-center justify-center shrink-0 cursor-pointer"
                       >
                         <Phone className="w-4 h-4" />
                       </button>

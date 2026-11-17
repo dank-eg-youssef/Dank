@@ -509,11 +509,11 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                           key={u.uid}
                           className="px-3 py-2 flex items-center justify-between gap-2"
                         >
-                          <div className="flex items-center gap-2 min-w-0">
+                          <div className="flex-1 flex items-center gap-2 min-w-0">
                             <Avatar src={u.photoURL} name={u.name} size="xs" />
-                            <div className="min-w-0">
+                            <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-1 min-w-0">
-                                <span className="text-xs font-medium text-[var(--dank-text)] truncate">
+                                <span dir="auto" className="min-w-0 text-xs font-medium text-[var(--dank-text)] truncate">
                                   {u.name}
                                 </span>
                                 <UserBadges
@@ -530,7 +530,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                           <button
                             type="button"
                             onClick={() => void handleAdd(u.uid)}
-                            className="px-2.5 py-1 rounded-lg bg-[var(--dank-accent)] text-[var(--dank-accent-fg)] text-[11px] font-medium cursor-pointer"
+                            className="px-2.5 py-1 rounded-lg bg-[var(--dank-accent)] text-[var(--dank-accent-fg)] text-[11px] font-medium shrink-0 cursor-pointer"
                           >
                             {t.common.add}
                           </button>
@@ -567,7 +567,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                             onViewProfile(u);
                           }
                         }}
-                        className="flex items-center gap-2.5 min-w-0 text-start cursor-pointer"
+                        className="flex-1 flex items-center gap-2.5 min-w-0 text-start cursor-pointer"
                       >
                         <Avatar
                           src={u?.photoURL}
@@ -576,9 +576,9 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                           isOnline={online}
                           showOnlineDot={canSeeStatus}
                         />
-                        <div className="min-w-0">
+                        <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5 min-w-0">
-                            <p className="text-xs font-semibold text-[var(--dank-text)] truncate">
+                            <p dir="auto" className="min-w-0 text-xs font-semibold text-[var(--dank-text)] truncate">
                               {u?.name || m.uid}
                               {m.uid === currentUser.uid ? ` (${t.common.you})` : ''}
                             </p>

@@ -986,7 +986,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     >
       {/* iPhone WhatsApp Header */}
       <header className="bg-[var(--dank-surface)] text-[var(--dank-text)] border-b border-[var(--dank-border)] px-2 sm:px-4 py-2 flex items-center justify-between gap-2 shrink-0 z-10">
-        <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
+        <div className="flex-1 flex items-center gap-1.5 sm:gap-2.5 min-w-0">
           <button
             type="button"
             onClick={onBackMobile}
@@ -996,7 +996,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             <ChevronLeft className="w-6 h-6 rtl:rotate-180" />
           </button>
 
-          <div className="flex items-center gap-2.5 min-w-0">
+          <div className="flex-1 flex items-center gap-2.5 min-w-0">
             <div
               onClick={(e) => {
                 if (peerUser && onOpenProfile) {
@@ -1030,11 +1030,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   onOpenChatInfo();
                 }
               }}
-              className="min-w-0 text-start hover:opacity-90 transition-opacity cursor-pointer"
+              className="flex-1 min-w-0 text-start hover:opacity-90 transition-opacity cursor-pointer"
             >
               <div className="flex items-center gap-1.5 min-w-0">
                 {chat.isSecret && <Lock className="w-3.5 h-3.5 text-[var(--dank-accent)] shrink-0" />}
-                <h2 dir="auto" className="text-[15px] sm:text-base font-bold truncate">
+                <h2 dir="auto" className="min-w-0 text-[15px] sm:text-base font-bold truncate">
                   {chatTitle}
                 </h2>
                 {chat.type === 'private' && peerUser && (
@@ -1420,9 +1420,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                               onOpenProfile(senderObj);
                             }
                           }}
-                          className="flex items-center gap-1 text-[11px] font-bold text-[var(--dank-accent)] mb-1 hover:underline cursor-pointer"
+                          className="max-w-full min-w-0 flex items-center gap-1 text-[11px] font-bold text-[var(--dank-accent)] mb-1 hover:underline cursor-pointer"
                         >
-                          <span className="truncate">{msg.senderName}</span>
+                          <span dir="auto" className="min-w-0 truncate">{msg.senderName}</span>
                           <UserBadges
                             isAdmin={senderObj?.isAdmin}
                             isVerified={senderObj?.isVerified}

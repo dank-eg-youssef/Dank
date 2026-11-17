@@ -1,88 +1,103 @@
-import React from 'react';
-import { useLanguage } from '../contexts/LanguageContext';
-import { DankLogo } from './DankLogo';
+import React, { useEffect, useState } from 'react';
 
 interface DankSplashProps {
-  message?: string;
-  errorMessage?: string | null;
-  retrying?: boolean;
-  onRetry?: () => void;
-  onLogout?: () => void;
+  canFinish?: boolean;
+  onFinish: () => void;
 }
 
+const GREETINGS = [
+  { text: 'مرحبًا', dir: 'rtl' as const, lang: 'ar' },
+  { text: 'Hello', dir: 'ltr' as const, lang: 'en' },
+  { text: 'Hallo', dir: 'ltr' as const, lang: 'de' },
+  { text: 'Bonjour', dir: 'ltr' as const, lang: 'fr' },
+  { text: 'Hola', dir: 'ltr' as const, lang: 'es' },
+  { text: 'Ciao', dir: 'ltr' as const, lang: 'it' },
+] as const;
+
+const STEP_DURATION_MS = 450;
+const FADE_OUT_DURATION_MS = 360;
+
 export const DankSplash: React.FC<DankSplashProps> = ({
-  message,
-  errorMessage,
-  retrying = false,
-  onRetry,
-  onLogout,
+  canFinish = true,
+  onFinish,
 }) => {
-  const { t } = useLanguage();
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [sequenceComplete, setSequenceComplete] = useState(false);
+  const [isFadingOut, setIsFadingOut] = useState(false);
+
+  useEffect(() => {
+    const timers: number[] = [];
+
+    for (let i = 1; i < GREETINGS.length; i += 1) {
+      timers.push(
+        window.setTimeout(() => {
+          setActiveIndex(i);
+        }, i * STEP_DURATION_MS)
+      );
+    }
+
+    timers.push(
+      window.setTimeout(() => {
+        setSequenceComplete(true);
+      }, GREETINGS.length * STEP_DURATION_MS)
+    );
+
+    return () => {
+      timers.forEach((id) => window.clearTimeout(id));
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!sequenceComplete || !canFinish) return;
+
+    setIsFadingOut(true);
+    const doneTimer = window.setTimeout(() => {
+      onFinish();
+    }, FADE_OUT_DURATION_MS);
+
+    return () => {
+      window.clearTimeout(doneTimer);
+    };
+  }, [sequenceComplete, canFinish, onFinish]);
 
   return (
-    <div className="min-h-[100dvh] w-full bg-[var(--dank-canvas)] text-[var(--dank-text)] flex flex-col items-center justify-center p-6 select-none relative overflow-hidden">
-      <div
-        className="absolute -top-28 -end-28 w-80 h-80 rounded-full blur-3xl opacity-15 pointer-events-none"
-        style={{ backgroundColor: 'var(--dank-accent)' }}
-      />
-      <div
-        className="absolute -bottom-28 -start-28 w-80 h-80 rounded-full blur-3xl opacity-10 pointer-events-none"
-        style={{ backgroundColor: 'var(--dank-accent)' }}
-      />
+    <div
+      role="presentation"
+      aria-label="Welcome"
+      className={`fixed inset-0 z-[200] bg-[#000000] flex items-center justify-center p-6 select-none overflow-hidden transition-opacity duration-[360ms] ease-out ${
+        isFadingOut ? 'opacity-0 pointer-events-none' : 'opacity-100'
+      }`}
+    >
+      <div className="relative grid place-items-center w-full max-w-xl">
+        {GREETINGS.map((item, idx) => {
+          const isCurrent = idx === activeIndex;
+          const isPast = idx < activeIndex;
 
-      <div className="relative z-10 flex flex-col items-center">
-        <div className="w-24 h-24 rounded-3xl bg-[var(--dank-surface)] border border-[var(--dank-accent-border)] shadow-2xl flex items-center justify-center mb-5">
-          <DankLogo size="lg" />
-        </div>
-
-        <h1 className="text-4xl font-extrabold tracking-tight text-[var(--dank-text)]">DANK</h1>
-        <p className="mt-1.5 text-sm font-semibold text-[var(--dank-accent)] tracking-wide">
-          {t.brand.splashTagline}
-        </p>
-
-        {errorMessage ? (
-          <div className="mt-7 w-full max-w-xs rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] p-4 text-center space-y-3 shadow-xl">
-            <p className="text-xs font-medium text-red-500 leading-relaxed break-words">
-              {errorMessage}
-            </p>
-            <div className="flex flex-col gap-2">
-              {onRetry && (
-                <button
-                  type="button"
-                  disabled={retrying}
-                  onClick={onRetry}
-                  className="w-full h-11 rounded-full bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] disabled:opacity-60 text-[var(--dank-accent-fg)] text-xs font-extrabold cursor-pointer transition-colors"
-                >
-                  {retrying ? t.errors.retrying : t.errors.retryConnection}
-                </button>
-              )}
-              {onLogout && (
-                <button
-                  type="button"
-                  onClick={onLogout}
-                  className="w-full h-10 rounded-full bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] text-xs font-semibold cursor-pointer transition-colors"
-                >
-                  {t.auth.signOutOrSwitch}
-                </button>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div className="mt-7 flex flex-col items-center gap-3">
-            <div
-              role="status"
-              aria-label={t.common.loading}
-              className="w-8 h-8 rounded-full border-3 border-[var(--dank-border)] border-t-[var(--dank-accent)] animate-spin"
-            />
-            <p className="text-xs font-medium text-[var(--dank-muted)] text-center max-w-xs">
-              {message || t.errors.connectingWorkspace}
-            </p>
-          </div>
-        )}
+          return (
+            <span
+              key={item.text}
+              dir={item.dir}
+              lang={item.lang}
+              aria-hidden={!isCurrent}
+              className={`col-start-1 row-start-1 inline-block px-3 py-2 text-center font-extrabold tracking-tight leading-[1.3] text-[clamp(3rem,11vw,5rem)] dank-hello-gradient transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[opacity,transform,filter] ${
+                isCurrent && !isFadingOut
+                  ? 'opacity-100 scale-100 translate-y-0 blur-0'
+                  : isPast || isFadingOut
+                    ? 'opacity-0 scale-[1.04] -translate-y-2 blur-[4px]'
+                    : 'opacity-0 scale-[0.94] translate-y-2 blur-[4px]'
+              }`}
+            >
+              {item.text}
+            </span>
+          );
+        })}
       </div>
 
-      <p className="absolute bottom-6 text-[11px] text-[var(--dank-muted)]">
-        {t.brand.footerCopyright}
+      <p
+        dir="rtl"
+        className="absolute bottom-[24px] inset-x-0 px-4 text-center text-[12px] font-normal text-[#A1A1AA] tracking-[0.01em] pointer-events-none"
+      >
+        © 2027 YOUSSEF DANK - جميع الحقوق محفوظة
       </p>
     </div>
   );

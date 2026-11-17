@@ -125,10 +125,10 @@ export const ForwardModal: React.FC<ForwardModalProps> = ({
                 chatType={chat.type}
                 specialType={specialType}
               />
-              <span className="flex-1 text-sm font-semibold text-[var(--dank-text)] truncate">
+              <span dir="auto" className="flex-1 min-w-0 text-sm font-semibold text-[var(--dank-text)] truncate">
                 {title}
               </span>
-              <span className="text-xs font-semibold text-[var(--dank-accent)]">
+              <span className="text-xs font-semibold text-[var(--dank-accent)] shrink-0 whitespace-nowrap">
                 {sendingTo === chat.id ? t.common.saving : t.telegram.forward}
               </span>
             </button>

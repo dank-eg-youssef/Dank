@@ -404,7 +404,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5 min-w-0">
+              <div className="flex-1 flex items-center gap-1.5 min-w-0">
                 {chat.isSecret && <Lock className="w-3.5 h-3.5 text-[var(--dank-accent)] shrink-0" />}
                 {chat.type === 'group' && (
                   <Users className="w-3.5 h-3.5 text-[var(--dank-accent)] shrink-0" />
@@ -412,7 +412,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 {chat.type === 'channel' && (
                   <Megaphone className="w-3.5 h-3.5 text-[var(--dank-accent)] shrink-0" />
                 )}
-                <span dir="auto" className="text-[15px] font-semibold text-[var(--dank-text)] truncate">
+                <span
+                  dir="auto"
+                  className="min-w-0 text-[15px] font-semibold text-[var(--dank-text)] truncate"
+                >
                   {disp.title}
                 </span>
                 <UserBadges
@@ -424,7 +427,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 />
               </div>
 
-              <div className="flex items-center gap-1 shrink-0">
+              <div className="flex items-center gap-1 shrink-0 whitespace-nowrap">
                 <span
                   className={`text-[11px] tabular-nums ${
                     unread ? 'text-[var(--dank-accent)] font-semibold' : 'text-[var(--dank-muted)]'
@@ -691,8 +694,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     />
                   )}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1 min-w-0">
-                      <span className="text-sm font-semibold text-[var(--dank-text)] truncate">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span
+                        dir="auto"
+                        className="min-w-0 text-sm font-semibold text-[var(--dank-text)] truncate"
+                      >
                         {person.name}
                       </span>
                       <UserBadges
@@ -707,7 +713,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       @{person.username}
                     </div>
                   </div>
-                  <span className="text-xs font-bold text-[var(--dank-accent-fg)] bg-[var(--dank-accent)] px-3 py-1 rounded-full shrink-0">
+                  <span className="text-xs font-bold text-[var(--dank-accent-fg)] bg-[var(--dank-accent)] px-3 py-1 rounded-full shrink-0 whitespace-nowrap">
                     {t.common.chat}
                   </span>
                 </div>
@@ -736,14 +742,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   chatType="channel"
                 />
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-[var(--dank-text)] truncate">
+                  <div dir="auto" className="text-sm font-semibold text-[var(--dank-text)] truncate">
                     {ch.name || t.common.channel}
                   </div>
                   <div className="text-xs text-[var(--dank-muted)] truncate">
                     {ch.memberCount} {t.common.subscribers}
                   </div>
                 </div>
-                <span className="text-xs font-bold text-[var(--dank-accent-fg)] bg-[var(--dank-accent)] px-3 py-1 rounded-full shrink-0">
+                <span className="text-xs font-bold text-[var(--dank-accent-fg)] bg-[var(--dank-accent)] px-3 py-1 rounded-full shrink-0 whitespace-nowrap">
                   {t.common.join}
                 </span>
               </button>

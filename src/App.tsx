@@ -53,6 +53,7 @@ import { ContactsAndCallsModal } from './components/ContactsAndCallsModal';
 import { CreateChatModal } from './components/CreateChatModal';
 import { DankLogo } from './components/DankLogo';
 import { DankPlusModal } from './components/DankPlusModal';
+import { DankSplash } from './components/DankSplash';
 
 import { JoinInviteModal } from './components/JoinInviteModal';
 import { NotificationsPage } from './components/NotificationsPage';
@@ -171,6 +172,8 @@ export default function App() {
   const [activeStoryGroup, setActiveStoryGroup] = useState<StoryAuthorGroup | null>(null);
 
   const [mainTab, setMainTab] = useState<MainTab>('chats');
+  const [showWelcomeSplash, setShowWelcomeSplash] = useState(true);
+  const handleSplashFinish = useCallback(() => setShowWelcomeSplash(false), []);
   const [headerSearchOpen, setHeaderSearchOpen] = useState(false);
   const [headerSearchQuery, setHeaderSearchQuery] = useState('');
   const [showHeaderPlusMenu, setShowHeaderPlusMenu] = useState(false);
@@ -1349,109 +1352,116 @@ export default function App() {
     }
   };
 
-  if (!firebaseUser || !isVerified || !profile) {
-    return <AuthScreen />;
-  }
+  const splashCanFinish = authReady && (!firebaseUser || !isVerified || Boolean(profile));
 
-  // Two-Step Verification (2FA) Lock Screen
-  if (twoStepLocked) {
-    const handleUnlock = async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!twoStepInput.trim() || unlocking2FA) return;
-      setUnlocking2FA(true);
-      setTwoStepError(null);
-      const ok = await unlockTwoStep(twoStepInput);
-      setUnlocking2FA(false);
-      if (!ok) {
-        setTwoStepError(t.privacy.twoStepInvalid);
-      } else {
-        setTwoStepInput('');
-      }
-    };
+  const renderScreen = (): React.ReactNode => {
+    if (!splashCanFinish && showWelcomeSplash) {
+      return <div className="fixed inset-0 bg-[#000000]" />;
+    }
 
-    return (
-      <div className="dank-auth-scroll bg-[var(--dank-canvas)] flex items-center justify-center p-6">
-        <div className="max-w-md w-full rounded-3xl bg-[var(--dank-surface)] border border-[var(--dank-border)] shadow-2xl p-7 text-center space-y-5">
-          <div className="flex justify-center">
-            <DankLogo size="md" showText={false} />
-          </div>
-          <div className="w-12 h-12 mx-auto rounded-2xl bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] flex items-center justify-center">
-            <KeyRound className="w-6 h-6" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-[var(--dank-text)]">
-              {t.privacy.twoStepChallengeTitle}
-            </h1>
-            <p className="mt-1.5 text-xs text-[var(--dank-muted)] leading-relaxed">
-              {t.privacy.twoStepChallengeDesc}
-            </p>
-            {privateProfile?.twoStepHint && (
-              <p className="mt-2 text-xs font-semibold text-[var(--dank-accent)]">
-                {t.privacy.hintOptional}: {privateProfile.twoStepHint}
+    if (!firebaseUser || !isVerified || !profile) {
+      return <AuthScreen />;
+    }
+
+    // Two-Step Verification (2FA) Lock Screen
+    if (twoStepLocked) {
+      const handleUnlock = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!twoStepInput.trim() || unlocking2FA) return;
+        setUnlocking2FA(true);
+        setTwoStepError(null);
+        const ok = await unlockTwoStep(twoStepInput);
+        setUnlocking2FA(false);
+        if (!ok) {
+          setTwoStepError(t.privacy.twoStepInvalid);
+        } else {
+          setTwoStepInput('');
+        }
+      };
+
+      return (
+        <div className="dank-auth-scroll bg-[var(--dank-canvas)] flex items-center justify-center p-6">
+          <div className="max-w-md w-full rounded-3xl bg-[var(--dank-surface)] border border-[var(--dank-border)] shadow-2xl p-7 text-center space-y-5">
+            <div className="flex justify-center">
+              <DankLogo size="md" showText={false} />
+            </div>
+            <div className="w-12 h-12 mx-auto rounded-2xl bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] flex items-center justify-center">
+              <KeyRound className="w-6 h-6" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-[var(--dank-text)]">
+                {t.privacy.twoStepChallengeTitle}
+              </h1>
+              <p className="mt-1.5 text-xs text-[var(--dank-muted)] leading-relaxed">
+                {t.privacy.twoStepChallengeDesc}
               </p>
-            )}
-          </div>
+              {privateProfile?.twoStepHint && (
+                <p className="mt-2 text-xs font-semibold text-[var(--dank-accent)]">
+                  {t.privacy.hintOptional}: {privateProfile.twoStepHint}
+                </p>
+              )}
+            </div>
 
-          <form onSubmit={(e) => void handleUnlock(e)} className="space-y-3 text-start">
-            <input
-              type="password"
-              dir="ltr"
-              required
-              value={twoStepInput}
-              onChange={(e) => setTwoStepInput(e.target.value)}
-              placeholder={t.privacy.passwordPlaceholder}
-              className="w-full h-11 px-4 rounded-xl bg-[var(--dank-elevated)] border border-[var(--dank-border)] text-base text-[var(--dank-text)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)]"
-            />
-            {twoStepError && <p className="text-xs text-red-500 text-center">{twoStepError}</p>}
+            <form onSubmit={(e) => void handleUnlock(e)} className="space-y-3 text-start">
+              <input
+                type="password"
+                dir="ltr"
+                required
+                value={twoStepInput}
+                onChange={(e) => setTwoStepInput(e.target.value)}
+                placeholder={t.privacy.passwordPlaceholder}
+                className="w-full h-11 px-4 rounded-xl bg-[var(--dank-elevated)] border border-[var(--dank-border)] text-base text-[var(--dank-text)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)]"
+              />
+              {twoStepError && <p className="text-xs text-red-500 text-center">{twoStepError}</p>}
+              <button
+                type="submit"
+                disabled={unlocking2FA || !twoStepInput.trim()}
+                className="w-full h-11 rounded-full bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+              >
+                <Lock className="w-4 h-4" />
+                {t.privacy.twoStepUnlock}
+              </button>
+            </form>
+
             <button
-              type="submit"
-              disabled={unlocking2FA || !twoStepInput.trim()}
-              className="w-full h-11 rounded-full bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+              type="button"
+              onClick={() => void logout()}
+              className="text-xs font-semibold text-[var(--dank-muted)] hover:text-[var(--dank-text)] cursor-pointer"
             >
-              <Lock className="w-4 h-4" />
-              {t.privacy.twoStepUnlock}
+              {t.profile.logout}
             </button>
-          </form>
-
-          <button
-            type="button"
-            onClick={() => void logout()}
-            className="text-xs font-semibold text-[var(--dank-muted)] hover:text-[var(--dank-text)] cursor-pointer"
-          >
-            {t.profile.logout}
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (profile.isBanned && !isAdmin) {
-    return (
-      <div className="dank-auth-scroll bg-[var(--dank-canvas)] flex items-center justify-center p-6">
-        <div className="max-w-md w-full rounded-3xl bg-[var(--dank-surface)] border border-[var(--dank-border)] shadow-xl p-7 text-center space-y-4">
-          <div className="w-14 h-14 mx-auto rounded-2xl bg-red-500/15 text-red-500 flex items-center justify-center">
-            <Ban className="w-7 h-7" />
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-[var(--dank-text)]">
-              {t.errors.accountSuspended}
-            </h1>
-            <p className="mt-2 text-sm text-[var(--dank-muted)] leading-relaxed">
-              {t.errors.accountSuspendedDesc}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => void logout()}
-            className="w-full h-11 rounded-full bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] text-sm font-semibold flex items-center justify-center gap-2 cursor-pointer"
-          >
-            <LogOut className="w-4 h-4 text-[var(--dank-accent)]" />
-            {t.profile.logout}
-          </button>
         </div>
-      </div>
-    );
-  }
+      );
+    }
+
+    if (profile.isBanned && !isAdmin) {
+      return (
+        <div className="dank-auth-scroll bg-[var(--dank-canvas)] flex items-center justify-center p-6">
+          <div className="max-w-md w-full rounded-3xl bg-[var(--dank-surface)] border border-[var(--dank-border)] shadow-xl p-7 text-center space-y-4">
+            <div className="w-14 h-14 mx-auto rounded-2xl bg-red-500/15 text-red-500 flex items-center justify-center">
+              <Ban className="w-7 h-7" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-[var(--dank-text)]">
+                {t.errors.accountSuspended}
+              </h1>
+              <p className="mt-2 text-sm text-[var(--dank-muted)] leading-relaxed">
+                {t.errors.accountSuspendedDesc}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void logout()}
+              className="w-full h-11 rounded-full bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] text-sm font-semibold flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <LogOut className="w-4 h-4 text-[var(--dank-accent)]" />
+              {t.profile.logout}
+            </button>
+          </div>
+        </div>
+      );
+    }
 
   const joinedChannelList = chats.filter((c) => c.type === 'channel');
   const joinedGroupList = chats.filter((c) => c.type === 'group');
@@ -1853,10 +1863,10 @@ export default function App() {
                       />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
-                          <span dir="auto" className="text-sm font-bold text-[var(--dank-text)] truncate">
+                          <span dir="auto" className="flex-1 min-w-0 text-sm font-bold text-[var(--dank-text)] truncate">
                             {ch.name || t.common.channel}
                           </span>
-                          <span className="text-[11px] text-[var(--dank-muted)] tabular-nums shrink-0">
+                          <span className="text-[11px] text-[var(--dank-muted)] tabular-nums shrink-0 whitespace-nowrap">
                             {formatChatTime(ch.lastMessageAt || ch.updatedAt, language)}
                           </span>
                         </div>
@@ -1962,10 +1972,10 @@ export default function App() {
                       />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
-                          <span dir="auto" className="text-sm font-bold text-[var(--dank-text)] truncate">
+                          <span dir="auto" className="flex-1 min-w-0 text-sm font-bold text-[var(--dank-text)] truncate">
                             {grp.name || t.common.group}
                           </span>
-                          <span className="text-[11px] text-[var(--dank-muted)] tabular-nums shrink-0">
+                          <span className="text-[11px] text-[var(--dank-muted)] tabular-nums shrink-0 whitespace-nowrap">
                             {formatChatTime(grp.lastMessageAt || grp.updatedAt, language)}
                           </span>
                         </div>
@@ -2147,10 +2157,11 @@ export default function App() {
                         key={call.id}
                         className="px-4 py-3 flex items-center justify-between gap-3 hover:bg-[var(--dank-hover)] transition-colors"
                       >
-                        <div className="flex items-center gap-3 min-w-0">
+                        <div className="flex-1 flex items-center gap-3 min-w-0">
                           <Avatar src={peerPhoto} name={peerName} size="md" />
-                          <div className="min-w-0">
+                          <div className="flex-1 min-w-0">
                             <p
+                              dir="auto"
                               className={`text-sm font-semibold truncate ${
                                 isMissed ? 'text-red-500' : 'text-[var(--dank-text)]'
                               }`}
@@ -2177,7 +2188,7 @@ export default function App() {
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex items-center gap-2 shrink-0 whitespace-nowrap">
                           <span className="text-[11px] text-[var(--dank-muted)] tabular-nums">
                             {formatChatTime(call.startedAt, language)}
                           </span>
@@ -2657,11 +2668,14 @@ export default function App() {
                     }}
                     className="w-full px-4 py-3 flex items-center justify-between gap-3 text-start hover:bg-[var(--dank-hover)] transition-colors cursor-pointer"
                   >
-                    <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex-1 flex items-center gap-3 min-w-0">
                       <Avatar src={person.photoURL} name={person.name} size="md" />
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1 min-w-0">
-                          <span className="text-sm font-semibold text-[var(--dank-text)] truncate">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span
+                            dir="auto"
+                            className="min-w-0 text-sm font-semibold text-[var(--dank-text)] truncate"
+                          >
                             {person.name}
                           </span>
                           <UserBadges
@@ -3119,5 +3133,15 @@ export default function App() {
         </div>
       )}
     </div>
+    );
+  };
+
+  return (
+    <>
+      {renderScreen()}
+      {showWelcomeSplash && (
+        <DankSplash canFinish={splashCanFinish} onFinish={handleSplashFinish} />
+      )}
+    </>
   );
 }

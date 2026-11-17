@@ -337,11 +337,14 @@ export const CreateChatModal: React.FC<CreateChatModalProps> = ({
                       onClick={() => toggleMember(u.uid)}
                       className="w-full px-3 py-2 flex items-center justify-between gap-3 hover:bg-[var(--dank-hover)] text-start cursor-pointer"
                     >
-                      <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="flex-1 flex items-center gap-2.5 min-w-0">
                         <Avatar src={u.photoURL} name={u.name} size="xs" />
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1 min-w-0">
-                            <p className="text-xs font-semibold text-[var(--dank-text)] truncate">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <p
+                              dir="auto"
+                              className="min-w-0 text-xs font-semibold text-[var(--dank-text)] truncate"
+                            >
                               {u.name}
                             </p>
                             <UserBadges
@@ -358,7 +361,7 @@ export const CreateChatModal: React.FC<CreateChatModalProps> = ({
                         </div>
                       </div>
                       <span
-                        className={`w-5 h-5 rounded-md flex items-center justify-center border ${
+                        className={`w-5 h-5 shrink-0 rounded-md flex items-center justify-center border ${
                           checked
                             ? 'bg-[var(--dank-accent)] border-[var(--dank-accent)] text-[var(--dank-accent-fg)]'
                             : 'border-[var(--dank-border)]'

@@ -175,3 +175,40 @@
 .dank-animate-in {
   animation: dankFadeIn 160ms ease-out;
 }
+
+@keyframes dankHelloGradient {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.dank-hello-gradient {
+  background-image: linear-gradient(
+    110deg,
+    #3b82f6 0%,
+    #a855f7 28%,
+    #ec4899 58%,
+    #f97316 84%,
+    #3b82f6 100%
+  );
+  background-size: 240% 240%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: dankHelloGradient 3.4s ease infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dank-hello-gradient {
+    animation: none;
+    background-position: 35% 50%;
+  }
+}
+
