@@ -20,6 +20,7 @@ import {
 import type { CallRecord, UserContact, UserPublic } from '../types/dank';
 import { formatChatTime } from '../utils/timeFormat';
 import { Avatar } from './Avatar';
+import { UserBadges } from './UserBadges';
 
 interface ContactsAndCallsModalProps {
   initialTab: 'contacts' | 'calls';
@@ -151,9 +152,18 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
                     <div key={c.uid} className="py-2.5 flex items-center gap-3">
                       <Avatar src={fullPeer.photoURL} name={fullPeer.name} size="sm" />
                       <div className="flex-1 min-w-0">
-                        <p dir="auto" className="text-sm font-semibold text-[var(--dank-text)] truncate">
-                          {fullPeer.name}
-                        </p>
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span dir="auto" className="min-w-0 text-sm font-semibold text-[var(--dank-text)] truncate">
+                            {fullPeer.name}
+                          </span>
+                          <UserBadges
+                            isAdmin={fullPeer.isAdmin}
+                            isVerified={fullPeer.isVerified}
+                            isVip={fullPeer.isVip || (fullPeer.inviteCount ?? 0) >= 5}
+                            isPlus={fullPeer.isPlus}
+                            size="xs"
+                          />
+                        </div>
                         <p className="text-xs text-[var(--dank-accent)] truncate">
                           @{fullPeer.username}
                         </p>

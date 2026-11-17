@@ -251,3 +251,32 @@
   }
 }
 
+@keyframes dankArcadeCheckBlink {
+  0%,
+  46% {
+    opacity: 1;
+    filter: drop-shadow(0 0 2px #ffffff) drop-shadow(0 0 4px #f472b6);
+  }
+  50%,
+  94% {
+    opacity: 0.08;
+    filter: none;
+  }
+  98%,
+  100% {
+    opacity: 1;
+    filter: drop-shadow(0 0 2px #ffffff) drop-shadow(0 0 4px #f472b6);
+  }
+}
+
+.dank-arcade-verified-badge {
+  filter: drop-shadow(0 0 4px rgba(236, 72, 153, 0.95))
+    drop-shadow(0 0 8px rgba(168, 85, 247, 0.85));
+}
+
+.dank-arcade-verified-check {
+  animation: dankArcadeCheckBlink 0.8s linear infinite;
+  will-change: opacity, filter;
+}
+
+
