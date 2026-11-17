@@ -2936,6 +2936,7 @@ export default function App() {
       {showAdminModal && isAdmin && (
         <AdminDashboardModal
           currentAdminUid={profile.uid}
+          liveUsers={allUsers}
           adsBanner={adsBanner}
           onClose={() => setShowAdminModal(false)}
           onNotify={notify}

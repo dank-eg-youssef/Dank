@@ -46,7 +46,7 @@ import {
   pauseFirestoreWrites,
 } from '../utils/firestoreErrors';
 import { encryptSecretText } from '../utils/secretCrypto';
-import { isUserActuallyOnline, sanitizeUsername } from '../utils/timeFormat';
+import { isUserActuallyOnline, sanitizeUsername, timestampToMs } from '../utils/timeFormat';
 import { getTranslations } from '../i18n';
 import { createAppNotification } from './notificationService';
 
@@ -1949,16 +1949,39 @@ export async function setTypingStatus(
 
 export async function fetchAdminStats(): Promise<AdminStatsData> {
   try {
-    const [usersSnap, chatsSnap, messagesCountSnap, messagesSnap] = await Promise.all([
+    const [usersRes, chatsRes, messagesCountRes, messagesRes] = await Promise.allSettled([
       getDocs(collection(db, 'users_public')),
       getDocs(collection(db, 'chats')),
       getCountFromServer(collectionGroup(db, 'messages')),
       getDocs(query(collectionGroup(db, 'messages'), limit(3000))),
     ]);
 
-    const users = usersSnap.docs.map((d) => d.data() as UserPublic);
-    const chats = chatsSnap.docs.map((d) => d.data() as Chat);
-    const msgs = messagesSnap.docs.map((d) => d.data() as Message);
+    if (usersRes.status === 'rejected') {
+      handleFirestoreError(usersRes.reason, OperationType.LIST, 'users_public');
+    }
+
+    const users = usersRes.value.docs
+      .map((d) => d.data() as UserPublic)
+      .sort((a, b) => {
+        const diff = timestampToMs(b.createdAt) - timestampToMs(a.createdAt);
+        if (diff !== 0) return diff;
+        return timestampToMs(b.lastSeen) - timestampToMs(a.lastSeen);
+      });
+
+    const chats =
+      chatsRes.status === 'fulfilled'
+        ? chatsRes.value.docs.map((d) => d.data() as Chat)
+        : [];
+
+    const msgs =
+      messagesRes.status === 'fulfilled'
+        ? messagesRes.value.docs.map((d) => d.data() as Message)
+        : [];
+
+    const totalMessages =
+      messagesCountRes.status === 'fulfilled'
+        ? messagesCountRes.value.data().count
+        : msgs.length;
 
     const totalGroups = chats.filter((c) => c.type === 'group').length;
     const totalChannels = chats.filter((c) => c.type === 'channel').length;
@@ -1972,11 +1995,11 @@ export async function fetchAdminStats(): Promise<AdminStatsData> {
     ).getTime();
 
     const newUsersToday = users.filter(
-      (u) => u.createdAt && u.createdAt.toMillis() >= startOfTodayMs
+      (u) => timestampToMs(u.createdAt) >= startOfTodayMs
     ).length;
 
     const totalMessagesToday = msgs.filter(
-      (m) => m.createdAt && m.createdAt.toMillis() >= startOfTodayMs
+      (m) => timestampToMs(m.createdAt) >= startOfTodayMs
     ).length;
 
     const userMsgCounts: Record<string, number> = {};
@@ -2033,12 +2056,12 @@ export async function fetchAdminStats(): Promise<AdminStatsData> {
       });
 
       const dayMessages = msgs.filter((m) => {
-        const ms = m.createdAt?.toMillis() || 0;
+        const ms = timestampToMs(m.createdAt);
         return ms >= dayStartMs && ms < dayEndMs;
       }).length;
 
       const dayNewUsers = users.filter((u) => {
-        const ms = u.createdAt?.toMillis() || 0;
+        const ms = timestampToMs(u.createdAt);
         return ms >= dayStartMs && ms < dayEndMs;
       }).length;
 
@@ -2051,7 +2074,7 @@ export async function fetchAdminStats(): Promise<AdminStatsData> {
 
     return {
       totalUsers: users.length,
-      totalMessages: messagesCountSnap.data().count,
+      totalMessages,
       totalGroups,
       totalChannels,
       totalPrivateChats,

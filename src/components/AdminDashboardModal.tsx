@@ -26,7 +26,7 @@ import {
 } from '../services/chatService';
 import type { AdminStatsData, AdsBanner, UserPublic } from '../types/dank';
 import { compressImageFile } from '../utils/imageCompress';
-import { formatLastSeen, isUserActuallyOnline } from '../utils/timeFormat';
+import { formatLastSeen, isUserActuallyOnline, timestampToMs } from '../utils/timeFormat';
 import { Avatar } from './Avatar';
 import { UserBadges } from './UserBadges';
 
@@ -34,6 +34,7 @@ type AdminTab = 'analytics' | 'users' | 'ads';
 
 interface AdminDashboardModalProps {
   currentAdminUid: string;
+  liveUsers?: UserPublic[];
   adsBanner: AdsBanner | null;
   onClose: () => void;
   onNotify: (msg: string) => void;
@@ -41,6 +42,7 @@ interface AdminDashboardModalProps {
 
 export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
   currentAdminUid,
+  liveUsers = [],
   adsBanner,
   onClose,
   onNotify,
@@ -213,17 +215,50 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
     }
   };
 
+  const mergedUsers = useMemo(() => {
+    const byUid = new Map<string, UserPublic>();
+    for (const u of stats?.users || []) {
+      if (u?.uid) byUid.set(u.uid, u);
+    }
+    for (const u of liveUsers) {
+      if (u?.uid) {
+        const existing = byUid.get(u.uid);
+        byUid.set(u.uid, existing ? { ...existing, ...u } : u);
+      }
+    }
+    return Array.from(byUid.values()).sort((a, b) => {
+      const diff = timestampToMs(b.createdAt) - timestampToMs(a.createdAt);
+      if (diff !== 0) return diff;
+      return timestampToMs(b.lastSeen) - timestampToMs(a.lastSeen);
+    });
+  }, [stats?.users, liveUsers]);
+
   const filteredUsers = useMemo(() => {
-    if (!stats) return [];
     const q = userSearch.trim().toLowerCase();
-    if (!q) return stats.users;
-    return stats.users.filter(
-      (u) => u.name.toLowerCase().includes(q) || u.username.toLowerCase().includes(q)
+    if (!q) return mergedUsers;
+    return mergedUsers.filter(
+      (u) =>
+        (u.name || '').toLowerCase().includes(q) ||
+        (u.username || '').toLowerCase().includes(q)
     );
-  }, [stats, userSearch]);
+  }, [mergedUsers, userSearch]);
+
+  const totalUsersCount = mergedUsers.length || stats?.totalUsers || 0;
+  const newUsersTodayCount = useMemo(() => {
+    const now = new Date();
+    const startOfTodayMs = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate()
+    ).getTime();
+    if (mergedUsers.length > 0) {
+      return mergedUsers.filter((u) => timestampToMs(u.createdAt) >= startOfTodayMs).length;
+    }
+    return stats?.newUsersToday || 0;
+  }, [mergedUsers, stats?.newUsersToday]);
 
   const onlineNow =
-    stats?.users.filter((u) => isUserActuallyOnline(u.isOnline, u.lastSeen)).length || 0;
+    mergedUsers.filter((u) => isUserActuallyOnline(u.isOnline, u.lastSeen)).length || 0;
 
   const topGroup = stats?.mostActiveGroups[0] || null;
   const maxUserMsgs = Math.max(
@@ -299,7 +334,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
             }`}
           >
             <Users className="w-4 h-4" />
-            {t.admin.tabUsers} ({stats?.totalUsers ?? '—'})
+            {t.admin.tabUsers} ({totalUsersCount || '—'})
           </button>
 
           <button
@@ -323,15 +358,15 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
             </div>
           )}
 
-          {loading && !stats ? (
+          {activeTab === 'analytics' && loading && !stats ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {[0, 1, 2, 3].map((n) => (
                 <div key={n} className="h-28 rounded-xl bg-[var(--dank-surface)] animate-pulse" />
               ))}
             </div>
-          ) : stats ? (
+          ) : (
             <>
-              {activeTab === 'analytics' && (
+              {activeTab === 'analytics' && stats && (
                 <div className="space-y-6">
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div className="p-4 rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)]">
@@ -340,7 +375,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                         <Users className="w-4 h-4 text-[var(--dank-accent)]" />
                       </div>
                       <div className="mt-2 text-2xl font-bold text-[var(--dank-text)] tabular-nums">
-                        {stats.totalUsers}
+                        {totalUsersCount}
                       </div>
                       <div className="mt-1 text-xs text-[var(--dank-muted)] tabular-nums">
                         {onlineNow} {t.admin.onlineRightNow}
@@ -353,7 +388,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                         <UserPlus className="w-4 h-4 text-[var(--dank-accent)]" />
                       </div>
                       <div className="mt-2 text-2xl font-bold text-[var(--dank-text)] tabular-nums">
-                        {stats.newUsersToday}
+                        {newUsersTodayCount}
                       </div>
                       <div className="mt-1 text-xs text-[var(--dank-muted)] tabular-nums">
                         {t.admin.joinedSinceMidnight}
@@ -900,7 +935,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                 </div>
               )}
             </>
-          ) : null}
+          )}
         </div>
       </div>
     </div>

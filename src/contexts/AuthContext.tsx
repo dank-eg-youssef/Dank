@@ -104,10 +104,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [sessionId] = useState<string>(() => getOrCreateLocalSessionId());
   const [sessionRevoked, setSessionRevoked] = useState(false);
   const [twoStepUnlockedMap, setTwoStepUnlockedMap] = useState<Record<string, boolean>>({});
+  const [authRefreshTick, setAuthRefreshTick] = useState(0);
 
   const activeChatRef = useRef<string>('');
   const lastPresenceWriteRef = useRef<number>(0);
   const syncAttemptedUidRef = useRef<string | null>(null);
+  const inFlightSyncUidRef = useRef<string | null>(null);
 
   const isVerified = isUserAuthVerified(firebaseUser);
   const isAdmin = Boolean(
@@ -156,16 +158,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [firebaseUser, privateProfile]
   );
 
-  // Try Firestore ONCE per login. If quota/network fails, fallback immediately to cached/local profile and do NOT retry in a loop.
+  // Ensure Firestore user documents exist for every verified user.
   const ensureUserProfileDocsOnce = useCallback(async (user: User) => {
     if (!isUserAuthVerified(user)) return;
-    if (syncAttemptedUidRef.current === user.uid) return;
-    syncAttemptedUidRef.current = user.uid;
+    if (syncAttemptedUidRef.current === user.uid || inFlightSyncUidRef.current === user.uid) return;
+    inFlightSyncUidRef.current = user.uid;
 
     const chosenLang = getStoredLanguage();
-    const fallbackName = user.displayName?.trim() || user.email?.split('@')[0] || 'DANK Member';
+    let pendingName = '';
+    let pendingUsername = '';
+    let pendingInviteCode = '';
+    try {
+      const rawPending = sessionStorage.getItem(PENDING_PROFILE_KEY);
+      if (rawPending) {
+        const parsed = JSON.parse(rawPending) as {
+          name?: string;
+          username?: string;
+          inviteCode?: string;
+        };
+        pendingName = parsed.name?.trim() || '';
+        pendingUsername = parsed.username?.trim() || '';
+        pendingInviteCode = parsed.inviteCode?.trim() || '';
+      }
+    } catch {}
+
+    const fallbackName = (
+      pendingName ||
+      user.displayName?.trim() ||
+      user.email?.split('@')[0] ||
+      'DANK Member'
+    ).slice(0, 80);
     const fallbackUsername = sanitizeUsername(
-      user.displayName || user.email?.split('@')[0] || user.uid.slice(0, 8)
+      pendingUsername || user.displayName || user.email?.split('@')[0] || user.uid.slice(0, 8)
     );
 
     let cachedPub: UserPublic | null = null;
@@ -187,29 +211,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isAdmin: user.email?.toLowerCase() === ADMIN_EMAIL,
     };
 
-    // Immediately set profile and unblock loading so WhatsApp layout appears instantly without waiting
+    // Immediately set profile and unblock loading so layout appears without blocking
     setProfile(fallbackProfile);
     setLoading(false);
     setAuthReady(true);
 
-    const pubRef = doc(db, 'users_public', user.uid);
-    const privRef = doc(db, 'users_private', user.uid);
-
-    let pendingInviteCode = '';
-    try {
-      const rawPending = sessionStorage.getItem(PENDING_PROFILE_KEY);
-      if (rawPending) {
-        const parsed = JSON.parse(rawPending) as { inviteCode?: string };
-        pendingInviteCode = parsed.inviteCode || '';
-      }
-    } catch {}
-
-    // Perform Firestore sync ONCE in background if quota is not paused
     if (isFirestoreWritesPaused()) {
+      inFlightSyncUidRef.current = null;
       return;
     }
 
-    try {
+    const pubRef = doc(db, 'users_public', user.uid);
+    const privRef = doc(db, 'users_private', user.uid);
+
+    const runSync = async () => {
       const [pubSnap, privSnap] = await Promise.all([getDoc(pubRef), getDoc(privRef)]);
 
       if (pubSnap.exists()) {
@@ -227,7 +242,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (!pubSnap.exists()) {
           batch.set(pubRef, {
             uid: user.uid,
-            name: fallbackName.slice(0, 80),
+            name: fallbackName,
             username: fallbackUsername,
             photoURL: user.photoURL || '',
             bio: getTranslations(chosenLang).errors.defaultBio,
@@ -276,12 +291,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           await batch.commit();
         }
 
+        syncAttemptedUidRef.current = user.uid;
+
         if (pendingInviteCode) {
           try {
             await redeemInviteCode(user.uid, pendingInviteCode);
-            sessionStorage.removeItem(PENDING_PROFILE_KEY);
           } catch {}
         }
+        try {
+          sessionStorage.removeItem(PENDING_PROFILE_KEY);
+        } catch {}
+
         if (user.email?.toLowerCase() === ADMIN_EMAIL) {
           await ensureOfficialChannelForAdmin(user.uid).catch(() => {});
           await ensureDankTeamChannelForAdmin(user.uid).catch(() => {});
@@ -292,22 +312,53 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           ensureSavedMessagesChat(fallbackProfile),
         ]).catch(() => {});
       }
+    };
+
+    try {
+      await runSync();
     } catch (error) {
+      const errCode = (error as { code?: string })?.code || '';
+      const errMsg = error instanceof Error ? error.message.toLowerCase() : '';
+      const looksLikePermission =
+        errCode === 'permission-denied' ||
+        errMsg.includes('permission-denied') ||
+        errMsg.includes('missing or insufficient permissions');
+
+      if (looksLikePermission && typeof user.getIdToken === 'function') {
+        try {
+          await user.getIdToken(true);
+          await runSync();
+          inFlightSyncUidRef.current = null;
+          return;
+        } catch (retryError) {
+          console.warn('Profile sync retry after token refresh failed:', retryError);
+        }
+      }
+
       if (isQuotaExhaustedError(error)) {
         pauseFirestoreWrites();
+        syncAttemptedUidRef.current = user.uid;
         setProfileError('Firestore free daily write quota reached. Running with cached profile.');
       } else if (isOfflineError(error)) {
-        console.warn('Firestore offline during single profile sync, using local profile cache.');
+        console.warn('Firestore offline during profile sync, using local profile cache.');
       } else {
-        console.warn('One-time profile sync error (cached profile active):', error);
+        console.warn('Profile sync error (will allow retry):', error);
+      }
+    } finally {
+      if (inFlightSyncUidRef.current === user.uid) {
+        inFlightSyncUidRef.current = null;
       }
     }
   }, []);
 
   const retryProfileSync = useCallback(async () => {
     syncAttemptedUidRef.current = null;
+    inFlightSyncUidRef.current = null;
     const activeUser = auth.currentUser || firebaseUser;
     if (!activeUser || !isUserAuthVerified(activeUser)) return;
+    if (typeof activeUser.getIdToken === 'function') {
+      await activeUser.getIdToken(true).catch(() => {});
+    }
     setProfileError(null);
     await ensureUserProfileDocsOnce(activeUser);
   }, [ensureUserProfileDocsOnce, firebaseUser]);
@@ -318,6 +369,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (!user) {
         syncAttemptedUidRef.current = null;
+        inFlightSyncUidRef.current = null;
         setProfile(null);
         setPrivateProfile(null);
         setProfileError(null);
@@ -355,6 +407,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           try {
             localStorage.setItem(`dank_local_profile_${uid}`, JSON.stringify(data));
           } catch {}
+        } else if (
+          !isFirestoreWritesPaused() &&
+          inFlightSyncUidRef.current !== uid &&
+          syncAttemptedUidRef.current !== uid
+        ) {
+          void ensureUserProfileDocsOnce(firebaseUser);
         }
       },
       (error) => {
@@ -380,7 +438,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       unsubPub();
       unsubPriv();
     };
-  }, [firebaseUser, isVerified]);
+  }, [firebaseUser, isVerified, authRefreshTick, ensureUserProfileDocsOnce]);
 
   const signInWithEmail = useCallback(
     async (email: string, password: string) => {
@@ -441,11 +499,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!auth.currentUser) return false;
     await auth.currentUser.reload();
     const refreshed = auth.currentUser;
-    setFirebaseUser({ ...refreshed } as User);
     if (isUserAuthVerified(refreshed)) {
+      await refreshed.getIdToken(true).catch(() => {});
+      setFirebaseUser(refreshed);
+      setAuthRefreshTick((n) => n + 1);
+      syncAttemptedUidRef.current = null;
       await ensureUserProfileDocsOnce(refreshed);
       return true;
     }
+    setFirebaseUser(refreshed);
+    setAuthRefreshTick((n) => n + 1);
     return false;
   }, [ensureUserProfileDocsOnce]);
 
@@ -558,6 +621,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = useCallback(async () => {
     syncAttemptedUidRef.current = null;
+    inFlightSyncUidRef.current = null;
     activeChatRef.current = '';
     await signOut(auth);
     setProfile(null);
