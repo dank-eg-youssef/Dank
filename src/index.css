@@ -5,72 +5,72 @@
   :root,
   [data-theme='arcade'] {
     color-scheme: dark;
-    --dank-canvas: #040409;
-    --dank-surface: #0b0b18;
-    --dank-elevated: #14122b;
-    --dank-hover: #1d193d;
-    --dank-bubble-out: #4c1d95;
-    --dank-bubble-out-fg: #ffffff;
-    --dank-bubble-in: #0f233a;
-    --dank-bubble-in-fg: #e0f2fe;
-    --dank-accent: #a855f7;
-    --dank-accent-hover: #c084fc;
-    --dank-neon-pink: #ec4899;
-    --dank-neon-cyan: #22d3ee;
-    --dank-accent-soft: rgba(168, 85, 247, 0.22);
-    --dank-accent-border: rgba(34, 211, 238, 0.55);
-    --dank-accent-fg: #ffffff;
-    --dank-text: #f5f3ff;
-    --dank-muted: #a5b4fc;
-    --dank-border: rgba(168, 85, 247, 0.34);
-    --dank-border-subtle: rgba(236, 72, 153, 0.16);
-    --dank-dot: rgba(34, 211, 238, 0.16);
-    --dank-primary: #0b0b18;
+    --era-canvas: #040409;
+    --era-surface: #0b0b18;
+    --era-elevated: #14122b;
+    --era-hover: #1d193d;
+    --era-bubble-out: #4c1d95;
+    --era-bubble-out-fg: #ffffff;
+    --era-bubble-in: #0f233a;
+    --era-bubble-in-fg: #e0f2fe;
+    --era-accent: #a855f7;
+    --era-accent-hover: #c084fc;
+    --era-neon-pink: #ec4899;
+    --era-neon-cyan: #22d3ee;
+    --era-accent-soft: rgba(168, 85, 247, 0.22);
+    --era-accent-border: rgba(34, 211, 238, 0.55);
+    --era-accent-fg: #ffffff;
+    --era-text: #f5f3ff;
+    --era-muted: #a5b4fc;
+    --era-border: rgba(168, 85, 247, 0.34);
+    --era-border-subtle: rgba(236, 72, 153, 0.16);
+    --era-dot: rgba(34, 211, 238, 0.16);
+    --era-primary: #0b0b18;
   }
 
   [data-neon='purple'] {
-    --dank-accent: #a855f7;
-    --dank-accent-hover: #c084fc;
-    --dank-bubble-out: #4c1d95;
-    --dank-accent-soft: rgba(168, 85, 247, 0.22);
-    --dank-accent-border: rgba(168, 85, 247, 0.55);
-    --dank-border: rgba(168, 85, 247, 0.34);
+    --era-accent: #a855f7;
+    --era-accent-hover: #c084fc;
+    --era-bubble-out: #4c1d95;
+    --era-accent-soft: rgba(168, 85, 247, 0.22);
+    --era-accent-border: rgba(168, 85, 247, 0.55);
+    --era-border: rgba(168, 85, 247, 0.34);
   }
 
   [data-neon='cyan'] {
-    --dank-accent: #22d3ee;
-    --dank-accent-hover: #67e8f9;
-    --dank-bubble-out: #0e7490;
-    --dank-accent-soft: rgba(34, 211, 238, 0.22);
-    --dank-accent-border: rgba(34, 211, 238, 0.55);
-    --dank-border: rgba(34, 211, 238, 0.34);
+    --era-accent: #22d3ee;
+    --era-accent-hover: #67e8f9;
+    --era-bubble-out: #0e7490;
+    --era-accent-soft: rgba(34, 211, 238, 0.22);
+    --era-accent-border: rgba(34, 211, 238, 0.55);
+    --era-border: rgba(34, 211, 238, 0.34);
   }
 
   [data-neon='pink'] {
-    --dank-accent: #ec4899;
-    --dank-accent-hover: #f472b6;
-    --dank-bubble-out: #831843;
-    --dank-accent-soft: rgba(236, 72, 153, 0.22);
-    --dank-accent-border: rgba(236, 72, 153, 0.55);
-    --dank-border: rgba(236, 72, 153, 0.34);
+    --era-accent: #ec4899;
+    --era-accent-hover: #f472b6;
+    --era-bubble-out: #831843;
+    --era-accent-soft: rgba(236, 72, 153, 0.22);
+    --era-accent-border: rgba(236, 72, 153, 0.55);
+    --era-border: rgba(236, 72, 153, 0.34);
   }
 
   [data-neon='green'] {
-    --dank-accent: #1db954;
-    --dank-accent-hover: #4ade80;
-    --dank-bubble-out: #14532d;
-    --dank-accent-soft: rgba(29, 185, 84, 0.22);
-    --dank-accent-border: rgba(29, 185, 84, 0.55);
-    --dank-border: rgba(29, 185, 84, 0.34);
+    --era-accent: #1db954;
+    --era-accent-hover: #4ade80;
+    --era-bubble-out: #14532d;
+    --era-accent-soft: rgba(29, 185, 84, 0.22);
+    --era-accent-border: rgba(29, 185, 84, 0.55);
+    --era-border: rgba(29, 185, 84, 0.34);
   }
 
   [data-neon='red'] {
-    --dank-accent: #ef4444;
-    --dank-accent-hover: #f87171;
-    --dank-bubble-out: #7f1d1d;
-    --dank-accent-soft: rgba(239, 68, 68, 0.22);
-    --dank-accent-border: rgba(239, 68, 68, 0.55);
-    --dank-border: rgba(239, 68, 68, 0.34);
+    --era-accent: #ef4444;
+    --era-accent-hover: #f87171;
+    --era-bubble-out: #7f1d1d;
+    --era-accent-soft: rgba(239, 68, 68, 0.22);
+    --era-accent-border: rgba(239, 68, 68, 0.55);
+    --era-border: rgba(239, 68, 68, 0.34);
   }
 
   * {
@@ -110,7 +110,7 @@
   html[data-theme='arcade'] h1,
   html[data-theme='arcade'] h2,
   html[data-theme='arcade'] h3,
-  html[data-theme='arcade'] .dank-brand-wordmark {
+  html[data-theme='arcade'] .era-brand-wordmark {
     font-family: 'Silkscreen', 'Handjet', 'Cairo', monospace;
     text-shadow: 0 0 10px rgba(34, 211, 238, 0.45), 0 0 20px rgba(168, 85, 247, 0.35);
   }
@@ -119,17 +119,17 @@
     text-shadow: 0 0 6px rgba(168, 85, 247, 0.25);
   }
 
-  html[data-theme='arcade'] button[class*='bg-[var(--dank-accent)]'] {
+  html[data-theme='arcade'] button[class*='bg-[var(--era-accent)]'] {
     box-shadow: 0 0 12px rgba(168, 85, 247, 0.48), 0 0 5px rgba(236, 72, 153, 0.35);
   }
 
-  html[data-theme='arcade'] [class*='border-[var(--dank-accent)]'] {
+  html[data-theme='arcade'] [class*='border-[var(--era-accent)]'] {
     box-shadow: 0 0 12px rgba(34, 211, 238, 0.26), 0 0 6px rgba(168, 85, 247, 0.24);
   }
 
   body {
-    background-color: var(--dank-canvas);
-    color: var(--dank-text);
+    background-color: var(--era-canvas);
+    color: var(--era-text);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     overflow: hidden;
@@ -141,7 +141,7 @@
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
-  .dank-fixed-chrome {
+  .era-fixed-chrome {
     touch-action: none;
     overscroll-behavior: none;
     -webkit-user-select: none;
@@ -150,7 +150,7 @@
     backface-visibility: hidden;
   }
 
-  .dank-scroll-list {
+  .era-scroll-list {
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
     overscroll-behavior-x: none;
@@ -160,11 +160,11 @@
     backface-visibility: hidden;
   }
 
-  .dank-chat-card {
+  .era-chat-card {
     contain: layout style paint;
   }
 
-  .dank-auth-scroll {
+  .era-auth-scroll {
     height: 100%;
     height: 100dvh;
     overflow-y: auto;
@@ -175,11 +175,11 @@
   }
 }
 
-/* DANK Wallpaper Pattern */
-.dank-chat-bg {
-  background-color: var(--dank-canvas);
-  background-image: radial-gradient(var(--dank-dot) 1.15px, transparent 1.15px),
-    radial-gradient(var(--dank-border-subtle) 1px, transparent 1px);
+/* ERA Wallpaper Pattern */
+.era-chat-bg {
+  background-color: var(--era-canvas);
+  background-image: radial-gradient(var(--era-dot) 1.15px, transparent 1.15px),
+    radial-gradient(var(--era-border-subtle) 1px, transparent 1px);
   background-size: 26px 26px;
   background-position: 0 0, 13px 13px;
 }
@@ -195,15 +195,15 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--dank-border);
+  background: var(--era-border);
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--dank-accent);
+  background: var(--era-accent);
 }
 
-@keyframes dankFadeIn {
+@keyframes eraFadeIn {
   from {
     opacity: 0;
     transform: translateY(6px);
@@ -214,11 +214,11 @@
   }
 }
 
-.dank-animate-in {
-  animation: dankFadeIn 160ms ease-out;
+.era-animate-in {
+  animation: eraFadeIn 160ms ease-out;
 }
 
-@keyframes dankHelloGradient {
+@keyframes eraHelloGradient {
   0% {
     background-position: 0% 50%;
   }
@@ -230,7 +230,7 @@
   }
 }
 
-.dank-hello-gradient {
+.era-hello-gradient {
   background-image: linear-gradient(
     110deg,
     #3b82f6 0%,
@@ -244,17 +244,17 @@
   background-clip: text;
   color: transparent;
   -webkit-text-fill-color: transparent;
-  animation: dankHelloGradient 3.4s ease infinite;
+  animation: eraHelloGradient 3.4s ease infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .dank-hello-gradient {
+  .era-hello-gradient {
     animation: none;
     background-position: 35% 50%;
   }
 }
 
-@keyframes dankArcadeCheckBlink {
+@keyframes eraArcadeCheckBlink {
   0% {
     opacity: 1;
     filter: drop-shadow(0 0 2px #ffffff) drop-shadow(0 0 5px #f472b6);
@@ -265,28 +265,28 @@
   }
 }
 
-.dank-arcade-verified-badge {
+.era-arcade-verified-badge {
   filter: drop-shadow(0 0 4px rgba(236, 72, 153, 0.95))
     drop-shadow(0 0 8px rgba(168, 85, 247, 0.85));
 }
 
-.dank-arcade-verified-check {
-  animation: dankArcadeCheckBlink 0.16s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite alternate;
+.era-arcade-verified-check {
+  animation: eraArcadeCheckBlink 0.16s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite alternate;
   will-change: opacity, filter;
 }
 
 /* 100 Days Golden Streak Theme */
-.dank-golden-chat-theme {
-  --dank-accent: #f59e0b !important;
-  --dank-accent-hover: #fbbf24 !important;
-  --dank-bubble-out: #78350f !important;
-  --dank-accent-soft: rgba(245, 158, 11, 0.25) !important;
-  --dank-accent-border: rgba(245, 158, 11, 0.65) !important;
-  --dank-border: rgba(245, 158, 11, 0.45) !important;
+.era-golden-chat-theme {
+  --era-accent: #f59e0b !important;
+  --era-accent-hover: #fbbf24 !important;
+  --era-bubble-out: #78350f !important;
+  --era-accent-soft: rgba(245, 158, 11, 0.25) !important;
+  --era-accent-border: rgba(245, 158, 11, 0.65) !important;
+  --era-border: rgba(245, 158, 11, 0.45) !important;
   box-shadow: inset 0 0 25px rgba(245, 158, 11, 0.22) !important;
 }
 
-@keyframes dankNeonScreenBurst {
+@keyframes eraNeonScreenBurst {
   0% {
     opacity: 0;
     transform: scale(0.96);
@@ -308,12 +308,12 @@
   }
 }
 
-.dank-neon-screen-burst {
-  animation: dankNeonScreenBurst 1.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+.era-neon-screen-burst {
+  animation: eraNeonScreenBurst 1.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
   pointer-events: none;
 }
 
-@keyframes dankGoldShimmer {
+@keyframes eraGoldShimmer {
   0% {
     background-position: -200% 0;
   }
@@ -322,11 +322,8 @@
   }
 }
 
-.dank-gold-shimmer-badge {
+.era-gold-shimmer-badge {
   background: linear-gradient(90deg, #b45309 0%, #fef08a 50%, #b45309 100%);
   background-size: 200% 100%;
-  animation: dankGoldShimmer 2.2s linear infinite;
+  animation: eraGoldShimmer 2.2s linear infinite;
 }
-
-
-

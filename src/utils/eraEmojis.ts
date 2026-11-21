@@ -1,16 +1,16 @@
-export type DankEmojiCategory = 'faces' | 'love' | 'gestures' | 'vibes';
+export type EraEmojiCategory = 'faces' | 'love' | 'gestures' | 'vibes';
 
-export interface DankEmojiDef {
+export interface EraEmojiDef {
   id: string;
   char: string;
   aliases?: string[];
   nameEn: string;
   nameAr: string;
-  category: DankEmojiCategory;
+  category: EraEmojiCategory;
   cloudinaryUrl: string;
 }
 
-export const DANK_EMOJIS: DankEmojiDef[] = [
+export const ERA_EMOJIS: EraEmojiDef[] = [
   // Faces (26)
   {
     id: 'joy',
@@ -244,8 +244,8 @@ export const DANK_EMOJIS: DankEmojiDef[] = [
   {
     id: 'heart_green',
     char: '💚',
-    nameEn: 'DANK Green Heart',
-    nameAr: 'قلب DANK',
+    nameEn: 'ERA Green Heart',
+    nameAr: 'قلب ERA',
     category: 'love',
     cloudinaryUrl: 'https://res.cloudinary.com/ehjqqr8v/image/upload/v1794778783/dank_emojis/okweui0nivsrdndcfgvi.png',
   },
@@ -352,8 +352,8 @@ export const DANK_EMOJIS: DankEmojiDef[] = [
   },
 ];
 
-export const DANK_EMOJI_CATEGORIES: Array<{
-  id: DankEmojiCategory;
+export const ERA_EMOJI_CATEGORIES: Array<{
+  id: EraEmojiCategory;
   labelEn: string;
   labelAr: string;
   iconChar: string;
@@ -364,13 +364,13 @@ export const DANK_EMOJI_CATEGORIES: Array<{
   { id: 'vibes', labelEn: 'Vibes', labelAr: 'حماس', iconChar: '🔥' },
 ];
 
-const TOKEN_TO_EMOJI = new Map<string, DankEmojiDef>();
+const TOKEN_TO_EMOJI = new Map<string, EraEmojiDef>();
 const RAW_TOKENS: string[] = [];
 
 const normalizeEmojiToken = (tok: string): string =>
   tok.replace(/[\uFE0F\u{1F3FB}-\u{1F3FF}]/gu, '');
 
-for (const def of DANK_EMOJIS) {
+for (const def of ERA_EMOJIS) {
   const candidates = [def.char, ...(def.aliases || [])];
   for (const c of candidates) {
     TOKEN_TO_EMOJI.set(c, def);
@@ -398,7 +398,7 @@ const EMOJI_MATCH_REGEX = new RegExp(
   'gu'
 );
 
-export function findDankEmoji(token: string): DankEmojiDef | undefined {
+export function findEraEmoji(token: string): EraEmojiDef | undefined {
   if (!token) return undefined;
   return (
     TOKEN_TO_EMOJI.get(token) ||
@@ -408,7 +408,7 @@ export function findDankEmoji(token: string): DankEmojiDef | undefined {
 
 export type RichTextSegment =
   | { type: 'text'; value: string }
-  | { type: 'emoji'; emoji: DankEmojiDef; raw: string };
+  | { type: 'emoji'; emoji: EraEmojiDef; raw: string };
 
 export function parseEmojiText(text: string): RichTextSegment[] {
   if (!text) return [];
@@ -424,7 +424,7 @@ export function parseEmojiText(text: string): RichTextSegment[] {
     if (start > lastIndex) {
       segments.push({ type: 'text', value: text.slice(lastIndex, start) });
     }
-    const def = findDankEmoji(raw) || findDankEmoji(baseMatch);
+    const def = findEraEmoji(raw) || findEraEmoji(baseMatch);
     if (def) {
       segments.push({ type: 'emoji', emoji: def, raw });
     } else {

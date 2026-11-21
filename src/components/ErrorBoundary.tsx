@@ -27,18 +27,18 @@ export class ErrorBoundary extends React.Component<
     if (this.state.hasError) {
       const tr = getTranslations(getStoredLanguage());
       return (
-        <div className="min-h-screen bg-[var(--dank-canvas)] flex items-center justify-center p-6">
-          <div className="max-w-md w-full rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] p-6 shadow-lg space-y-4">
-            <h2 className="text-lg font-bold text-[var(--dank-text)]">
+        <div className="min-h-screen bg-[var(--era-canvas)] flex items-center justify-center p-6">
+          <div className="max-w-md w-full rounded-2xl bg-[var(--era-surface)] border border-[var(--era-border)] p-6 shadow-lg space-y-4">
+            <h2 className="text-lg font-bold text-[var(--era-text)]">
               {tr.errors.somethingWrong}
             </h2>
-            <p className="text-xs text-[var(--dank-muted)] break-words">
+            <p className="text-xs text-[var(--era-muted)] break-words">
               {this.state.message}
             </p>
             <button
               type="button"
               onClick={() => window.location.reload()}
-              className="w-full h-10 rounded-xl bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-sm font-bold cursor-pointer"
+              className="w-full h-10 rounded-xl bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] text-sm font-bold cursor-pointer"
             >
               {tr.errors.reloadApp}
             </button>

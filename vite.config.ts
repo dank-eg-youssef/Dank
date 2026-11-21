@@ -36,7 +36,7 @@ export default defineConfig(() => {
               urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
               handler: 'CacheFirst',
               options: {
-                cacheName: 'dank-google-fonts-cache',
+                cacheName: 'era-google-fonts-cache',
                 expiration: {
                   maxEntries: 10,
                   maxAgeSeconds: 60 * 60 * 24 * 365,
@@ -50,7 +50,7 @@ export default defineConfig(() => {
               urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
               handler: 'CacheFirst',
               options: {
-                cacheName: 'dank-gstatic-fonts-cache',
+                cacheName: 'era-gstatic-fonts-cache',
                 expiration: {
                   maxEntries: 10,
                   maxAgeSeconds: 60 * 60 * 24 * 365,

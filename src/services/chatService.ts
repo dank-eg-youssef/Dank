@@ -42,7 +42,7 @@ import type {
   UserPrivate,
   UserPublic,
   UserSticker,
-} from '../types/dank';
+} from '../types/era';
 import {
   handleFirestoreError,
   isFirestoreWritesPaused,
@@ -56,8 +56,8 @@ import { isUserActuallyOnline, sanitizeUsername, timestampToMs } from '../utils/
 import { getTranslations } from '../i18n';
 import { createAppNotification } from './notificationService';
 
-export const OFFICIAL_CHANNEL_ID = 'dank_official';
-export const DANK_TEAM_CHANNEL_ID = 'dank_team';
+export const OFFICIAL_CHANNEL_ID = 'era_official';
+export const ERA_TEAM_CHANNEL_ID = 'era_team';
 export const ADS_BANNER_DOC_ID = 'ads_banner';
 export const SYSTEM_SETTINGS_DOC_ID = 'system_settings';
 
@@ -86,7 +86,7 @@ export async function hashSecretSHA256(value: string): Promise<string> {
   const clean = value.trim();
   if (!clean) return '';
   if (typeof crypto !== 'undefined' && crypto.subtle) {
-    const bytes = new TextEncoder().encode(`dank-2fa::${clean}`);
+    const bytes = new TextEncoder().encode(`era-2fa::${clean}`);
     const digest = await crypto.subtle.digest('SHA-256', bytes);
     return Array.from(new Uint8Array(digest))
       .map((b) => b.toString(16).padStart(2, '0'))
@@ -111,7 +111,7 @@ export async function ensureUserInviteCode(uid: string): Promise<string> {
     if (existingCode) return existingCode;
 
     for (let attempt = 0; attempt < 5; attempt += 1) {
-      const candidate = `DANK-${makeCodeSuffix(4)}`;
+      const candidate = `ERA-${makeCodeSuffix(4)}`;
       const codeRef = doc(db, 'invite_codes', candidate);
       const codeSnap = await getDoc(codeRef);
       if (!codeSnap.exists()) {
@@ -138,8 +138,8 @@ export async function ensureUserInviteCode(uid: string): Promise<string> {
 
 export async function redeemInviteCode(referredUid: string, rawCode: string): Promise<void> {
   const code = rawCode.trim().toUpperCase();
-  if (!/^DANK-[A-Z0-9]{4,10}$/.test(code)) {
-    throw new Error('Invalid invite code format. Expected DANK-XXXX.');
+  if (!/^ERA-[A-Z0-9]{4,10}$/.test(code)) {
+    throw new Error('Invalid invite code format. Expected ERA-XXXX.');
   }
 
   try {
@@ -205,16 +205,16 @@ export async function ensureOfficialChannelForAdmin(adminUid: string): Promise<v
     batch.set(chatRef, {
       id: OFFICIAL_CHANNEL_ID,
       type: 'channel',
-      name: 'DANK Official',
-      description: 'Official updates, releases, and announcements from DANK.',
+      name: 'ERA Official',
+      description: 'Official updates, releases, and announcements from ERA.',
       photoURL: '',
       isPublic: true,
       createdBy: adminUid,
       dmPeerIds: [],
-      lastMessageText: 'Welcome to DANK Official!',
+      lastMessageText: 'Welcome to ERA Official!',
       lastMessageType: 'text',
       lastMessageSenderId: adminUid,
-      lastMessageSenderName: 'DANK Admin',
+      lastMessageSenderName: 'ERA Admin',
       lastMessageStatus: 'seen',
       lastMessageAt: serverTimestamp(),
       pinnedMessageId: '',
@@ -245,7 +245,7 @@ export async function ensureOfficialChannelForAdmin(adminUid: string): Promise<v
 
     await batch.commit();
   } catch (error) {
-    console.warn('Could not auto-create DANK Official channel:', error);
+    console.warn('Could not auto-create ERA Official channel:', error);
   }
 }
 
@@ -263,26 +263,26 @@ export async function ensureUserJoinedOfficialChannel(uid: string): Promise<void
   }
 }
 
-export async function ensureDankTeamChannelForAdmin(adminUid: string): Promise<void> {
+export async function ensureEraTeamChannelForAdmin(adminUid: string): Promise<void> {
   try {
-    const chatRef = doc(db, 'chats', DANK_TEAM_CHANNEL_ID);
+    const chatRef = doc(db, 'chats', ERA_TEAM_CHANNEL_ID);
     const snap = await getDoc(chatRef);
     if (snap.exists()) return;
 
     const batch = writeBatch(db);
     batch.set(chatRef, {
-      id: DANK_TEAM_CHANNEL_ID,
+      id: ERA_TEAM_CHANNEL_ID,
       type: 'channel',
-      name: 'DANK Team',
-      description: 'Official DANK Team announcements, tips & privacy updates.',
+      name: 'ERA Team',
+      description: 'Official ERA Team announcements, tips & privacy updates.',
       photoURL: '',
       isPublic: true,
       createdBy: adminUid,
       dmPeerIds: [],
-      lastMessageText: 'Welcome to DANK Team! Stay connected safely.',
+      lastMessageText: 'Welcome to ERA Team! Stay connected safely.',
       lastMessageType: 'text',
       lastMessageSenderId: adminUid,
-      lastMessageSenderName: 'DANK Team',
+      lastMessageSenderName: 'ERA Team',
       lastMessageStatus: 'seen',
       lastMessageAt: serverTimestamp(),
       pinnedMessageId: '',
@@ -295,31 +295,31 @@ export async function ensureDankTeamChannelForAdmin(adminUid: string): Promise<v
       updatedAt: serverTimestamp(),
     });
 
-    batch.set(doc(db, 'chats', DANK_TEAM_CHANNEL_ID, 'members', adminUid), {
+    batch.set(doc(db, 'chats', ERA_TEAM_CHANNEL_ID, 'members', adminUid), {
       uid: adminUid,
-      chatId: DANK_TEAM_CHANNEL_ID,
+      chatId: ERA_TEAM_CHANNEL_ID,
       role: 'admin',
       joinedAt: serverTimestamp(),
       lastReadAt: serverTimestamp(),
     });
 
-    batch.set(doc(db, 'user_chats', `${adminUid}_${DANK_TEAM_CHANNEL_ID}`), {
+    batch.set(doc(db, 'user_chats', `${adminUid}_${ERA_TEAM_CHANNEL_ID}`), {
       uid: adminUid,
-      chatId: DANK_TEAM_CHANNEL_ID,
+      chatId: ERA_TEAM_CHANNEL_ID,
       chatType: 'channel',
       joinedAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
 
     const welcomeMsgId = generateId();
-    batch.set(doc(db, 'chats', DANK_TEAM_CHANNEL_ID, 'messages', welcomeMsgId), {
+    batch.set(doc(db, 'chats', ERA_TEAM_CHANNEL_ID, 'messages', welcomeMsgId), {
       id: welcomeMsgId,
-      chatId: DANK_TEAM_CHANNEL_ID,
+      chatId: ERA_TEAM_CHANNEL_ID,
       senderId: adminUid,
-      senderName: 'DANK Team',
+      senderName: 'ERA Team',
       senderPhoto: '',
       type: 'text',
-      text: 'مرحباً بك في قناة فريق DANK الرسمية! هنا ستصلك أحدث المميزات والتحديثات الأمنية.\n\nWelcome to DANK Team! Receive official product updates and tips here.',
+      text: 'مرحباً بك في قناة فريق ERA الرسمية! هنا ستصلك أحدث المميزات والتحديثات الأمنية.\n\nWelcome to ERA Team! Receive official product updates and tips here.',
       imageData: '',
       viewCount: 1,
       status: 'seen',
@@ -332,19 +332,19 @@ export async function ensureDankTeamChannelForAdmin(adminUid: string): Promise<v
 
     await batch.commit();
   } catch (error) {
-    console.warn('Could not auto-create DANK Team channel:', error);
+    console.warn('Could not auto-create ERA Team channel:', error);
   }
 }
 
-export async function ensureUserJoinedDankTeam(uid: string): Promise<void> {
+export async function ensureUserJoinedEraTeam(uid: string): Promise<void> {
   try {
-    const refDoc = await getDoc(doc(db, 'user_chats', `${uid}_${DANK_TEAM_CHANNEL_ID}`));
+    const refDoc = await getDoc(doc(db, 'user_chats', `${uid}_${ERA_TEAM_CHANNEL_ID}`));
     if (refDoc.exists()) return;
 
-    const snap = await getDoc(doc(db, 'chats', DANK_TEAM_CHANNEL_ID));
+    const snap = await getDoc(doc(db, 'chats', ERA_TEAM_CHANNEL_ID));
     if (!snap.exists()) return;
 
-    await joinChatById(DANK_TEAM_CHANNEL_ID, uid);
+    await joinChatById(ERA_TEAM_CHANNEL_ID, uid);
   } catch {
     // Non-fatal
   }
@@ -979,7 +979,7 @@ export async function sendMessage(params: {
   if (
     chat.type === 'private' &&
     chat.id !== `saved_${sender.uid}` &&
-    !chat.id.startsWith('dank_bot_')
+    !chat.id.startsWith('era_bot_')
   ) {
     const peerId = chat.dmPeerIds?.find((id) => id !== sender.uid);
     if (!peerId) {
@@ -1197,7 +1197,7 @@ export async function markVoiceMessagePlayed(
 ): Promise<void> {
   if (!chatId || !messageId || !uid || messageId.startsWith('opt_')) return;
   try {
-    localStorage.setItem(`dank_voice_played_${uid}_${messageId}`, '1');
+    localStorage.setItem(`era_voice_played_${uid}_${messageId}`, '1');
   } catch {
     // ignore storage errors
   }
@@ -1288,7 +1288,7 @@ export async function forwardMessage(params: {
   });
 }
 
-const VIEWED_CHANNEL_MSGS_KEY = 'dank_viewed_channel_msgs';
+const VIEWED_CHANNEL_MSGS_KEY = 'era_viewed_channel_msgs';
 
 function hasLocalViewedChannelMsg(chatId: string, messageId: string): boolean {
   try {
@@ -1399,7 +1399,8 @@ export async function markChatMessagesDelivered(chat: Chat, currentUid: string):
   try {
     const q = query(
       collection(db, 'chats', chat.id, 'messages'),
-      where('status', '==', 'sent')
+      where('status', '==', 'sent'),
+      limit(50)
     );
     const snap = await getDocs(q);
     const toDeliver = snap.docs.filter((d) => d.data().senderId !== currentUid);
@@ -1667,7 +1668,7 @@ export async function enableTwoStepAuth(
   password: string,
   hint: string
 ): Promise<string> {
-  const recoveryCode = `DANK-2FA-${makeCodeSuffix(4)}-${makeCodeSuffix(4)}`;
+  const recoveryCode = `ERA-2FA-${makeCodeSuffix(4)}-${makeCodeSuffix(4)}`;
   const [passwordHash, codeHash] = await Promise.all([
     hashSecretSHA256(password),
     hashSecretSHA256(recoveryCode),
@@ -1717,7 +1718,7 @@ export async function verifyTwoStepInput(
   return false;
 }
 
-export async function toggleDankPlus(uid: string, isPlus: boolean): Promise<void> {
+export async function toggleEraPlus(uid: string, isPlus: boolean): Promise<void> {
   try {
     await updateDoc(doc(db, 'users_public', uid), {
       isPlus,
@@ -1730,10 +1731,10 @@ export async function toggleDankPlus(uid: string, isPlus: boolean): Promise<void
 
 export function getOrCreateLocalSessionId(): string {
   try {
-    let existing = localStorage.getItem('dank_session_id');
+    let existing = localStorage.getItem('era_session_id');
     if (existing && /^[a-zA-Z0-9_-]{8,64}$/.test(existing)) return existing;
     existing = `sess_${makeCodeSuffix(8)}_${Date.now().toString(36)}`;
-    localStorage.setItem('dank_session_id', existing);
+    localStorage.setItem('era_session_id', existing);
     return existing;
   } catch {
     return `sess_${makeCodeSuffix(10)}`;
@@ -1745,11 +1746,11 @@ export async function registerActiveSession(uid: string, sessionId: string): Pro
   const ua = (navigator.userAgent || 'Web Browser').slice(0, 300);
   const platform = (navigator.platform || 'Web').slice(0, 80);
   let deviceName = 'Web Browser';
-  if (/iPhone|iPad/i.test(ua)) deviceName = 'DANK on iOS Safari';
-  else if (/Android/i.test(ua)) deviceName = 'DANK on Android';
-  else if (/Mac/i.test(ua)) deviceName = 'DANK Desktop (Mac)';
-  else if (/Windows/i.test(ua)) deviceName = 'DANK Desktop (Windows)';
-  else if (/Linux/i.test(ua)) deviceName = 'DANK Desktop (Linux)';
+  if (/iPhone|iPad/i.test(ua)) deviceName = 'ERA on iOS Safari';
+  else if (/Android/i.test(ua)) deviceName = 'ERA on Android';
+  else if (/Mac/i.test(ua)) deviceName = 'ERA Desktop (Mac)';
+  else if (/Windows/i.test(ua)) deviceName = 'ERA Desktop (Windows)';
+  else if (/Linux/i.test(ua)) deviceName = 'ERA Desktop (Linux)';
 
   try {
     const ref = doc(db, 'users_private', uid, 'sessions', sessionId);
@@ -2310,7 +2311,7 @@ export async function adminBroadcastNotification(params: {
 
 export async function adminBroadcastChannelMessage(params: {
   adminUser: UserPublic;
-  channelId: typeof OFFICIAL_CHANNEL_ID | typeof DANK_TEAM_CHANNEL_ID;
+  channelId: typeof OFFICIAL_CHANNEL_ID | typeof ERA_TEAM_CHANNEL_ID;
   text: string;
   usersMap: Record<string, UserPublic>;
 }): Promise<string> {
@@ -2320,7 +2321,7 @@ export async function adminBroadcastChannelMessage(params: {
   if (params.channelId === OFFICIAL_CHANNEL_ID) {
     await ensureOfficialChannelForAdmin(params.adminUser.uid);
   } else {
-    await ensureDankTeamChannelForAdmin(params.adminUser.uid);
+    await ensureEraTeamChannelForAdmin(params.adminUser.uid);
   }
 
   const chatSnap = await getDoc(doc(db, 'chats', params.channelId));

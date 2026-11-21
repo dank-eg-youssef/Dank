@@ -17,7 +17,7 @@ import {
   updateCallSignaling,
   updateCallState,
 } from '../services/chatService';
-import type { CallIceCandidate, CallRecord, UserPublic } from '../types/dank';
+import type { CallIceCandidate, CallRecord, UserPublic } from '../types/era';
 import { Avatar } from './Avatar';
 
 interface CallModalProps {
@@ -370,22 +370,22 @@ export const CallModal: React.FC<CallModalProps> = ({ call, currentUser, onClose
       : t.calls.ended;
 
   return (
-    <div className="fixed inset-0 z-[70] h-[100dvh] w-full bg-[var(--dank-canvas)] text-[var(--dank-text)] flex flex-col items-center justify-between px-6 py-8 select-none overflow-hidden">
+    <div className="fixed inset-0 z-[70] h-[100dvh] w-full bg-[var(--era-canvas)] text-[var(--era-text)] flex flex-col items-center justify-between px-6 py-8 select-none overflow-hidden">
       <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
 
       {/* Subtle Ambient Glow */}
       <div
         className="pointer-events-none absolute top-1/4 left-1/2 -translate-x-1/2 w-80 h-80 rounded-full blur-3xl opacity-20"
-        style={{ backgroundColor: 'var(--dank-accent)' }}
+        style={{ backgroundColor: 'var(--era-accent)' }}
       />
 
       {/* Top Status Pill */}
-      <div className="relative z-10 w-full max-w-sm flex items-center justify-between text-xs text-[var(--dank-muted)]">
-        <span className="inline-flex items-center gap-1.5 font-semibold text-[var(--dank-accent)]">
+      <div className="relative z-10 w-full max-w-sm flex items-center justify-between text-xs text-[var(--era-muted)]">
+        <span className="inline-flex items-center gap-1.5 font-semibold text-[var(--era-accent)]">
           <Phone className="w-4 h-4" />
           {t.calls.voiceCall}
         </span>
-        <span className="font-extrabold tracking-wider text-[var(--dank-text)]">DANK</span>
+        <span className="font-extrabold tracking-wider text-[var(--era-text)]">ERA</span>
       </div>
 
       {/* Center Contact Photo + Name + Status/Timer OR Interactive Keypad */}
@@ -397,15 +397,15 @@ export const CallModal: React.FC<CallModalProps> = ({ call, currentUser, onClose
                 <>
                   <div
                     className="absolute -inset-6 rounded-full animate-ping opacity-20"
-                    style={{ backgroundColor: 'var(--dank-accent)' }}
+                    style={{ backgroundColor: 'var(--era-accent)' }}
                   />
                   <div
                     className="absolute -inset-3 rounded-full animate-pulse opacity-30"
-                    style={{ backgroundColor: 'var(--dank-accent)' }}
+                    style={{ backgroundColor: 'var(--era-accent)' }}
                   />
                 </>
               )}
-              <div className="relative rounded-full p-1 bg-[var(--dank-surface)] border-2 border-[var(--dank-accent-border)] shadow-2xl">
+              <div className="relative rounded-full p-1 bg-[var(--era-surface)] border-2 border-[var(--era-accent-border)] shadow-2xl">
                 <Avatar
                   src={peerPhoto}
                   name={peerName}
@@ -415,14 +415,14 @@ export const CallModal: React.FC<CallModalProps> = ({ call, currentUser, onClose
               </div>
             </div>
 
-            <h2 dir="auto" className="text-2xl sm:text-3xl font-extrabold text-[var(--dank-text)]">
+            <h2 dir="auto" className="text-2xl sm:text-3xl font-extrabold text-[var(--era-text)]">
               {peerName}
             </h2>
             <p
               className={`mt-2 text-base font-semibold tabular-nums ${
                 call.status === 'missed' || call.status === 'declined'
                   ? 'text-red-500'
-                  : 'text-[var(--dank-accent)]'
+                  : 'text-[var(--era-accent)]'
               }`}
             >
               {statusText}
@@ -431,13 +431,13 @@ export const CallModal: React.FC<CallModalProps> = ({ call, currentUser, onClose
         ) : (
           <div className="w-full space-y-4">
             <div className="text-center">
-              <p className="text-sm font-bold text-[var(--dank-text)] truncate">{peerName}</p>
-              <p className="text-xs font-semibold text-[var(--dank-accent)] tabular-nums mt-0.5">
+              <p className="text-sm font-bold text-[var(--era-text)] truncate">{peerName}</p>
+              <p className="text-xs font-semibold text-[var(--era-accent)] tabular-nums mt-0.5">
                 {statusText}
               </p>
               <div
                 dir="ltr"
-                className="mt-2 h-8 text-xl font-bold tracking-widest text-[var(--dank-text)] tabular-nums"
+                className="mt-2 h-8 text-xl font-bold tracking-widest text-[var(--era-text)] tabular-nums"
               >
                 {dialedDigits || ' '}
               </div>
@@ -452,13 +452,13 @@ export const CallModal: React.FC<CallModalProps> = ({ call, currentUser, onClose
                     playDtmfTone(item.digit);
                     setDialedDigits((prev) => `${prev}${item.digit}`.slice(-20));
                   }}
-                  className="w-[74px] h-[74px] mx-auto rounded-full bg-[var(--dank-surface)] hover:bg-[var(--dank-elevated)] border border-[var(--dank-border)] flex flex-col items-center justify-center transition-transform active:scale-95 cursor-pointer"
+                  className="w-[74px] h-[74px] mx-auto rounded-full bg-[var(--era-surface)] hover:bg-[var(--era-elevated)] border border-[var(--era-border)] flex flex-col items-center justify-center transition-transform active:scale-95 cursor-pointer"
                 >
-                  <span className="text-2xl font-semibold text-[var(--dank-text)] leading-none">
+                  <span className="text-2xl font-semibold text-[var(--era-text)] leading-none">
                     {item.digit}
                   </span>
                   {item.letters && (
-                    <span className="text-[9px] font-semibold tracking-widest text-[var(--dank-muted)] mt-1">
+                    <span className="text-[9px] font-semibold tracking-widest text-[var(--era-muted)] mt-1">
                       {item.letters}
                     </span>
                   )}
@@ -482,7 +482,7 @@ export const CallModal: React.FC<CallModalProps> = ({ call, currentUser, onClose
               >
                 <PhoneOff className="w-7 h-7" />
               </button>
-              <span className="text-xs font-medium text-[var(--dank-muted)]">
+              <span className="text-xs font-medium text-[var(--era-muted)]">
                 {t.calls.decline}
               </span>
             </div>
@@ -492,17 +492,17 @@ export const CallModal: React.FC<CallModalProps> = ({ call, currentUser, onClose
                 type="button"
                 onClick={() => void handleAccept()}
                 aria-label={t.calls.accept}
-                className="w-16 h-16 rounded-full bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] flex items-center justify-center shadow-xl cursor-pointer transition-transform active:scale-95"
+                className="w-16 h-16 rounded-full bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] flex items-center justify-center shadow-xl cursor-pointer transition-transform active:scale-95"
               >
                 <Phone className="w-7 h-7" />
               </button>
-              <span className="text-xs font-medium text-[var(--dank-muted)]">
+              <span className="text-xs font-medium text-[var(--era-muted)]">
                 {t.calls.accept}
               </span>
             </div>
           </div>
         ) : (
-          <div className="rounded-3xl bg-[var(--dank-surface)] border border-[var(--dank-border)] p-4 flex items-center justify-around gap-2 shadow-2xl">
+          <div className="rounded-3xl bg-[var(--era-surface)] border border-[var(--era-border)] p-4 flex items-center justify-around gap-2 shadow-2xl">
             <button
               type="button"
               onClick={() => setMuted((prev) => !prev)}
@@ -512,13 +512,13 @@ export const CallModal: React.FC<CallModalProps> = ({ call, currentUser, onClose
               <span
                 className={`w-13 h-13 rounded-full flex items-center justify-center transition-colors ${
                   muted
-                    ? 'bg-[var(--dank-text)] text-[var(--dank-canvas)]'
-                    : 'bg-[var(--dank-elevated)] text-[var(--dank-text)] group-hover:bg-[var(--dank-hover)]'
+                    ? 'bg-[var(--era-text)] text-[var(--era-canvas)]'
+                    : 'bg-[var(--era-elevated)] text-[var(--era-text)] group-hover:bg-[var(--era-hover)]'
                 }`}
               >
                 {muted ? <MicOff className="w-5.5 h-5.5" /> : <Mic className="w-5.5 h-5.5" />}
               </span>
-              <span className="text-[11px] font-medium text-[var(--dank-muted)]">
+              <span className="text-[11px] font-medium text-[var(--era-muted)]">
                 {t.calls.muteMic}
               </span>
             </button>
@@ -532,13 +532,13 @@ export const CallModal: React.FC<CallModalProps> = ({ call, currentUser, onClose
               <span
                 className={`w-13 h-13 rounded-full flex items-center justify-center transition-colors ${
                   speaker
-                    ? 'bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] border border-[var(--dank-accent-border)]'
-                    : 'bg-[var(--dank-elevated)] text-[var(--dank-muted)]'
+                    ? 'bg-[var(--era-accent-soft)] text-[var(--era-accent)] border border-[var(--era-accent-border)]'
+                    : 'bg-[var(--era-elevated)] text-[var(--era-muted)]'
                 }`}
               >
                 {speaker ? <Volume2 className="w-5.5 h-5.5" /> : <VolumeX className="w-5.5 h-5.5" />}
               </span>
-              <span className="text-[11px] font-medium text-[var(--dank-muted)]">
+              <span className="text-[11px] font-medium text-[var(--era-muted)]">
                 {t.calls.speakerOn}
               </span>
             </button>
@@ -552,13 +552,13 @@ export const CallModal: React.FC<CallModalProps> = ({ call, currentUser, onClose
               <span
                 className={`w-13 h-13 rounded-full flex items-center justify-center transition-colors ${
                   showKeypad
-                    ? 'bg-[var(--dank-text)] text-[var(--dank-canvas)]'
-                    : 'bg-[var(--dank-elevated)] text-[var(--dank-text)] group-hover:bg-[var(--dank-hover)]'
+                    ? 'bg-[var(--era-text)] text-[var(--era-canvas)]'
+                    : 'bg-[var(--era-elevated)] text-[var(--era-text)] group-hover:bg-[var(--era-hover)]'
                 }`}
               >
                 <Grid3X3 className="w-5.5 h-5.5" />
               </span>
-              <span className="text-[11px] font-medium text-[var(--dank-muted)]">
+              <span className="text-[11px] font-medium text-[var(--era-muted)]">
                 {showKeypad ? t.calls.hideKeypad : t.calls.keypad}
               </span>
             </button>

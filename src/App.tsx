@@ -52,9 +52,9 @@ import { ChatInfoModal } from './components/ChatInfoModal';
 import { ChatWindow } from './components/ChatWindow';
 import { ContactsAndCallsModal } from './components/ContactsAndCallsModal';
 import { CreateChatModal } from './components/CreateChatModal';
-import { DankLogo } from './components/DankLogo';
-import { DankPlusModal } from './components/DankPlusModal';
-import { DankSplash } from './components/DankSplash';
+import { EraLogo } from './components/EraLogo';
+import { EraPlusModal } from './components/EraPlusModal';
+import { EraSplash } from './components/EraSplash';
 
 import { JoinInviteModal } from './components/JoinInviteModal';
 import { NotificationsPage } from './components/NotificationsPage';
@@ -77,11 +77,11 @@ import {
   canSeePrivacyField,
   createChatReminder,
   createOrOpenPrivateChat,
-  DANK_TEAM_CHANNEL_ID,
   deleteChatReminder,
   ensureSavedMessagesChat,
-  ensureUserJoinedDankTeam,
+  ensureUserJoinedEraTeam,
   ensureUserJoinedOfficialChannel,
+  ERA_TEAM_CHANNEL_ID,
   initiateCall,
   joinChatById,
   markChatMessagesDelivered,
@@ -101,6 +101,11 @@ import {
   mergeNotifications,
 } from './services/notificationService';
 import { matchesUserQuery } from './services/socialService';
+import {
+  checkAndAutoFreezeChatStreak,
+  subscribeUserStreaks,
+  triggerRescueNotificationIfNeeded,
+} from './services/streakService';
 import type {
   AdsBanner,
   AppNotification,
@@ -109,6 +114,7 @@ import type {
   CallRecord,
   Chat,
   ChatReminder,
+  ChatStreak,
   FriendRequest,
   Friendship,
   SavedItem,
@@ -120,7 +126,7 @@ import type {
   UserChatRef,
   UserPublic,
   UserSticker,
-} from './types/dank';
+} from './types/era';
 import {
   handleFirestoreError,
   isFirestoreWritesPaused,
@@ -131,7 +137,7 @@ import {
   subscribeQuotaPaused,
 } from './utils/firestoreErrors';
 import { formatChatTime, timestampToMs } from './utils/timeFormat';
-import { dankAudio } from './utils/dankAudio';
+import { eraAudio } from './utils/eraAudio';
 
 type MainTab = 'chats' | 'updates' | 'communities' | 'calls' | 'settings';
 
@@ -170,6 +176,7 @@ export default function App() {
   const [activeCallId, setActiveCallId] = useState<string | null>(null);
 
   const [typingByChat, setTypingByChat] = useState<Record<string, TypingState[]>>({});
+  const [streaksByChatId, setStreaksByChatId] = useState<Record<string, ChatStreak>>({});
   const [stories, setStories] = useState<Story[]>([]);
   const [viewedStoryIds, setViewedStoryIds] = useState<Set<string>>(new Set());
   const [adsBanner, setAdsBanner] = useState<AdsBanner | null>(null);
@@ -181,7 +188,7 @@ export default function App() {
   const [showWelcomeSplash, setShowWelcomeSplash] = useState(true);
   const handleSplashFinish = useCallback(() => {
     setShowWelcomeSplash(false);
-    dankAudio.playAppOpenCinematic();
+    eraAudio.playAppOpenCinematic();
   }, []);
   const [headerSearchOpen, setHeaderSearchOpen] = useState(false);
   const [headerSearchQuery, setHeaderSearchQuery] = useState('');
@@ -214,7 +221,7 @@ export default function App() {
   const [showChatInfoModal, setShowChatInfoModal] = useState(false);
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [showSettingsPrivacyModal, setShowSettingsPrivacyModal] = useState(false);
-  const [showDankPlusModal, setShowDankPlusModal] = useState(false);
+  const [showEraPlusModal, setShowEraPlusModal] = useState(false);
   const [showChatsSubSheet, setShowChatsSubSheet] = useState(false);
   const [showAppearanceSheet, setShowAppearanceSheet] = useState(false);
   const [showHelpSheet, setShowHelpSheet] = useState(false);
@@ -296,7 +303,7 @@ export default function App() {
         .catch(() => {});
 
       const handleSwMsg = (event: MessageEvent) => {
-        if (event.data?.type === 'DANK_OPEN_CHAT' && typeof event.data.chatId === 'string') {
+        if (event.data?.type === 'ERA_OPEN_CHAT' && typeof event.data.chatId === 'string') {
           setMainTab('chats');
           setActiveChatId(event.data.chatId);
         }
@@ -359,7 +366,11 @@ export default function App() {
       return;
     }
 
-    const q = query(collection(db, 'user_chats'), where('uid', '==', firebaseUser.uid));
+    const q = query(
+      collection(db, 'user_chats'),
+      where('uid', '==', firebaseUser.uid),
+      limit(50)
+    );
     const unsub = onSnapshot(
       q,
       (snap) => {
@@ -633,7 +644,7 @@ export default function App() {
         setLocalNotifications(getLocalNotifications(uid));
       }
     };
-    window.addEventListener('dank:notifications-updated', handleLocalNotifs);
+    window.addEventListener('era:notifications-updated', handleLocalNotifs);
 
     const q = query(
       collection(db, 'notifications'),
@@ -656,7 +667,7 @@ export default function App() {
 
     return () => {
       unsub();
-      window.removeEventListener('dank:notifications-updated', handleLocalNotifs);
+      window.removeEventListener('era:notifications-updated', handleLocalNotifs);
     };
   }, [isVerified, firebaseUser?.uid]);
 
@@ -733,7 +744,7 @@ export default function App() {
       return;
     }
     try {
-      const raw = localStorage.getItem(`dank_viewed_stories_${firebaseUser.uid}`);
+      const raw = localStorage.getItem(`era_viewed_stories_${firebaseUser.uid}`);
       if (raw) setViewedStoryIds(new Set(JSON.parse(raw) as string[]));
       else setViewedStoryIds(new Set());
     } catch {
@@ -750,7 +761,7 @@ export default function App() {
         if (firebaseUser?.uid) {
           try {
             localStorage.setItem(
-              `dank_viewed_stories_${firebaseUser.uid}`,
+              `era_viewed_stories_${firebaseUser.uid}`,
               JSON.stringify(Array.from(next).slice(-120))
             );
           } catch {}
@@ -761,7 +772,7 @@ export default function App() {
     [firebaseUser?.uid]
   );
 
-  // Auto-join DANK Official & DANK Team channels
+  // Auto-join ERA Official & ERA Team channels
   const autoJoinedOfficialRef = useRef(false);
   const autoJoinedTeamRef = useRef(false);
   useEffect(() => {
@@ -779,12 +790,12 @@ export default function App() {
       void ensureUserJoinedOfficialChannel(firebaseUser.uid);
     }
     if (
-      publicChannels.some((c) => c.id === DANK_TEAM_CHANNEL_ID) &&
-      !joinedChatIds.includes(DANK_TEAM_CHANNEL_ID) &&
+      publicChannels.some((c) => c.id === ERA_TEAM_CHANNEL_ID) &&
+      !joinedChatIds.includes(ERA_TEAM_CHANNEL_ID) &&
       !autoJoinedTeamRef.current
     ) {
       autoJoinedTeamRef.current = true;
-      void ensureUserJoinedDankTeam(firebaseUser.uid);
+      void ensureUserJoinedEraTeam(firebaseUser.uid);
     }
   }, [isVerified, firebaseUser?.uid, publicChannels, joinedChatIds]);
 
@@ -804,15 +815,37 @@ export default function App() {
     }
   }, [notify, t.notifications]);
 
-  // 5. Subscribe to joined chats + push notifications + typing
+  // 5. Subscribe incrementally to joined chats (never re-reading unchanged chats)
   const deliveredCheckedRef = useRef<Set<string>>(new Set());
   const lastSeenMsgTsByChatRef = useRef<Record<string, number>>({});
+  const chatDocUnsubsRef = useRef<Map<string, Unsubscribe>>(new Map());
+  const chatSubsUidRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!isVerified || !firebaseUser) return;
+    const uid = isVerified && firebaseUser ? firebaseUser.uid : null;
 
-    const uid = firebaseUser.uid;
-    const unsubs: Unsubscribe[] = [];
+    if (!uid) {
+      chatDocUnsubsRef.current.forEach((unsub) => unsub());
+      chatDocUnsubsRef.current.clear();
+      chatSubsUidRef.current = null;
+      return;
+    }
+
+    if (chatSubsUidRef.current !== uid) {
+      chatDocUnsubsRef.current.forEach((unsub) => unsub());
+      chatDocUnsubsRef.current.clear();
+      chatSubsUidRef.current = uid;
+    }
+
+    const joinedSet = new Set(joinedChatIds);
+
+    // Unsubscribe from chats no longer in joinedChatIds
+    for (const [existingChatId, unsub] of chatDocUnsubsRef.current.entries()) {
+      if (!joinedSet.has(existingChatId)) {
+        unsub();
+        chatDocUnsubsRef.current.delete(existingChatId);
+      }
+    }
 
     setChatsById((prev) => {
       const next: Record<string, Chat> = {};
@@ -822,7 +855,10 @@ export default function App() {
       return next;
     });
 
+    // Subscribe only to newly joined chats
     for (const chatId of joinedChatIds) {
+      if (chatDocUnsubsRef.current.has(chatId)) continue;
+
       const unsubChat = onSnapshot(
         doc(db, 'chats', chatId),
         (snap) => {
@@ -840,7 +876,7 @@ export default function App() {
             chat.lastMessageSenderId &&
             chat.lastMessageSenderId !== uid
           ) {
-            dankAudio.playReceiveDing();
+            eraAudio.playReceiveDing();
           }
 
           if (
@@ -908,22 +944,40 @@ export default function App() {
         }
       );
 
-      const unsubTyping = onSnapshot(
-        collection(db, 'chats', chatId, 'typing'),
-        (snap) => {
-          const states = snap.docs.map((d) => d.data() as TypingState);
-          setTypingByChat((prev) => ({ ...prev, [chatId]: states }));
-        },
-        () => {}
-      );
-
-      unsubs.push(unsubChat, unsubTyping);
+      chatDocUnsubsRef.current.set(chatId, unsubChat);
     }
-
-    return () => {
-      unsubs.forEach((u) => u());
-    };
   }, [joinedChatIds, isVerified, firebaseUser?.uid]);
+
+  useEffect(() => {
+    return () => {
+      chatDocUnsubsRef.current.forEach((unsub) => unsub());
+      chatDocUnsubsRef.current.clear();
+    };
+  }, []);
+
+  // Typing listener scoped strictly to the active chat (instead of reading all chats)
+  useEffect(() => {
+    if (!isVerified || !firebaseUser || !activeChatId) return;
+    const targetChatId = activeChatId;
+    const unsubTyping = onSnapshot(
+      collection(db, 'chats', targetChatId, 'typing'),
+      (snap) => {
+        const states = snap.docs.map((d) => d.data() as TypingState);
+        setTypingByChat((prev) => ({ ...prev, [targetChatId]: states }));
+      },
+      () => {}
+    );
+    return () => unsubTyping();
+  }, [activeChatId, isVerified, firebaseUser?.uid]);
+
+  // Global user streaks listener (single query)
+  useEffect(() => {
+    if (!isVerified || !firebaseUser) {
+      setStreaksByChatId({});
+      return;
+    }
+    return subscribeUserStreaks(firebaseUser.uid, setStreaksByChatId);
+  }, [isVerified, firebaseUser?.uid]);
 
   const usersMap = useMemo(() => {
     const map: Record<string, UserPublic> = {};
@@ -943,6 +997,40 @@ export default function App() {
     }
     return next;
   }, [friendships, firebaseUser?.uid]);
+
+  // Global streak rescue & auto-freeze monitor (every 60s across all private friend chats)
+  useEffect(() => {
+    if (!isVerified || !profile) return;
+
+    const runStreakChecks = () => {
+      for (const st of Object.values(streaksByChatId)) {
+        const chat = chatsById[st.chatId];
+        if (!chat || chat.type !== 'private') continue;
+        const peerId = st.users.find((id) => id !== profile.uid);
+        if (!peerId || !friendIds.has(peerId)) continue;
+        const peerUser = usersMap[peerId];
+        if (!peerUser) continue;
+
+        void checkAndAutoFreezeChatStreak({
+          chat,
+          streak: st,
+          currentUser: profile,
+          peerUser,
+        });
+
+        void triggerRescueNotificationIfNeeded({
+          chat,
+          streak: st,
+          currentUser: profile,
+          peerUser,
+        });
+      }
+    };
+
+    runStreakChecks();
+    const timer = window.setInterval(runStreakChecks, 60_000);
+    return () => window.clearInterval(timer);
+  }, [chatsById, friendIds, isVerified, profile, streaksByChatId, usersMap]);
 
   const incomingFriendRequests = useMemo(() => {
     if (!firebaseUser) return [] as FriendRequest[];
@@ -1067,7 +1155,7 @@ export default function App() {
             const notif: AppNotification = {
               id: `rem_${rem.id}`,
               recipientUid: profile.uid,
-              actorUid: 'dank_reminder',
+              actorUid: 'era_reminder',
               actorName: rem.chatTitle,
               type: 'message',
               text: msgText.slice(0, 290),
@@ -1275,12 +1363,12 @@ export default function App() {
     }
   };
 
-  const handleOpenDankTeam = async () => {
+  const handleOpenEraTeam = async () => {
     if (!profile) return;
     try {
-      await ensureUserJoinedDankTeam(profile.uid);
+      await ensureUserJoinedEraTeam(profile.uid);
       setMainTab('updates');
-      setActiveChatId(DANK_TEAM_CHANNEL_ID);
+      setActiveChatId(ERA_TEAM_CHANNEL_ID);
     } catch (err) {
       notify(err instanceof Error ? err.message : t.errors.unexpected);
     }
@@ -1319,7 +1407,7 @@ export default function App() {
       let bytes = 0;
       for (let i = 0; i < localStorage.length; i += 1) {
         const key = localStorage.key(i);
-        if (key && key.startsWith('dank_chat_cache_')) {
+        if (key && key.startsWith('era_chat_cache_')) {
           bytes += (localStorage.getItem(key) || '').length * 2;
         }
       }
@@ -1334,7 +1422,7 @@ export default function App() {
       const keysToRemove: string[] = [];
       for (let i = 0; i < localStorage.length; i += 1) {
         const key = localStorage.key(i);
-        if (key && key.startsWith('dank_chat_cache_')) {
+        if (key && key.startsWith('era_chat_cache_')) {
           keysToRemove.push(key);
         }
       }
@@ -1351,8 +1439,8 @@ export default function App() {
   const renderScreen = (): React.ReactNode => {
     if (!splashCanFinish && showWelcomeSplash) {
       return (
-        <div className="fixed inset-0 bg-[var(--dank-canvas)]">
-          <h1 className="sr-only">Dank Chat</h1>
+        <div className="fixed inset-0 bg-[var(--era-canvas)]">
+          <h1 className="sr-only">Era Chat</h1>
         </div>
       );
     }
@@ -1378,23 +1466,23 @@ export default function App() {
       };
 
       return (
-        <div className="dank-auth-scroll bg-[var(--dank-canvas)] flex items-center justify-center p-6">
-          <div className="max-w-md w-full rounded-3xl bg-[var(--dank-surface)] border border-[var(--dank-border)] shadow-2xl p-7 text-center space-y-5">
+        <div className="era-auth-scroll bg-[var(--era-canvas)] flex items-center justify-center p-6">
+          <div className="max-w-md w-full rounded-3xl bg-[var(--era-surface)] border border-[var(--era-border)] shadow-2xl p-7 text-center space-y-5">
             <div className="flex justify-center">
-              <DankLogo size="md" showText={false} />
+              <EraLogo size="md" showText={false} />
             </div>
-            <div className="w-12 h-12 mx-auto rounded-2xl bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] flex items-center justify-center">
+            <div className="w-12 h-12 mx-auto rounded-2xl bg-[var(--era-accent-soft)] text-[var(--era-accent)] flex items-center justify-center">
               <KeyRound className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-[var(--dank-text)]">
+              <h2 className="text-xl font-bold text-[var(--era-text)]">
                 {t.privacy.twoStepChallengeTitle}
               </h2>
-              <p className="mt-1.5 text-xs text-[var(--dank-muted)] leading-relaxed">
+              <p className="mt-1.5 text-xs text-[var(--era-muted)] leading-relaxed">
                 {t.privacy.twoStepChallengeDesc}
               </p>
               {privateProfile?.twoStepHint && (
-                <p className="mt-2 text-xs font-semibold text-[var(--dank-accent)]">
+                <p className="mt-2 text-xs font-semibold text-[var(--era-accent)]">
                   {t.privacy.hintOptional}: {privateProfile.twoStepHint}
                 </p>
               )}
@@ -1408,13 +1496,13 @@ export default function App() {
                 value={twoStepInput}
                 onChange={(e) => setTwoStepInput(e.target.value)}
                 placeholder={t.privacy.passwordPlaceholder}
-                className="w-full h-11 px-4 rounded-xl bg-[var(--dank-elevated)] border border-[var(--dank-border)] text-base text-[var(--dank-text)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)]"
+                className="w-full h-11 px-4 rounded-xl bg-[var(--era-elevated)] border border-[var(--era-border)] text-base text-[var(--era-text)] focus:outline-none focus:ring-2 focus:ring-[var(--era-accent)]"
               />
               {twoStepError && <p className="text-xs text-red-500 text-center">{twoStepError}</p>}
               <button
                 type="submit"
                 disabled={unlocking2FA || !twoStepInput.trim()}
-                className="w-full h-11 rounded-full bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                className="w-full h-11 rounded-full bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
               >
                 <Lock className="w-4 h-4" />
                 {t.privacy.twoStepUnlock}
@@ -1424,7 +1512,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => void logout()}
-              className="text-xs font-semibold text-[var(--dank-muted)] hover:text-[var(--dank-text)] cursor-pointer"
+              className="text-xs font-semibold text-[var(--era-muted)] hover:text-[var(--era-text)] cursor-pointer"
             >
               {t.profile.logout}
             </button>
@@ -1435,25 +1523,25 @@ export default function App() {
 
     if (profile.isBanned && !isAdmin) {
       return (
-        <div className="dank-auth-scroll bg-[var(--dank-canvas)] flex items-center justify-center p-6">
-          <div className="max-w-md w-full rounded-3xl bg-[var(--dank-surface)] border border-[var(--dank-border)] shadow-xl p-7 text-center space-y-4">
+        <div className="era-auth-scroll bg-[var(--era-canvas)] flex items-center justify-center p-6">
+          <div className="max-w-md w-full rounded-3xl bg-[var(--era-surface)] border border-[var(--era-border)] shadow-xl p-7 text-center space-y-4">
             <div className="w-14 h-14 mx-auto rounded-2xl bg-red-500/15 text-red-500 flex items-center justify-center">
               <Ban className="w-7 h-7" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-[var(--dank-text)]">
+              <h2 className="text-xl font-bold text-[var(--era-text)]">
                 {t.errors.accountSuspended}
               </h2>
-              <p className="mt-2 text-sm text-[var(--dank-muted)] leading-relaxed">
+              <p className="mt-2 text-sm text-[var(--era-muted)] leading-relaxed">
                 {t.errors.accountSuspendedDesc}
               </p>
             </div>
             <button
               type="button"
               onClick={() => void logout()}
-              className="w-full h-11 rounded-full bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] text-sm font-semibold flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full h-11 rounded-full bg-[var(--era-elevated)] hover:bg-[var(--era-hover)] text-[var(--era-text)] text-sm font-semibold flex items-center justify-center gap-2 cursor-pointer"
             >
-              <LogOut className="w-4 h-4 text-[var(--dank-accent)]" />
+              <LogOut className="w-4 h-4 text-[var(--era-accent)]" />
               {t.profile.logout}
             </button>
           </div>
@@ -1463,25 +1551,25 @@ export default function App() {
 
     if (systemSettings?.maintenanceMode && !isAdmin) {
       return (
-        <div className="dank-auth-scroll bg-[var(--dank-canvas)] flex items-center justify-center p-6">
-          <div className="max-w-md w-full rounded-3xl bg-[var(--dank-surface)] border border-[var(--dank-border)] shadow-xl p-7 text-center space-y-4">
+        <div className="era-auth-scroll bg-[var(--era-canvas)] flex items-center justify-center p-6">
+          <div className="max-w-md w-full rounded-3xl bg-[var(--era-surface)] border border-[var(--era-border)] shadow-xl p-7 text-center space-y-4">
             <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-500/15 text-amber-400 flex items-center justify-center">
               <Wrench className="w-7 h-7" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-[var(--dank-text)]">
+              <h2 className="text-xl font-bold text-[var(--era-text)]">
                 {t.admin.maintenanceScreenTitle}
               </h2>
-              <p dir="auto" className="mt-2 text-sm text-[var(--dank-muted)] leading-relaxed">
+              <p dir="auto" className="mt-2 text-sm text-[var(--era-muted)] leading-relaxed">
                 {systemSettings.maintenanceMessage?.trim() || t.admin.maintenanceScreenDefault}
               </p>
             </div>
             <button
               type="button"
               onClick={() => void logout()}
-              className="w-full h-11 rounded-full bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] text-sm font-semibold flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full h-11 rounded-full bg-[var(--era-elevated)] hover:bg-[var(--era-hover)] text-[var(--era-text)] text-sm font-semibold flex items-center justify-center gap-2 cursor-pointer"
             >
-              <LogOut className="w-4 h-4 text-[var(--dank-accent)]" />
+              <LogOut className="w-4 h-4 text-[var(--era-accent)]" />
               {t.profile.logout}
             </button>
           </div>
@@ -1548,10 +1636,10 @@ export default function App() {
   return (
     <div
       onClick={() => setShowHeaderPlusMenu(false)}
-      className="fixed inset-0 h-[100dvh] w-full overflow-hidden overscroll-none bg-[var(--dank-canvas)] text-[var(--dank-text)] flex flex-col"
+      className="fixed inset-0 h-[100dvh] w-full overflow-hidden overscroll-none bg-[var(--era-canvas)] text-[var(--era-text)] flex flex-col"
     >
       {systemSettings?.globalNoticeEnabled && systemSettings.globalNoticeText?.trim() && (
-        <div className="bg-[var(--dank-accent-soft)] border-b border-[var(--dank-accent-border)] px-4 py-1.5 flex items-center justify-center gap-2 text-xs font-semibold text-[var(--dank-accent)] shrink-0 z-30">
+        <div className="bg-[var(--era-accent-soft)] border-b border-[var(--era-accent-border)] px-4 py-1.5 flex items-center justify-center gap-2 text-xs font-semibold text-[var(--era-accent)] shrink-0 z-30">
           <Megaphone className="w-3.5 h-3.5 shrink-0" />
           <span dir="auto" className="truncate">
             {systemSettings.globalNoticeText}
@@ -1581,7 +1669,7 @@ export default function App() {
       <header
         className={`${
           activeChat ? 'hidden md:flex' : 'flex'
-        } flex-col bg-[var(--dank-canvas)] border-b border-[var(--dank-border)] shrink-0 z-30 dank-fixed-chrome`}
+        } flex-col bg-[var(--era-canvas)] border-b border-[var(--era-border)] shrink-0 z-30 era-fixed-chrome`}
       >
         <div className="px-4 py-2.5 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5 min-w-0">
@@ -1594,7 +1682,7 @@ export default function App() {
               className="flex items-center text-start cursor-pointer transition-transform duration-150 active:scale-95 shrink-0"
               aria-label={t.appName}
             >
-              <DankLogo size={36} showText={true} asHeading={true} textLabel="Dank Chat" />
+              <EraLogo size={36} showText={true} asHeading={true} textLabel="Era Chat" />
             </button>
             <UserBadges
               isAdmin={profile.isAdmin}
@@ -1613,7 +1701,7 @@ export default function App() {
               onClick={() => setShowCreateStoryModal(true)}
               aria-label={t.stories.postNewStory}
               title={t.stories.postNewStory}
-              className="w-11 h-11 rounded-full hover:bg-[var(--dank-hover)] text-[var(--dank-text)] flex items-center justify-center transition-colors cursor-pointer"
+              className="w-11 h-11 rounded-full hover:bg-[var(--era-hover)] text-[var(--era-text)] flex items-center justify-center transition-colors cursor-pointer"
             >
               <Camera className="w-5 h-5" />
             </button>
@@ -1628,8 +1716,8 @@ export default function App() {
               title={t.common.search}
               className={`w-11 h-11 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
                 headerSearchOpen
-                  ? 'bg-[var(--dank-accent-soft)] text-[var(--dank-accent)]'
-                  : 'hover:bg-[var(--dank-hover)] text-[var(--dank-text)]'
+                  ? 'bg-[var(--era-accent-soft)] text-[var(--era-accent)]'
+                  : 'hover:bg-[var(--era-hover)] text-[var(--era-text)]'
               }`}
             >
               <Search className="w-5 h-5" />
@@ -1648,7 +1736,7 @@ export default function App() {
               }}
               aria-label={mainTab === 'calls' ? t.calls.pickContactToCall : t.common.add}
               title={mainTab === 'calls' ? t.calls.pickContactToCall : t.common.add}
-              className="w-9 h-9 ms-1 rounded-full bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] flex items-center justify-center transition-colors cursor-pointer shadow-xs"
+              className="w-9 h-9 ms-1 rounded-full bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] flex items-center justify-center transition-colors cursor-pointer shadow-xs"
             >
               <Plus className="w-5 h-5 stroke-[2.6]" />
             </button>
@@ -1656,7 +1744,7 @@ export default function App() {
             {showHeaderPlusMenu && (
               <div
                 onClick={(e) => e.stopPropagation()}
-                className="absolute end-0 top-12 z-40 w-56 rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] shadow-2xl py-1.5 text-[var(--dank-text)]"
+                className="absolute end-0 top-12 z-40 w-56 rounded-2xl bg-[var(--era-surface)] border border-[var(--era-border)] shadow-2xl py-1.5 text-[var(--era-text)]"
               >
                 <button
                   type="button"
@@ -1664,9 +1752,9 @@ export default function App() {
                     setShowHeaderPlusMenu(false);
                     setContactsCallsTab('friends');
                   }}
-                  className="w-full px-4 py-2.5 text-start text-sm font-medium hover:bg-[var(--dank-hover)] flex items-center gap-3 cursor-pointer"
+                  className="w-full px-4 py-2.5 text-start text-sm font-medium hover:bg-[var(--era-hover)] flex items-center gap-3 cursor-pointer"
                 >
-                  <MessageSquarePlus className="w-4 h-4 text-[var(--dank-accent)]" />
+                  <MessageSquarePlus className="w-4 h-4 text-[var(--era-accent)]" />
                   <span>{t.drawer.friends}</span>
                 </button>
                 <button
@@ -1676,9 +1764,9 @@ export default function App() {
                     setCallPickerSearch('');
                     setShowCallPickerModal(true);
                   }}
-                  className="w-full px-4 py-2.5 text-start text-sm font-medium hover:bg-[var(--dank-hover)] flex items-center gap-3 cursor-pointer"
+                  className="w-full px-4 py-2.5 text-start text-sm font-medium hover:bg-[var(--era-hover)] flex items-center gap-3 cursor-pointer"
                 >
-                  <Phone className="w-4 h-4 text-[var(--dank-accent)]" />
+                  <Phone className="w-4 h-4 text-[var(--era-accent)]" />
                   <span>{t.calls.pickContactToCall}</span>
                 </button>
                 <button
@@ -1687,9 +1775,9 @@ export default function App() {
                     setShowHeaderPlusMenu(false);
                     setCreateModalType('group');
                   }}
-                  className="w-full px-4 py-2.5 text-start text-sm font-medium hover:bg-[var(--dank-hover)] flex items-center gap-3 cursor-pointer"
+                  className="w-full px-4 py-2.5 text-start text-sm font-medium hover:bg-[var(--era-hover)] flex items-center gap-3 cursor-pointer"
                 >
-                  <Users className="w-4 h-4 text-[var(--dank-accent)]" />
+                  <Users className="w-4 h-4 text-[var(--era-accent)]" />
                   <span>{t.sidebar.newGroup}</span>
                 </button>
                 <button
@@ -1698,9 +1786,9 @@ export default function App() {
                     setShowHeaderPlusMenu(false);
                     setCreateModalType('channel');
                   }}
-                  className="w-full px-4 py-2.5 text-start text-sm font-medium hover:bg-[var(--dank-hover)] flex items-center gap-3 cursor-pointer"
+                  className="w-full px-4 py-2.5 text-start text-sm font-medium hover:bg-[var(--era-hover)] flex items-center gap-3 cursor-pointer"
                 >
-                  <Megaphone className="w-4 h-4 text-[var(--dank-accent)]" />
+                  <Megaphone className="w-4 h-4 text-[var(--era-accent)]" />
                   <span>{t.sidebar.newChannel}</span>
                 </button>
                 <button
@@ -1709,9 +1797,9 @@ export default function App() {
                     setShowHeaderPlusMenu(false);
                     setCreateModalType('secret');
                   }}
-                  className="w-full px-4 py-2.5 text-start text-sm font-medium hover:bg-[var(--dank-hover)] flex items-center gap-3 cursor-pointer"
+                  className="w-full px-4 py-2.5 text-start text-sm font-medium hover:bg-[var(--era-hover)] flex items-center gap-3 cursor-pointer"
                 >
-                  <Lock className="w-4 h-4 text-[var(--dank-accent)]" />
+                  <Lock className="w-4 h-4 text-[var(--era-accent)]" />
                   <span>{t.telegram.secretChat}</span>
                 </button>
                 <button
@@ -1720,9 +1808,9 @@ export default function App() {
                     setShowHeaderPlusMenu(false);
                     void handleOpenSavedMessages();
                   }}
-                  className="w-full px-4 py-2.5 text-start text-sm font-medium hover:bg-[var(--dank-hover)] flex items-center gap-3 cursor-pointer"
+                  className="w-full px-4 py-2.5 text-start text-sm font-medium hover:bg-[var(--era-hover)] flex items-center gap-3 cursor-pointer"
                 >
-                  <Bookmark className="w-4 h-4 text-[var(--dank-accent)]" />
+                  <Bookmark className="w-4 h-4 text-[var(--era-accent)]" />
                   <span>{t.telegram.savedMessagesTitle}</span>
                 </button>
                 {isAdmin && (
@@ -1732,7 +1820,7 @@ export default function App() {
                       setShowHeaderPlusMenu(false);
                       setShowAdminModal(true);
                     }}
-                    className="w-full px-4 py-2.5 text-start text-sm font-semibold text-[var(--dank-accent)] hover:bg-[var(--dank-hover)] flex items-center gap-3 cursor-pointer border-t border-[var(--dank-border)] mt-1 pt-2.5"
+                    className="w-full px-4 py-2.5 text-start text-sm font-semibold text-[var(--era-accent)] hover:bg-[var(--era-hover)] flex items-center gap-3 cursor-pointer border-t border-[var(--era-border)] mt-1 pt-2.5"
                   >
                     <Shield className="w-4 h-4" />
                     <span>{t.sidebar.adminDashboard}</span>
@@ -1746,7 +1834,7 @@ export default function App() {
         {headerSearchOpen && (
           <div className="px-4 pb-2.5">
             <div className="relative">
-              <Search className="w-4 h-4 text-[var(--dank-muted)] absolute start-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <Search className="w-4 h-4 text-[var(--era-muted)] absolute start-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 type="text"
                 dir="auto"
@@ -1754,14 +1842,14 @@ export default function App() {
                 value={headerSearchQuery}
                 onChange={(e) => setHeaderSearchQuery(e.target.value)}
                 placeholder={t.sidebar.searchPlaceholder}
-                className="w-full h-10 ps-10 pe-10 rounded-full bg-[var(--dank-elevated)] border border-[var(--dank-border)] text-base text-[var(--dank-text)] placeholder:text-[var(--dank-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)] touch-manipulation select-text"
+                className="w-full h-10 ps-10 pe-10 rounded-full bg-[var(--era-elevated)] border border-[var(--era-border)] text-base text-[var(--era-text)] placeholder:text-[var(--era-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--era-accent)] touch-manipulation select-text"
               />
               {headerSearchQuery && (
                 <button
                   type="button"
                   onClick={() => setHeaderSearchQuery('')}
                   aria-label={t.sidebar.clearSearch}
-                  className="absolute end-2 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center text-[var(--dank-muted)] hover:text-[var(--dank-text)] cursor-pointer"
+                  className="absolute end-2 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center text-[var(--era-muted)] hover:text-[var(--era-text)] cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -1793,6 +1881,7 @@ export default function App() {
               chatPrefsById={chatPrefsById}
               typingByChat={typingByChat}
               remindersByChatId={remindersByChatId}
+              streaksByChatId={streaksByChatId}
               adsBanner={adsBanner}
               activeChatId={activeChatId}
               searchQuery={headerSearchQuery}
@@ -1815,7 +1904,7 @@ export default function App() {
           <div
             className={`${
               activeChat ? 'hidden md:flex' : 'flex'
-            } w-full md:w-[360px] lg:w-[390px] shrink-0 h-full min-h-0 flex-col bg-[var(--dank-canvas)] md:border-e md:border-[var(--dank-border)] overflow-y-auto dank-scroll-list`}
+            } w-full md:w-[360px] lg:w-[390px] shrink-0 h-full min-h-0 flex-col bg-[var(--era-canvas)] md:border-e md:border-[var(--era-border)] overflow-y-auto era-scroll-list`}
           >
             {/* Stories / Status Row */}
             <StoriesBar
@@ -1830,13 +1919,13 @@ export default function App() {
             {/* Channels Section */}
             <div className="p-4 space-y-4">
               <div className="flex items-center justify-between">
-                <h2 className="text-lg font-bold text-[var(--dank-text)]">
+                <h2 className="text-lg font-bold text-[var(--era-text)]">
                   {t.whatsapp.channelsSection}
                 </h2>
                 <button
                   type="button"
                   onClick={() => setCreateModalType('channel')}
-                  className="h-8 px-3 rounded-full bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-xs font-bold flex items-center gap-1 cursor-pointer"
+                  className="h-8 px-3 rounded-full bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] text-xs font-bold flex items-center gap-1 cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
                   <span>{t.sidebar.newChannel}</span>
@@ -1844,12 +1933,12 @@ export default function App() {
               </div>
 
               {filteredJoinedChannels.length === 0 ? (
-                <div className="rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] p-4 text-center">
-                  <Megaphone className="w-6 h-6 text-[var(--dank-accent)] mx-auto mb-1.5" />
-                  <p className="text-xs text-[var(--dank-muted)]">{t.whatsapp.noChannelsJoined}</p>
+                <div className="rounded-2xl bg-[var(--era-surface)] border border-[var(--era-border)] p-4 text-center">
+                  <Megaphone className="w-6 h-6 text-[var(--era-accent)] mx-auto mb-1.5" />
+                  <p className="text-xs text-[var(--era-muted)]">{t.whatsapp.noChannelsJoined}</p>
                 </div>
               ) : (
-                <div className="rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] divide-y divide-[var(--dank-border-subtle)] overflow-hidden">
+                <div className="rounded-2xl bg-[var(--era-surface)] border border-[var(--era-border)] divide-y divide-[var(--era-border-subtle)] overflow-hidden">
                   {filteredJoinedChannels.map((ch) => (
                     <button
                       key={ch.id}
@@ -1857,8 +1946,8 @@ export default function App() {
                       onClick={() => setActiveChatId(ch.id)}
                       className={`w-full px-3.5 py-3 flex items-center gap-3 text-start transition-colors cursor-pointer ${
                         activeChatId === ch.id
-                          ? 'bg-[var(--dank-elevated)]'
-                          : 'hover:bg-[var(--dank-hover)]'
+                          ? 'bg-[var(--era-elevated)]'
+                          : 'hover:bg-[var(--era-hover)]'
                       }`}
                     >
                       <Avatar
@@ -1869,14 +1958,14 @@ export default function App() {
                       />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
-                          <span dir="auto" className="flex-1 min-w-0 text-sm font-bold text-[var(--dank-text)] truncate">
+                          <span dir="auto" className="flex-1 min-w-0 text-sm font-bold text-[var(--era-text)] truncate">
                             {ch.name || t.common.channel}
                           </span>
-                          <span className="text-[11px] text-[var(--dank-muted)] tabular-nums shrink-0 whitespace-nowrap">
+                          <span className="text-[11px] text-[var(--era-muted)] tabular-nums shrink-0 whitespace-nowrap">
                             {formatChatTime(ch.lastMessageAt || ch.updatedAt, language)}
                           </span>
                         </div>
-                        <p dir="auto" className="text-xs text-[var(--dank-muted)] truncate mt-0.5">
+                        <p dir="auto" className="text-xs text-[var(--era-muted)] truncate mt-0.5">
                           {ch.lastMessageText || `${ch.memberCount} ${t.common.subscribers}`}
                         </p>
                       </div>
@@ -1888,10 +1977,10 @@ export default function App() {
               {/* Discover Public Channels */}
               {discoverChannels.length > 0 && (
                 <div className="space-y-2 pt-2">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--dank-muted)] px-1">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--era-muted)] px-1">
                     {t.whatsapp.exploreChannels}
                   </h3>
-                  <div className="rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] divide-y divide-[var(--dank-border-subtle)] overflow-hidden">
+                  <div className="rounded-2xl bg-[var(--era-surface)] border border-[var(--era-border)] divide-y divide-[var(--era-border-subtle)] overflow-hidden">
                     {discoverChannels.map((ch) => (
                       <div
                         key={ch.id}
@@ -1904,17 +1993,17 @@ export default function App() {
                           chatType="channel"
                         />
                         <div className="flex-1 min-w-0">
-                          <p dir="auto" className="text-sm font-bold text-[var(--dank-text)] truncate">
+                          <p dir="auto" className="text-sm font-bold text-[var(--era-text)] truncate">
                             {ch.name || t.common.channel}
                           </p>
-                          <p className="text-xs text-[var(--dank-muted)] truncate mt-0.5">
+                          <p className="text-xs text-[var(--era-muted)] truncate mt-0.5">
                             {ch.memberCount} {t.common.subscribers}
                           </p>
                         </div>
                         <button
                           type="button"
                           onClick={() => void handleJoinPublicChannel(ch.id)}
-                          className="h-8 px-4 rounded-full bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-xs font-bold shrink-0 cursor-pointer"
+                          className="h-8 px-4 rounded-full bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] text-xs font-bold shrink-0 cursor-pointer"
                         >
                           {t.common.join}
                         </button>
@@ -1932,17 +2021,17 @@ export default function App() {
           <div
             className={`${
               activeChat ? 'hidden md:flex' : 'flex'
-            } w-full md:w-[360px] lg:w-[390px] shrink-0 h-full min-h-0 flex-col bg-[var(--dank-canvas)] md:border-e md:border-[var(--dank-border)] overflow-y-auto dank-scroll-list`}
+            } w-full md:w-[360px] lg:w-[390px] shrink-0 h-full min-h-0 flex-col bg-[var(--era-canvas)] md:border-e md:border-[var(--era-border)] overflow-y-auto era-scroll-list`}
           >
             <div className="p-4 space-y-4">
               <div className="flex items-center justify-between gap-2">
-                <h2 className="text-lg font-bold text-[var(--dank-text)]">
+                <h2 className="text-lg font-bold text-[var(--era-text)]">
                   {t.whatsapp.communitiesTitle}
                 </h2>
                 <button
                   type="button"
                   onClick={() => setCreateModalType('group')}
-                  className="h-8 px-3 rounded-full bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-xs font-bold flex items-center gap-1 cursor-pointer"
+                  className="h-8 px-3 rounded-full bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] text-xs font-bold flex items-center gap-1 cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
                   <span>{t.whatsapp.newCommunity}</span>
@@ -1952,13 +2041,13 @@ export default function App() {
 
 
               {filteredJoinedGroups.length === 0 ? (
-                <div className="rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] p-6 text-center">
-                  <Users className="w-7 h-7 text-[var(--dank-accent)] mx-auto mb-2" />
-                  <p className="text-sm font-semibold text-[var(--dank-text)]">{t.sidebar.groups}</p>
-                  <p className="text-xs text-[var(--dank-muted)] mt-1">{t.sidebar.noPublicYetDesc}</p>
+                <div className="rounded-2xl bg-[var(--era-surface)] border border-[var(--era-border)] p-6 text-center">
+                  <Users className="w-7 h-7 text-[var(--era-accent)] mx-auto mb-2" />
+                  <p className="text-sm font-semibold text-[var(--era-text)]">{t.sidebar.groups}</p>
+                  <p className="text-xs text-[var(--era-muted)] mt-1">{t.sidebar.noPublicYetDesc}</p>
                 </div>
               ) : (
-                <div className="rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] divide-y divide-[var(--dank-border-subtle)] overflow-hidden">
+                <div className="rounded-2xl bg-[var(--era-surface)] border border-[var(--era-border)] divide-y divide-[var(--era-border-subtle)] overflow-hidden">
                   {filteredJoinedGroups.map((grp) => (
                     <button
                       key={grp.id}
@@ -1966,8 +2055,8 @@ export default function App() {
                       onClick={() => setActiveChatId(grp.id)}
                       className={`w-full px-3.5 py-3 flex items-center gap-3 text-start transition-colors cursor-pointer ${
                         activeChatId === grp.id
-                          ? 'bg-[var(--dank-elevated)]'
-                          : 'hover:bg-[var(--dank-hover)]'
+                          ? 'bg-[var(--era-elevated)]'
+                          : 'hover:bg-[var(--era-hover)]'
                       }`}
                     >
                       <Avatar
@@ -1978,14 +2067,14 @@ export default function App() {
                       />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
-                          <span dir="auto" className="flex-1 min-w-0 text-sm font-bold text-[var(--dank-text)] truncate">
+                          <span dir="auto" className="flex-1 min-w-0 text-sm font-bold text-[var(--era-text)] truncate">
                             {grp.name || t.common.group}
                           </span>
-                          <span className="text-[11px] text-[var(--dank-muted)] tabular-nums shrink-0 whitespace-nowrap">
+                          <span className="text-[11px] text-[var(--era-muted)] tabular-nums shrink-0 whitespace-nowrap">
                             {formatChatTime(grp.lastMessageAt || grp.updatedAt, language)}
                           </span>
                         </div>
-                        <p dir="auto" className="text-xs text-[var(--dank-muted)] truncate mt-0.5">
+                        <p dir="auto" className="text-xs text-[var(--era-muted)] truncate mt-0.5">
                           {grp.lastMessageText || `${grp.memberCount} ${t.common.members}`}
                         </p>
                       </div>
@@ -1996,10 +2085,10 @@ export default function App() {
 
               {discoverGroups.length > 0 && (
                 <div className="space-y-2 pt-1">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--dank-muted)] px-1">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--era-muted)] px-1">
                     {t.sidebar.trending}
                   </h3>
-                  <div className="rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] divide-y divide-[var(--dank-border-subtle)] overflow-hidden">
+                  <div className="rounded-2xl bg-[var(--era-surface)] border border-[var(--era-border)] divide-y divide-[var(--era-border-subtle)] overflow-hidden">
                     {discoverGroups.map((grp) => (
                       <div key={grp.id} className="px-3.5 py-3 flex items-center gap-3">
                         <Avatar
@@ -2009,17 +2098,17 @@ export default function App() {
                           chatType="group"
                         />
                         <div className="flex-1 min-w-0">
-                          <p dir="auto" className="text-sm font-bold text-[var(--dank-text)] truncate">
+                          <p dir="auto" className="text-sm font-bold text-[var(--era-text)] truncate">
                             {grp.name || t.common.group}
                           </p>
-                          <p className="text-xs text-[var(--dank-muted)] truncate mt-0.5">
+                          <p className="text-xs text-[var(--era-muted)] truncate mt-0.5">
                             {grp.memberCount} {t.common.members}
                           </p>
                         </div>
                         <button
                           type="button"
                           onClick={() => void handleJoinPublicChannel(grp.id)}
-                          className="h-8 px-4 rounded-full bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-xs font-bold shrink-0 cursor-pointer"
+                          className="h-8 px-4 rounded-full bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] text-xs font-bold shrink-0 cursor-pointer"
                         >
                           {t.common.join}
                         </button>
@@ -2039,7 +2128,7 @@ export default function App() {
               activeChat
                 ? 'fixed inset-0 h-[100dvh] z-30 flex md:static md:h-full md:z-auto'
                 : 'hidden md:flex'
-            } flex-1 min-w-0 bg-[var(--dank-canvas)]`}
+            } flex-1 min-w-0 bg-[var(--era-canvas)]`}
           >
             {activeChat ? (
               <ChatWindow
@@ -2062,14 +2151,14 @@ export default function App() {
                 onNotify={notify}
               />
             ) : (
-              <div className="flex-1 h-full dank-chat-bg flex items-center justify-center p-8">
-                <div className="max-w-md w-full rounded-3xl bg-[var(--dank-surface)] border border-[var(--dank-border)] p-7 shadow-xl text-center space-y-5">
+              <div className="flex-1 h-full era-chat-bg flex items-center justify-center p-8">
+                <div className="max-w-md w-full rounded-3xl bg-[var(--era-surface)] border border-[var(--era-border)] p-7 shadow-xl text-center space-y-5">
                   <div className="flex items-center justify-center">
-                    <DankLogo size="lg" showText={true} />
+                    <EraLogo size="lg" showText={true} />
                   </div>
                   <div>
-                    <h2 className="text-xl font-bold text-[var(--dank-text)]">{t.welcome.title}</h2>
-                    <p className="mt-1.5 text-sm text-[var(--dank-muted)] leading-relaxed">
+                    <h2 className="text-xl font-bold text-[var(--era-text)]">{t.welcome.title}</h2>
+                    <p className="mt-1.5 text-sm text-[var(--era-muted)] leading-relaxed">
                       {t.welcome.desc}
                     </p>
                   </div>
@@ -2077,15 +2166,15 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => setCreateModalType('group')}
-                      className="h-10 px-4 rounded-full bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] text-xs font-semibold flex items-center gap-2 cursor-pointer"
+                      className="h-10 px-4 rounded-full bg-[var(--era-elevated)] hover:bg-[var(--era-hover)] text-[var(--era-text)] text-xs font-semibold flex items-center gap-2 cursor-pointer"
                     >
-                      <Users className="w-4 h-4 text-[var(--dank-accent)]" />
+                      <Users className="w-4 h-4 text-[var(--era-accent)]" />
                       {t.welcome.newGroup}
                     </button>
                     <button
                       type="button"
                       onClick={() => setCreateModalType('channel')}
-                      className="h-10 px-4 rounded-full bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-xs font-bold flex items-center gap-2 cursor-pointer"
+                      className="h-10 px-4 rounded-full bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] text-xs font-bold flex items-center gap-2 cursor-pointer"
                     >
                       <Megaphone className="w-4 h-4" />
                       {t.welcome.newChannel}
@@ -2094,9 +2183,9 @@ export default function App() {
                       <button
                         type="button"
                         onClick={() => setShowAdminModal(true)}
-                        className="h-10 px-4 rounded-full border border-[var(--dank-border)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                        className="h-10 px-4 rounded-full border border-[var(--era-border)] hover:bg-[var(--era-hover)] text-[var(--era-text)] text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
                       >
-                        <Shield className="w-4 h-4 text-[var(--dank-accent)]" />
+                        <Shield className="w-4 h-4 text-[var(--era-accent)]" />
                         {t.welcome.admin}
                       </button>
                     )}
@@ -2109,10 +2198,10 @@ export default function App() {
 
         {/* TAB 4: CALLS (Voice Calls ONLY) */}
         {mainTab === 'calls' && (
-          <div className="flex-1 h-full min-h-0 overflow-y-auto dank-scroll-list bg-[var(--dank-canvas)] p-4">
+          <div className="flex-1 h-full min-h-0 overflow-y-auto era-scroll-list bg-[var(--era-canvas)] p-4">
             <div className="max-w-2xl mx-auto space-y-4">
               <div className="flex items-center justify-between">
-                <h2 className="text-lg font-bold text-[var(--dank-text)]">
+                <h2 className="text-lg font-bold text-[var(--era-text)]">
                   {t.whatsapp.callsTitle}
                 </h2>
                 <button
@@ -2121,7 +2210,7 @@ export default function App() {
                     setCallPickerSearch('');
                     setShowCallPickerModal(true);
                   }}
-                  className="h-9 px-4 rounded-full bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                  className="h-9 px-4 rounded-full bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] text-xs font-bold flex items-center gap-1.5 cursor-pointer"
                 >
                   <Plus className="w-4 h-4 stroke-[2.5]" />
                   <Phone className="w-3.5 h-3.5" />
@@ -2130,13 +2219,13 @@ export default function App() {
               </div>
 
               {filteredCalls.length === 0 ? (
-                <div className="rounded-3xl bg-[var(--dank-surface)] border border-[var(--dank-border)] py-14 px-6 text-center space-y-2">
-                  <Phone className="w-9 h-9 text-[var(--dank-accent)] mx-auto" />
-                  <p className="text-sm font-bold text-[var(--dank-text)]">{t.calls.noCallsYet}</p>
-                  <p className="text-xs text-[var(--dank-muted)]">{t.whatsapp.recentCalls}</p>
+                <div className="rounded-3xl bg-[var(--era-surface)] border border-[var(--era-border)] py-14 px-6 text-center space-y-2">
+                  <Phone className="w-9 h-9 text-[var(--era-accent)] mx-auto" />
+                  <p className="text-sm font-bold text-[var(--era-text)]">{t.calls.noCallsYet}</p>
+                  <p className="text-xs text-[var(--era-muted)]">{t.whatsapp.recentCalls}</p>
                 </div>
               ) : (
-                <div className="rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] divide-y divide-[var(--dank-border-subtle)] overflow-hidden">
+                <div className="rounded-2xl bg-[var(--era-surface)] border border-[var(--era-border)] divide-y divide-[var(--era-border-subtle)] overflow-hidden">
                   {filteredCalls.map((call) => {
                     const isOutgoing = call.callerId === profile.uid;
                     const peerUid = isOutgoing ? call.calleeId : call.callerId;
@@ -2163,7 +2252,7 @@ export default function App() {
                     return (
                       <div
                         key={call.id}
-                        className="px-4 py-3 flex items-center justify-between gap-3 hover:bg-[var(--dank-hover)] transition-colors"
+                        className="px-4 py-3 flex items-center justify-between gap-3 hover:bg-[var(--era-hover)] transition-colors"
                       >
                         <div className="flex-1 flex items-center gap-3 min-w-0">
                           <Avatar src={peerPhoto} name={peerName} size="md" />
@@ -2171,18 +2260,18 @@ export default function App() {
                             <p
                               dir="auto"
                               className={`text-sm font-semibold truncate ${
-                                isMissed ? 'text-red-500' : 'text-[var(--dank-text)]'
+                                isMissed ? 'text-red-500' : 'text-[var(--era-text)]'
                               }`}
                             >
                               {peerName}
                             </p>
-                            <div className="flex items-center gap-1.5 text-xs text-[var(--dank-muted)] mt-0.5">
+                            <div className="flex items-center gap-1.5 text-xs text-[var(--era-muted)] mt-0.5">
                               {isMissed ? (
                                 <PhoneMissed className="w-3.5 h-3.5 text-red-500 shrink-0" />
                               ) : isOutgoing ? (
-                                <PhoneOutgoing className="w-3.5 h-3.5 text-[var(--dank-accent)] shrink-0" />
+                                <PhoneOutgoing className="w-3.5 h-3.5 text-[var(--era-accent)] shrink-0" />
                               ) : (
-                                <PhoneIncoming className="w-3.5 h-3.5 text-[var(--dank-accent)] shrink-0" />
+                                <PhoneIncoming className="w-3.5 h-3.5 text-[var(--era-accent)] shrink-0" />
                               )}
                               <span className={`truncate ${isMissed ? 'text-red-500 font-medium' : ''}`}>
                                 {isMissed
@@ -2197,14 +2286,14 @@ export default function App() {
                         </div>
 
                         <div className="flex items-center gap-2 shrink-0 whitespace-nowrap">
-                          <span className="text-[11px] text-[var(--dank-muted)] tabular-nums">
+                          <span className="text-[11px] text-[var(--era-muted)] tabular-nums">
                             {formatChatTime(call.startedAt, language)}
                           </span>
                           <button
                             type="button"
                             onClick={() => void handleStartCall(peerObj, call.chatId)}
                             aria-label={t.calls.voiceCall}
-                            className="w-10 h-10 rounded-full hover:bg-[var(--dank-elevated)] text-[var(--dank-accent)] flex items-center justify-center cursor-pointer"
+                            className="w-10 h-10 rounded-full hover:bg-[var(--era-elevated)] text-[var(--era-accent)] flex items-center justify-center cursor-pointer"
                           >
                             <Phone className="w-4.5 h-4.5" />
                           </button>
@@ -2220,7 +2309,7 @@ export default function App() {
 
         {/* TAB 5: SETTINGS (Exact iPhone WhatsApp Settings Layout + Appearance 4 Themes) */}
         {mainTab === 'settings' && (
-          <div className="flex-1 h-full min-h-0 overflow-y-auto dank-scroll-list bg-[var(--dank-canvas)] p-4 pb-8">
+          <div className="flex-1 h-full min-h-0 overflow-y-auto era-scroll-list bg-[var(--era-canvas)] p-4 pb-8">
             <div className="max-w-2xl mx-auto space-y-4">
               {/* Top Profile Card: Photo + Name + About */}
               <button
@@ -2229,12 +2318,12 @@ export default function App() {
                   setProfileModalEditMode(false);
                   setShowProfileModal(true);
                 }}
-                className="w-full p-4 rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] hover:border-[var(--dank-accent)] flex items-center gap-3.5 text-start transition-colors cursor-pointer"
+                className="w-full p-4 rounded-2xl bg-[var(--era-surface)] border border-[var(--era-border)] hover:border-[var(--era-accent)] flex items-center gap-3.5 text-start transition-colors cursor-pointer"
               >
                 <Avatar src={profile.photoURL} name={profile.name} size="lg" />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 min-w-0">
-                    <h2 className="text-base font-bold text-[var(--dank-text)] truncate">
+                    <h2 className="text-base font-bold text-[var(--era-text)] truncate">
                       {profile.name}
                     </h2>
                     <UserBadges
@@ -2245,34 +2334,34 @@ export default function App() {
                       size="sm"
                     />
                   </div>
-                  <p dir="auto" className="text-xs text-[var(--dank-muted)] truncate mt-0.5">
+                  <p dir="auto" className="text-xs text-[var(--era-muted)] truncate mt-0.5">
                     {profile.bio || t.errors.defaultBio}
                   </p>
                 </div>
-                <ChevronRight className="w-5 h-5 text-[var(--dank-muted)] rtl:rotate-180 shrink-0" />
+                <ChevronRight className="w-5 h-5 text-[var(--era-muted)] rtl:rotate-180 shrink-0" />
               </button>
 
               {/* Settings > Appearance (4 Instant Theme Preview Circles) */}
-              <div className="rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] p-4 space-y-3">
+              <div className="rounded-2xl bg-[var(--era-surface)] border border-[var(--era-border)] p-4 space-y-3">
                 <button
                   type="button"
                   onClick={() => setShowAppearanceSheet(true)}
                   className="w-full flex items-center justify-between gap-3 text-start cursor-pointer"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-xl bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] flex items-center justify-center shrink-0">
+                    <div className="w-9 h-9 rounded-xl bg-[var(--era-accent-soft)] text-[var(--era-accent)] flex items-center justify-center shrink-0">
                       <Palette className="w-4.5 h-4.5" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-[var(--dank-text)]">
+                      <p className="text-sm font-semibold text-[var(--era-text)]">
                         {t.whatsapp.appearance}
                       </p>
-                      <p className="text-xs text-[var(--dank-muted)] truncate">
+                      <p className="text-xs text-[var(--era-muted)] truncate">
                         {getThemeLabel(theme)}
                       </p>
                     </div>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-[var(--dank-muted)] rtl:rotate-180 shrink-0" />
+                  <ChevronRight className="w-4 h-4 text-[var(--era-muted)] rtl:rotate-180 shrink-0" />
                 </button>
 
                 <div className="grid grid-cols-1 gap-3 pt-1">
@@ -2285,14 +2374,14 @@ export default function App() {
                         onClick={() => handleSelectTheme(opt.id)}
                         className={`p-3 rounded-2xl border flex items-center gap-3 transition-colors cursor-pointer ${
                           active
-                            ? 'bg-[var(--dank-accent-soft)] border-[var(--dank-accent)] shadow-xs'
-                            : 'bg-[var(--dank-canvas)] border-[var(--dank-border)] hover:border-[var(--dank-muted)]'
+                            ? 'bg-[var(--era-accent-soft)] border-[var(--era-accent)] shadow-xs'
+                            : 'bg-[var(--era-canvas)] border-[var(--era-border)] hover:border-[var(--era-muted)]'
                         }`}
                       >
                         <span
                           className="relative w-11 h-11 rounded-full border-2 shadow-sm overflow-hidden flex items-center justify-center shrink-0 transition-transform active:scale-95"
                           style={{
-                            borderColor: active ? opt.accent : 'var(--dank-border)',
+                            borderColor: active ? opt.accent : 'var(--era-border)',
                             background:
                               'linear-gradient(135deg, #040409 42%, #A855F7 70%, #22D3EE 100%)',
                           }}
@@ -2303,7 +2392,7 @@ export default function App() {
                             </span>
                           )}
                         </span>
-                        <span className="text-xs font-semibold text-[var(--dank-text)] text-start leading-tight">
+                        <span className="text-xs font-semibold text-[var(--era-text)] text-start leading-tight">
                           {getThemeLabel(opt.id)}
                         </span>
                       </button>
@@ -2313,7 +2402,7 @@ export default function App() {
               </div>
 
               {/* Main WhatsApp Settings List */}
-              <div className="rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] divide-y divide-[var(--dank-border)] overflow-hidden">
+              <div className="rounded-2xl bg-[var(--era-surface)] border border-[var(--era-border)] divide-y divide-[var(--era-border)] overflow-hidden">
                 {/* Account */}
                 <button
                   type="button"
@@ -2321,40 +2410,40 @@ export default function App() {
                     setProfileModalEditMode(false);
                     setShowProfileModal(true);
                   }}
-                  className="w-full px-4 py-3.5 flex items-center gap-3.5 text-start hover:bg-[var(--dank-hover)] cursor-pointer"
+                  className="w-full px-4 py-3.5 flex items-center gap-3.5 text-start hover:bg-[var(--era-hover)] cursor-pointer"
                 >
-                  <div className="w-9 h-9 rounded-xl bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] flex items-center justify-center shrink-0">
+                  <div className="w-9 h-9 rounded-xl bg-[var(--era-accent-soft)] text-[var(--era-accent)] flex items-center justify-center shrink-0">
                     <KeyRound className="w-4.5 h-4.5" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-[var(--dank-text)]">
+                    <p className="text-sm font-semibold text-[var(--era-text)]">
                       {t.whatsapp.account}
                     </p>
-                    <p className="text-xs text-[var(--dank-muted)] truncate">
+                    <p className="text-xs text-[var(--era-muted)] truncate">
                       {t.whatsapp.accountDesc}
                     </p>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-[var(--dank-muted)] rtl:rotate-180 shrink-0" />
+                  <ChevronRight className="w-4 h-4 text-[var(--era-muted)] rtl:rotate-180 shrink-0" />
                 </button>
 
                 {/* Privacy */}
                 <button
                   type="button"
                   onClick={() => setShowSettingsPrivacyModal(true)}
-                  className="w-full px-4 py-3.5 flex items-center gap-3.5 text-start hover:bg-[var(--dank-hover)] cursor-pointer"
+                  className="w-full px-4 py-3.5 flex items-center gap-3.5 text-start hover:bg-[var(--era-hover)] cursor-pointer"
                 >
-                  <div className="w-9 h-9 rounded-xl bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] flex items-center justify-center shrink-0">
+                  <div className="w-9 h-9 rounded-xl bg-[var(--era-accent-soft)] text-[var(--era-accent)] flex items-center justify-center shrink-0">
                     <Lock className="w-4.5 h-4.5" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-[var(--dank-text)]">
+                    <p className="text-sm font-semibold text-[var(--era-text)]">
                       {t.whatsapp.privacy}
                     </p>
-                    <p className="text-xs text-[var(--dank-muted)] truncate">
+                    <p className="text-xs text-[var(--era-muted)] truncate">
                       {t.whatsapp.privacyDesc}
                     </p>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-[var(--dank-muted)] rtl:rotate-180 shrink-0" />
+                  <ChevronRight className="w-4 h-4 text-[var(--era-muted)] rtl:rotate-180 shrink-0" />
                 </button>
 
                 {/* Avatar */}
@@ -2364,85 +2453,85 @@ export default function App() {
                     setProfileModalEditMode(true);
                     setShowProfileModal(true);
                   }}
-                  className="w-full px-4 py-3.5 flex items-center gap-3.5 text-start hover:bg-[var(--dank-hover)] cursor-pointer"
+                  className="w-full px-4 py-3.5 flex items-center gap-3.5 text-start hover:bg-[var(--era-hover)] cursor-pointer"
                 >
-                  <div className="w-9 h-9 rounded-xl bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] flex items-center justify-center shrink-0">
+                  <div className="w-9 h-9 rounded-xl bg-[var(--era-accent-soft)] text-[var(--era-accent)] flex items-center justify-center shrink-0">
                     <Camera className="w-4.5 h-4.5" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-[var(--dank-text)]">
+                    <p className="text-sm font-semibold text-[var(--era-text)]">
                       {t.whatsapp.avatar}
                     </p>
-                    <p className="text-xs text-[var(--dank-muted)] truncate">
+                    <p className="text-xs text-[var(--era-muted)] truncate">
                       {t.whatsapp.avatarDesc}
                     </p>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-[var(--dank-muted)] rtl:rotate-180 shrink-0" />
+                  <ChevronRight className="w-4 h-4 text-[var(--era-muted)] rtl:rotate-180 shrink-0" />
                 </button>
 
                 {/* Chats */}
                 <button
                   type="button"
                   onClick={() => setShowChatsSubSheet(true)}
-                  className="w-full px-4 py-3.5 flex items-center gap-3.5 text-start hover:bg-[var(--dank-hover)] cursor-pointer"
+                  className="w-full px-4 py-3.5 flex items-center gap-3.5 text-start hover:bg-[var(--era-hover)] cursor-pointer"
                 >
-                  <div className="w-9 h-9 rounded-xl bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] flex items-center justify-center shrink-0">
+                  <div className="w-9 h-9 rounded-xl bg-[var(--era-accent-soft)] text-[var(--era-accent)] flex items-center justify-center shrink-0">
                     <MessageSquare className="w-4.5 h-4.5" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-[var(--dank-text)]">
+                    <p className="text-sm font-semibold text-[var(--era-text)]">
                       {t.whatsapp.chats}
                     </p>
-                    <p className="text-xs text-[var(--dank-muted)] truncate">
+                    <p className="text-xs text-[var(--era-muted)] truncate">
                       {t.whatsapp.chatsDesc}
                     </p>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-[var(--dank-muted)] rtl:rotate-180 shrink-0" />
+                  <ChevronRight className="w-4 h-4 text-[var(--era-muted)] rtl:rotate-180 shrink-0" />
                 </button>
 
                 {/* Notifications */}
                 <button
                   type="button"
                   onClick={() => setShowNotificationsPage(true)}
-                  className="w-full px-4 py-3.5 flex items-center gap-3.5 text-start hover:bg-[var(--dank-hover)] cursor-pointer"
+                  className="w-full px-4 py-3.5 flex items-center gap-3.5 text-start hover:bg-[var(--era-hover)] cursor-pointer"
                 >
-                  <div className="w-9 h-9 rounded-xl bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] flex items-center justify-center shrink-0">
+                  <div className="w-9 h-9 rounded-xl bg-[var(--era-accent-soft)] text-[var(--era-accent)] flex items-center justify-center shrink-0">
                     <Bell className="w-4.5 h-4.5" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-[var(--dank-text)]">
+                    <p className="text-sm font-semibold text-[var(--era-text)]">
                       {t.whatsapp.notifications}
                     </p>
-                    <p className="text-xs text-[var(--dank-muted)] truncate">
+                    <p className="text-xs text-[var(--era-muted)] truncate">
                       {t.whatsapp.notificationsDesc}
                     </p>
                   </div>
                   {unreadNotifsCount > 0 && (
-                    <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-[var(--dank-accent)] text-[var(--dank-accent-fg)] text-[11px] font-bold flex items-center justify-center tabular-nums">
+                    <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-[var(--era-accent)] text-[var(--era-accent-fg)] text-[11px] font-bold flex items-center justify-center tabular-nums">
                       {unreadNotifsCount > 99 ? '99+' : unreadNotifsCount}
                     </span>
                   )}
-                  <ChevronRight className="w-4 h-4 text-[var(--dank-muted)] rtl:rotate-180 shrink-0" />
+                  <ChevronRight className="w-4 h-4 text-[var(--era-muted)] rtl:rotate-180 shrink-0" />
                 </button>
 
                 {/* Storage */}
                 <button
                   type="button"
                   onClick={handleClearChatCache}
-                  className="w-full px-4 py-3.5 flex items-center gap-3.5 text-start hover:bg-[var(--dank-hover)] cursor-pointer"
+                  className="w-full px-4 py-3.5 flex items-center gap-3.5 text-start hover:bg-[var(--era-hover)] cursor-pointer"
                 >
-                  <div className="w-9 h-9 rounded-xl bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] flex items-center justify-center shrink-0">
+                  <div className="w-9 h-9 rounded-xl bg-[var(--era-accent-soft)] text-[var(--era-accent)] flex items-center justify-center shrink-0">
                     <HardDrive className="w-4.5 h-4.5" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-[var(--dank-text)]">
+                    <p className="text-sm font-semibold text-[var(--era-text)]">
                       {t.whatsapp.storage}
                     </p>
-                    <p className="text-xs text-[var(--dank-muted)] truncate">
+                    <p className="text-xs text-[var(--era-muted)] truncate">
                       {t.whatsapp.storageDesc} · {storageCacheKb} KB
                     </p>
                   </div>
-                  <span className="text-xs font-bold text-[var(--dank-accent)] shrink-0">
+                  <span className="text-xs font-bold text-[var(--era-accent)] shrink-0">
                     {t.whatsapp.clearCache}
                   </span>
                 </button>
@@ -2451,20 +2540,20 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => void setLanguage(language === 'ar' ? 'en' : 'ar')}
-                  className="w-full px-4 py-3.5 flex items-center gap-3.5 text-start hover:bg-[var(--dank-hover)] cursor-pointer"
+                  className="w-full px-4 py-3.5 flex items-center gap-3.5 text-start hover:bg-[var(--era-hover)] cursor-pointer"
                 >
-                  <div className="w-9 h-9 rounded-xl bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] flex items-center justify-center shrink-0">
+                  <div className="w-9 h-9 rounded-xl bg-[var(--era-accent-soft)] text-[var(--era-accent)] flex items-center justify-center shrink-0">
                     <Globe className="w-4.5 h-4.5" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-[var(--dank-text)]">
+                    <p className="text-sm font-semibold text-[var(--era-text)]">
                       {t.whatsapp.languageLabel}
                     </p>
-                    <p className="text-xs text-[var(--dank-muted)] truncate">
+                    <p className="text-xs text-[var(--era-muted)] truncate">
                       {language === 'ar' ? t.common.arabic : t.common.english}
                     </p>
                   </div>
-                  <span className="px-2.5 py-1 rounded-full bg-[var(--dank-elevated)] text-xs font-bold text-[var(--dank-accent)] shrink-0">
+                  <span className="px-2.5 py-1 rounded-full bg-[var(--era-elevated)] text-xs font-bold text-[var(--era-accent)] shrink-0">
                     {language === 'ar' ? 'العربية' : 'English'}
                   </span>
                 </button>
@@ -2473,38 +2562,38 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setShowHelpSheet(true)}
-                  className="w-full px-4 py-3.5 flex items-center gap-3.5 text-start hover:bg-[var(--dank-hover)] cursor-pointer"
+                  className="w-full px-4 py-3.5 flex items-center gap-3.5 text-start hover:bg-[var(--era-hover)] cursor-pointer"
                 >
-                  <div className="w-9 h-9 rounded-xl bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] flex items-center justify-center shrink-0">
+                  <div className="w-9 h-9 rounded-xl bg-[var(--era-accent-soft)] text-[var(--era-accent)] flex items-center justify-center shrink-0">
                     <HelpCircle className="w-4.5 h-4.5" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-[var(--dank-text)]">
+                    <p className="text-sm font-semibold text-[var(--era-text)]">
                       {t.whatsapp.help}
                     </p>
-                    <p className="text-xs text-[var(--dank-muted)] truncate">
+                    <p className="text-xs text-[var(--era-muted)] truncate">
                       {t.whatsapp.helpDesc}
                     </p>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-[var(--dank-muted)] rtl:rotate-180 shrink-0" />
+                  <ChevronRight className="w-4 h-4 text-[var(--era-muted)] rtl:rotate-180 shrink-0" />
                 </button>
               </div>
 
               {/* Admin & Logout Group */}
-              <div className="rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] divide-y divide-[var(--dank-border)] overflow-hidden">
+              <div className="rounded-2xl bg-[var(--era-surface)] border border-[var(--era-border)] divide-y divide-[var(--era-border)] overflow-hidden">
                 {isAdmin && (
                   <button
                     type="button"
                     onClick={() => setShowAdminModal(true)}
-                    className="w-full px-4 py-3.5 flex items-center gap-3.5 text-start hover:bg-[var(--dank-hover)] cursor-pointer"
+                    className="w-full px-4 py-3.5 flex items-center gap-3.5 text-start hover:bg-[var(--era-hover)] cursor-pointer"
                   >
-                    <div className="w-9 h-9 rounded-xl bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] flex items-center justify-center shrink-0">
+                    <div className="w-9 h-9 rounded-xl bg-[var(--era-accent-soft)] text-[var(--era-accent)] flex items-center justify-center shrink-0">
                       <Shield className="w-4.5 h-4.5" />
                     </div>
-                    <span className="flex-1 text-sm font-semibold text-[var(--dank-text)]">
+                    <span className="flex-1 text-sm font-semibold text-[var(--era-text)]">
                       {t.sidebar.adminDashboard}
                     </span>
-                    <ChevronRight className="w-4 h-4 text-[var(--dank-muted)] rtl:rotate-180 shrink-0" />
+                    <ChevronRight className="w-4 h-4 text-[var(--era-muted)] rtl:rotate-180 shrink-0" />
                   </button>
                 )}
 
@@ -2529,7 +2618,7 @@ export default function App() {
         aria-label={t.tabs.chats}
         className={`${
           activeChat ? 'hidden md:grid' : 'grid'
-        } grid-cols-5 items-stretch gap-1.5 sm:gap-2 bg-[var(--dank-canvas)] border-t border-[var(--dank-border)]/50 px-2 py-2 pb-safe shrink-0 z-30 dank-fixed-chrome`}
+        } grid-cols-5 items-stretch gap-1.5 sm:gap-2 bg-[var(--era-canvas)] border-t border-[var(--era-border)]/50 px-2 py-2 pb-safe shrink-0 z-30 era-fixed-chrome`}
       >
         <button
           type="button"
@@ -2539,14 +2628,14 @@ export default function App() {
           }}
           className={`relative rounded-[20px] overflow-hidden border min-h-[54px] py-1.5 px-1 flex flex-col items-center justify-center gap-0.5 transition-[transform,border-color,color] duration-150 cursor-pointer shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] select-none active:scale-[0.98] ${
             mainTab === 'chats'
-              ? 'border-[var(--dank-accent)] ring-1 ring-[var(--dank-accent)] bg-[var(--dank-surface)] text-[var(--dank-accent)]'
-              : 'border-[var(--dank-border)] bg-[var(--dank-surface)] text-[var(--dank-muted)] hover:text-[var(--dank-text)] hover:border-[var(--dank-border-strong)]'
+              ? 'border-[var(--era-accent)] ring-1 ring-[var(--era-accent)] bg-[var(--era-surface)] text-[var(--era-accent)]'
+              : 'border-[var(--era-border)] bg-[var(--era-surface)] text-[var(--era-muted)] hover:text-[var(--era-text)] hover:border-[var(--era-border-strong)]'
           }`}
         >
           <div className="relative">
             <MessageCircle className="w-5 h-5 shrink-0" />
             {unreadChatsCount > 0 && (
-              <span className="absolute -top-1.5 -end-2.5 min-w-[16px] h-4 px-1 rounded-full bg-[var(--dank-accent)] text-[var(--dank-accent-fg)] text-[10px] font-bold flex items-center justify-center tabular-nums">
+              <span className="absolute -top-1.5 -end-2.5 min-w-[16px] h-4 px-1 rounded-full bg-[var(--era-accent)] text-[var(--era-accent-fg)] text-[10px] font-bold flex items-center justify-center tabular-nums">
                 {unreadChatsCount > 99 ? '99+' : unreadChatsCount}
               </span>
             )}
@@ -2562,8 +2651,8 @@ export default function App() {
           }}
           className={`relative rounded-[20px] overflow-hidden border min-h-[54px] py-1.5 px-1 flex flex-col items-center justify-center gap-0.5 transition-[transform,border-color,color] duration-150 cursor-pointer shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] select-none active:scale-[0.98] ${
             mainTab === 'updates'
-              ? 'border-[var(--dank-accent)] ring-1 ring-[var(--dank-accent)] bg-[var(--dank-surface)] text-[var(--dank-accent)]'
-              : 'border-[var(--dank-border)] bg-[var(--dank-surface)] text-[var(--dank-muted)] hover:text-[var(--dank-text)] hover:border-[var(--dank-border-strong)]'
+              ? 'border-[var(--era-accent)] ring-1 ring-[var(--era-accent)] bg-[var(--era-surface)] text-[var(--era-accent)]'
+              : 'border-[var(--era-border)] bg-[var(--era-surface)] text-[var(--era-muted)] hover:text-[var(--era-text)] hover:border-[var(--era-border-strong)]'
           }`}
         >
           <CircleDot className="w-5 h-5 shrink-0" />
@@ -2578,8 +2667,8 @@ export default function App() {
           }}
           className={`relative rounded-[20px] overflow-hidden border min-h-[54px] py-1.5 px-1 flex flex-col items-center justify-center gap-0.5 transition-[transform,border-color,color] duration-150 cursor-pointer shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] select-none active:scale-[0.98] ${
             mainTab === 'communities'
-              ? 'border-[var(--dank-accent)] ring-1 ring-[var(--dank-accent)] bg-[var(--dank-surface)] text-[var(--dank-accent)]'
-              : 'border-[var(--dank-border)] bg-[var(--dank-surface)] text-[var(--dank-muted)] hover:text-[var(--dank-text)] hover:border-[var(--dank-border-strong)]'
+              ? 'border-[var(--era-accent)] ring-1 ring-[var(--era-accent)] bg-[var(--era-surface)] text-[var(--era-accent)]'
+              : 'border-[var(--era-border)] bg-[var(--era-surface)] text-[var(--era-muted)] hover:text-[var(--era-text)] hover:border-[var(--era-border-strong)]'
           }`}
         >
           <Users className="w-5 h-5 shrink-0" />
@@ -2594,8 +2683,8 @@ export default function App() {
           }}
           className={`relative rounded-[20px] overflow-hidden border min-h-[54px] py-1.5 px-1 flex flex-col items-center justify-center gap-0.5 transition-[transform,border-color,color] duration-150 cursor-pointer shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] select-none active:scale-[0.98] ${
             mainTab === 'calls'
-              ? 'border-[var(--dank-accent)] ring-1 ring-[var(--dank-accent)] bg-[var(--dank-surface)] text-[var(--dank-accent)]'
-              : 'border-[var(--dank-border)] bg-[var(--dank-surface)] text-[var(--dank-muted)] hover:text-[var(--dank-text)] hover:border-[var(--dank-border-strong)]'
+              ? 'border-[var(--era-accent)] ring-1 ring-[var(--era-accent)] bg-[var(--era-surface)] text-[var(--era-accent)]'
+              : 'border-[var(--era-border)] bg-[var(--era-surface)] text-[var(--era-muted)] hover:text-[var(--era-text)] hover:border-[var(--era-border-strong)]'
           }`}
         >
           <Phone className="w-5 h-5 shrink-0" />
@@ -2610,8 +2699,8 @@ export default function App() {
           }}
           className={`relative rounded-[20px] overflow-hidden border min-h-[54px] py-1.5 px-1 flex flex-col items-center justify-center gap-0.5 transition-[transform,border-color,color] duration-150 cursor-pointer shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] select-none active:scale-[0.98] ${
             mainTab === 'settings'
-              ? 'border-[var(--dank-accent)] ring-1 ring-[var(--dank-accent)] bg-[var(--dank-surface)] text-[var(--dank-accent)]'
-              : 'border-[var(--dank-border)] bg-[var(--dank-surface)] text-[var(--dank-muted)] hover:text-[var(--dank-text)] hover:border-[var(--dank-border-strong)]'
+              ? 'border-[var(--era-accent)] ring-1 ring-[var(--era-accent)] bg-[var(--era-surface)] text-[var(--era-accent)]'
+              : 'border-[var(--era-border)] bg-[var(--era-surface)] text-[var(--era-muted)] hover:text-[var(--era-text)] hover:border-[var(--era-border-strong)]'
           }`}
         >
           <SettingsIcon className="w-5 h-5 shrink-0" />
@@ -2627,12 +2716,12 @@ export default function App() {
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full sm:max-w-md max-h-[85vh] rounded-t-3xl sm:rounded-3xl bg-[var(--dank-surface)] border border-[var(--dank-border)] overflow-hidden shadow-2xl flex flex-col"
+            className="w-full sm:max-w-md max-h-[85vh] rounded-t-3xl sm:rounded-3xl bg-[var(--era-surface)] border border-[var(--era-border)] overflow-hidden shadow-2xl flex flex-col"
           >
-            <div className="px-4 py-3.5 border-b border-[var(--dank-border)] flex items-center justify-between shrink-0">
+            <div className="px-4 py-3.5 border-b border-[var(--era-border)] flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
-                <Phone className="w-4.5 h-4.5 text-[var(--dank-accent)]" />
-                <span className="text-sm font-bold text-[var(--dank-text)]">
+                <Phone className="w-4.5 h-4.5 text-[var(--era-accent)]" />
+                <span className="text-sm font-bold text-[var(--era-text)]">
                   {t.calls.pickContactToCall}
                 </span>
               </div>
@@ -2640,15 +2729,15 @@ export default function App() {
                 type="button"
                 onClick={() => setShowCallPickerModal(false)}
                 aria-label={t.common.close}
-                className="p-1.5 rounded-full hover:bg-[var(--dank-hover)] text-[var(--dank-muted)] hover:text-[var(--dank-text)] cursor-pointer"
+                className="p-1.5 rounded-full hover:bg-[var(--era-hover)] text-[var(--era-muted)] hover:text-[var(--era-text)] cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="p-3 border-b border-[var(--dank-border)] shrink-0">
+            <div className="p-3 border-b border-[var(--era-border)] shrink-0">
               <div className="relative">
-                <Search className="w-4 h-4 text-[var(--dank-muted)] absolute start-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <Search className="w-4 h-4 text-[var(--era-muted)] absolute start-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type="text"
                   dir="auto"
@@ -2656,14 +2745,14 @@ export default function App() {
                   value={callPickerSearch}
                   onChange={(e) => setCallPickerSearch(e.target.value)}
                   placeholder={t.calls.searchContactsToCall}
-                  className="w-full h-10 ps-10 pe-4 rounded-full bg-[var(--dank-canvas)] border border-[var(--dank-border)] text-base text-[var(--dank-text)] placeholder:text-[var(--dank-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)]"
+                  className="w-full h-10 ps-10 pe-4 rounded-full bg-[var(--era-canvas)] border border-[var(--era-border)] text-base text-[var(--era-text)] placeholder:text-[var(--era-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--era-accent)]"
                 />
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto divide-y divide-[var(--dank-border-subtle)]">
+            <div className="flex-1 overflow-y-auto divide-y divide-[var(--era-border-subtle)]">
               {callPickerCandidates.length === 0 ? (
-                <div className="py-12 px-4 text-center text-xs text-[var(--dank-muted)]">
+                <div className="py-12 px-4 text-center text-xs text-[var(--era-muted)]">
                   {t.calls.noContactsFound}
                 </div>
               ) : (
@@ -2675,7 +2764,7 @@ export default function App() {
                       setShowCallPickerModal(false);
                       void handleStartCall(person);
                     }}
-                    className="w-full px-4 py-3 flex items-center justify-between gap-3 text-start hover:bg-[var(--dank-hover)] transition-colors cursor-pointer"
+                    className="w-full px-4 py-3 flex items-center justify-between gap-3 text-start hover:bg-[var(--era-hover)] transition-colors cursor-pointer"
                   >
                     <div className="flex-1 flex items-center gap-3 min-w-0">
                       <Avatar src={person.photoURL} name={person.name} size="md" />
@@ -2683,7 +2772,7 @@ export default function App() {
                         <div className="flex items-center gap-1.5 min-w-0">
                           <span
                             dir="auto"
-                            className="min-w-0 text-sm font-semibold text-[var(--dank-text)] truncate"
+                            className="min-w-0 text-sm font-semibold text-[var(--era-text)] truncate"
                           >
                             {person.name}
                           </span>
@@ -2695,12 +2784,12 @@ export default function App() {
                             size="xs"
                           />
                         </div>
-                        <p dir="ltr" className="text-xs text-[var(--dank-muted)] truncate text-start">
+                        <p dir="ltr" className="text-xs text-[var(--era-muted)] truncate text-start">
                           @{person.username}
                         </p>
                       </div>
                     </div>
-                    <span className="w-9 h-9 rounded-full bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] flex items-center justify-center shrink-0">
+                    <span className="w-9 h-9 rounded-full bg-[var(--era-accent-soft)] text-[var(--era-accent)] flex items-center justify-center shrink-0">
                       <Phone className="w-4 h-4" />
                     </span>
                   </button>
@@ -2719,19 +2808,19 @@ export default function App() {
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-sm rounded-3xl bg-[var(--dank-surface)] border border-[var(--dank-border)] overflow-hidden shadow-2xl"
+            className="w-full max-w-sm rounded-3xl bg-[var(--era-surface)] border border-[var(--era-border)] overflow-hidden shadow-2xl"
           >
-            <div className="px-4 py-3 border-b border-[var(--dank-border)] flex items-center justify-between">
+            <div className="px-4 py-3 border-b border-[var(--era-border)] flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Palette className="w-4.5 h-4.5 text-[var(--dank-accent)]" />
-                <span className="text-sm font-bold text-[var(--dank-text)]">
+                <Palette className="w-4.5 h-4.5 text-[var(--era-accent)]" />
+                <span className="text-sm font-bold text-[var(--era-text)]">
                   {t.theme.appearanceTitle}
                 </span>
               </div>
               <button
                 type="button"
                 onClick={() => setShowAppearanceSheet(false)}
-                className="p-1.5 rounded-full hover:bg-[var(--dank-hover)] text-[var(--dank-muted)] hover:text-[var(--dank-text)] cursor-pointer"
+                className="p-1.5 rounded-full hover:bg-[var(--era-hover)] text-[var(--era-muted)] hover:text-[var(--era-text)] cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -2749,23 +2838,23 @@ export default function App() {
                     }}
                     className={`w-full px-3.5 py-3 rounded-2xl border flex items-center justify-between gap-3 transition-colors cursor-pointer ${
                       active
-                        ? 'bg-[var(--dank-accent-soft)] border-[var(--dank-accent)]'
-                        : 'bg-[var(--dank-canvas)] border-[var(--dank-border)] hover:border-[var(--dank-muted)]'
+                        ? 'bg-[var(--era-accent-soft)] border-[var(--era-accent)]'
+                        : 'bg-[var(--era-canvas)] border-[var(--era-border)] hover:border-[var(--era-muted)]'
                     }`}
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <span
-                        className="w-9 h-9 rounded-full border border-[var(--dank-border)] shrink-0 shadow-xs"
+                        className="w-9 h-9 rounded-full border border-[var(--era-border)] shrink-0 shadow-xs"
                         style={{
                           background:
                             'linear-gradient(135deg, #040409 42%, #A855F7 70%, #22D3EE 100%)',
                         }}
                       />
-                      <span className="text-sm font-semibold text-[var(--dank-text)] truncate">
+                      <span className="text-sm font-semibold text-[var(--era-text)] truncate">
                         {getThemeLabel(opt.id)}
                       </span>
                     </div>
-                    {active && <Check className="w-4.5 h-4.5 text-[var(--dank-accent)] shrink-0" />}
+                    {active && <Check className="w-4.5 h-4.5 text-[var(--era-accent)] shrink-0" />}
                   </button>
                 );
               })}
@@ -2782,14 +2871,14 @@ export default function App() {
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-sm rounded-3xl bg-[var(--dank-surface)] border border-[var(--dank-border)] overflow-hidden shadow-2xl"
+            className="w-full max-w-sm rounded-3xl bg-[var(--era-surface)] border border-[var(--era-border)] overflow-hidden shadow-2xl"
           >
-            <div className="px-4 py-3 border-b border-[var(--dank-border)] flex items-center justify-between">
-              <span className="text-sm font-bold text-[var(--dank-text)]">{t.whatsapp.chats}</span>
+            <div className="px-4 py-3 border-b border-[var(--era-border)] flex items-center justify-between">
+              <span className="text-sm font-bold text-[var(--era-text)]">{t.whatsapp.chats}</span>
               <button
                 type="button"
                 onClick={() => setShowChatsSubSheet(false)}
-                className="p-1.5 rounded-full hover:bg-[var(--dank-hover)] text-[var(--dank-muted)] hover:text-[var(--dank-text)] cursor-pointer"
+                className="p-1.5 rounded-full hover:bg-[var(--era-hover)] text-[var(--era-muted)] hover:text-[var(--era-text)] cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -2801,9 +2890,9 @@ export default function App() {
                   setShowChatsSubSheet(false);
                   void handleOpenSavedMessages();
                 }}
-                className="w-full px-3.5 py-3 rounded-xl hover:bg-[var(--dank-hover)] flex items-center gap-3 text-sm font-medium text-[var(--dank-text)] cursor-pointer"
+                className="w-full px-3.5 py-3 rounded-xl hover:bg-[var(--era-hover)] flex items-center gap-3 text-sm font-medium text-[var(--era-text)] cursor-pointer"
               >
-                <Bookmark className="w-4.5 h-4.5 text-[var(--dank-accent)]" />
+                <Bookmark className="w-4.5 h-4.5 text-[var(--era-accent)]" />
                 <span>{t.telegram.savedMessagesTitle}</span>
               </button>
               <button
@@ -2812,9 +2901,9 @@ export default function App() {
                   setShowChatsSubSheet(false);
                   setCreateModalType('secret');
                 }}
-                className="w-full px-3.5 py-3 rounded-xl hover:bg-[var(--dank-hover)] flex items-center gap-3 text-sm font-medium text-[var(--dank-text)] cursor-pointer"
+                className="w-full px-3.5 py-3 rounded-xl hover:bg-[var(--era-hover)] flex items-center gap-3 text-sm font-medium text-[var(--era-text)] cursor-pointer"
               >
-                <Lock className="w-4.5 h-4.5 text-[var(--dank-accent)]" />
+                <Lock className="w-4.5 h-4.5 text-[var(--era-accent)]" />
                 <span>{t.telegram.secretChat}</span>
               </button>
               <button
@@ -2823,13 +2912,13 @@ export default function App() {
                   setShowChatsSubSheet(false);
                   setShowAppearanceSheet(true);
                 }}
-                className="w-full px-3.5 py-3 rounded-xl hover:bg-[var(--dank-hover)] flex items-center justify-between text-sm font-medium text-[var(--dank-text)] cursor-pointer"
+                className="w-full px-3.5 py-3 rounded-xl hover:bg-[var(--era-hover)] flex items-center justify-between text-sm font-medium text-[var(--era-text)] cursor-pointer"
               >
                 <span className="flex items-center gap-3">
-                  <Palette className="w-4.5 h-4.5 text-[var(--dank-accent)]" />
+                  <Palette className="w-4.5 h-4.5 text-[var(--era-accent)]" />
                   <span>{t.whatsapp.appearance}</span>
                 </span>
-                <span className="text-xs font-bold text-[var(--dank-accent)]">
+                <span className="text-xs font-bold text-[var(--era-accent)]">
                   {getThemeLabel(theme)}
                 </span>
               </button>
@@ -2846,14 +2935,14 @@ export default function App() {
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-sm rounded-3xl bg-[var(--dank-surface)] border border-[var(--dank-border)] overflow-hidden shadow-2xl"
+            className="w-full max-w-sm rounded-3xl bg-[var(--era-surface)] border border-[var(--era-border)] overflow-hidden shadow-2xl"
           >
-            <div className="px-4 py-3 border-b border-[var(--dank-border)] flex items-center justify-between">
-              <span className="text-sm font-bold text-[var(--dank-text)]">{t.whatsapp.help}</span>
+            <div className="px-4 py-3 border-b border-[var(--era-border)] flex items-center justify-between">
+              <span className="text-sm font-bold text-[var(--era-text)]">{t.whatsapp.help}</span>
               <button
                 type="button"
                 onClick={() => setShowHelpSheet(false)}
-                className="p-1.5 rounded-full hover:bg-[var(--dank-hover)] text-[var(--dank-muted)] hover:text-[var(--dank-text)] cursor-pointer"
+                className="p-1.5 rounded-full hover:bg-[var(--era-hover)] text-[var(--era-muted)] hover:text-[var(--era-text)] cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -2863,25 +2952,25 @@ export default function App() {
                 type="button"
                 onClick={() => {
                   setShowHelpSheet(false);
-                  void handleOpenDankTeam();
+                  void handleOpenEraTeam();
                 }}
-                className="w-full px-3.5 py-3 rounded-xl hover:bg-[var(--dank-hover)] flex items-center gap-3 text-sm font-medium text-[var(--dank-text)] cursor-pointer"
+                className="w-full px-3.5 py-3 rounded-xl hover:bg-[var(--era-hover)] flex items-center gap-3 text-sm font-medium text-[var(--era-text)] cursor-pointer"
               >
-                <Megaphone className="w-4.5 h-4.5 text-[var(--dank-accent)]" />
-                <span>{t.telegram.dankTeamTitle}</span>
+                <Megaphone className="w-4.5 h-4.5 text-[var(--era-accent)]" />
+                <span>{t.telegram.eraTeamTitle}</span>
               </button>
               <button
                 type="button"
                 onClick={() => {
                   setShowHelpSheet(false);
-                  setShowDankPlusModal(true);
+                  setShowEraPlusModal(true);
                 }}
-                className="w-full px-3.5 py-3 rounded-xl hover:bg-[var(--dank-hover)] flex items-center gap-3 text-sm font-medium text-[var(--dank-text)] cursor-pointer"
+                className="w-full px-3.5 py-3 rounded-xl hover:bg-[var(--era-hover)] flex items-center gap-3 text-sm font-medium text-[var(--era-text)] cursor-pointer"
               >
-                <Crown className="w-4.5 h-4.5 text-[var(--dank-accent)]" />
+                <Crown className="w-4.5 h-4.5 text-[var(--era-accent)]" />
                 <span>{t.plus.title}</span>
               </button>
-              <div className="px-3.5 py-3 text-[11px] text-[var(--dank-muted)] border-t border-[var(--dank-border)] mt-1">
+              <div className="px-3.5 py-3 text-[11px] text-[var(--era-muted)] border-t border-[var(--era-border)] mt-1">
                 {t.brand.footerCopyright}
               </div>
             </div>
@@ -2893,7 +2982,7 @@ export default function App() {
 
       {/* Overlay ProfilePage for viewing other users' profiles */}
       {liveViewedUser && (
-        <div className="fixed inset-0 z-40 flex flex-col bg-[var(--dank-canvas)]">
+        <div className="fixed inset-0 z-40 flex flex-col bg-[var(--era-canvas)]">
           <ProfilePage
             user={liveViewedUser}
             currentUser={profile}
@@ -3068,10 +3157,10 @@ export default function App() {
         />
       )}
 
-      {showDankPlusModal && (
-        <DankPlusModal
+      {showEraPlusModal && (
+        <EraPlusModal
           currentUser={profile}
-          onClose={() => setShowDankPlusModal(false)}
+          onClose={() => setShowEraPlusModal(false)}
           onNotify={notify}
         />
       )}
@@ -3139,14 +3228,14 @@ export default function App() {
           className={`fixed top-4 left-1/2 -translate-x-1/2 z-[60] max-w-sm w-[92vw] px-3.5 py-2.5 rounded-2xl backdrop-blur-md shadow-2xl flex items-center gap-3 text-start cursor-pointer transition-all ${
             liveNotifPopup.text?.includes('سلسلتك')
               ? 'bg-[#180e04]/95 text-white border-2 border-orange-500 shadow-[0_0_24px_rgba(249,115,22,0.6)] animate-pulse'
-              : 'bg-[var(--dank-surface)]/95 text-[var(--dank-text)] border border-[var(--dank-accent-border)]'
+              : 'bg-[var(--era-surface)]/95 text-[var(--era-text)] border border-[var(--era-accent-border)]'
           }`}
         >
           <span
             className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
               liveNotifPopup.text?.includes('سلسلتك')
                 ? 'bg-orange-500/25 text-orange-400'
-                : 'bg-[var(--dank-accent-soft)] text-[var(--dank-accent)]'
+                : 'bg-[var(--era-accent-soft)] text-[var(--era-accent)]'
             }`}
           >
             {liveNotifPopup.text?.includes('سلسلتك') ? (
@@ -3167,7 +3256,7 @@ export default function App() {
       )}
 
       {toast && (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-full bg-[var(--dank-surface)] text-[var(--dank-accent)] text-xs font-semibold shadow-2xl border border-[var(--dank-accent-border)]">
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-full bg-[var(--era-surface)] text-[var(--era-accent)] text-xs font-semibold shadow-2xl border border-[var(--era-accent-border)]">
           {toast}
         </div>
       )}
@@ -3180,7 +3269,7 @@ export default function App() {
       {renderScreen()}
       <OfflineIndicator />
       {showWelcomeSplash && (
-        <DankSplash canFinish={splashCanFinish} onFinish={handleSplashFinish} />
+        <EraSplash canFinish={splashCanFinish} onFinish={handleSplashFinish} />
       )}
     </>
   );

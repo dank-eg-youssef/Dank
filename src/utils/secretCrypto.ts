@@ -1,4 +1,4 @@
-// Lightweight WebCrypto AES-GCM helper for DANK Secret Chats
+// Lightweight WebCrypto AES-GCM helper for ERA Secret Chats
 
 function toBase64(bytes: Uint8Array): string {
   let binary = '';
@@ -25,7 +25,7 @@ async function deriveSecretChatKey(chatId: string, dmPeerIds: string[]): Promise
   const cached = keyCache.get(cacheKey);
   if (cached) return cached;
 
-  const materialStr = `DANK-E2E-v1::${chatId}::${dmPeerIds.slice().sort().join('::')}`;
+  const materialStr = `ERA-E2E-v1::${chatId}::${dmPeerIds.slice().sort().join('::')}`;
   const encoded = new TextEncoder().encode(materialStr);
   const digest = await crypto.subtle.digest('SHA-256', encoded);
   const key = await crypto.subtle.importKey(

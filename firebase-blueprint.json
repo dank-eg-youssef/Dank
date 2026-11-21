@@ -40,7 +40,14 @@
         },
         "theme": {
           "type": "string",
-          "enum": ["arcade", "dank-dark", "midnight-blue", "purple-neon", "light"]
+          "enum": ["arcade", "era-dark", "midnight-blue", "purple-neon", "light"]
+        },
+        "neonTheme": {
+          "type": "string",
+          "enum": ["purple", "cyan", "pink", "green", "red"]
+        },
+        "ghostMode": {
+          "type": "boolean"
         },
         "isOnline": {
           "type": "boolean"
@@ -157,14 +164,14 @@
     },
     "InviteCode": {
       "title": "InviteCode",
-      "description": "Lookup table mapping DANK-XXXX invite codes to user UIDs.",
+      "description": "Lookup table mapping ERA-XXXX invite codes to user UIDs.",
       "type": "object",
       "properties": {
         "code": {
           "type": "string",
           "minLength": 6,
           "maxLength": 16,
-          "pattern": "^DANK-[A-Z0-9]{4,10}$"
+          "pattern": "^ERA-[A-Z0-9]{4,10}$"
         },
         "uid": {
           "type": "string",
@@ -971,11 +978,16 @@
         "streakCount": { "type": "integer" },
         "lastMessageAt": { "type": "string", "format": "date-time" },
         "lastSenderId": { "type": "string", "maxLength": 128 },
+        "currentDayKey": { "type": "string", "maxLength": 16 },
+        "daySenderIds": { "type": "array" },
+        "completedDayKey": { "type": "string", "maxLength": 16 },
         "expiresAt": { "type": "string", "format": "date-time" },
         "frozenAt": { "type": "string", "format": "date-time" },
         "frozenUntil": { "type": "string", "format": "date-time" },
         "celebrated7": { "type": "boolean" },
+        "celebrated14": { "type": "boolean" },
         "celebrated30": { "type": "boolean" },
+        "celebrated50": { "type": "boolean" },
         "celebrated100": { "type": "boolean" },
         "isGoldenTheme": { "type": "boolean" },
         "goldenThemeExpiresAt": { "type": "string", "format": "date-time" },
@@ -985,16 +997,16 @@
     },
     "UserStreakInventory": {
       "title": "UserStreakInventory",
-      "description": "Streak freezes count, Dank points balance, and weekly refill timestamp.",
+      "description": "Streak freezes count, Era points balance, and weekly refill timestamp.",
       "type": "object",
       "properties": {
         "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
         "freezesCount": { "type": "integer" },
-        "dankPoints": { "type": "integer" },
+        "eraPoints": { "type": "integer" },
         "lastWeeklyRefillAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["uid", "freezesCount", "dankPoints", "updatedAt"]
+      "required": ["uid", "freezesCount", "eraPoints", "updatedAt"]
     }
   },
   "firestore": {
@@ -1156,7 +1168,7 @@
     },
     "/users_private/{userId}/streak_inventory/{invId}": {
       "schema": { "$ref": "#/entities/UserStreakInventory" },
-      "description": "User streak freezes count, Dank points, and weekly refill timestamp."
+      "description": "User streak freezes count, Era points, and weekly refill timestamp."
     }
   }
 }

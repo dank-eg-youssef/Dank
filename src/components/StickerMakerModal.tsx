@@ -514,7 +514,7 @@ export const StickerMakerModal: React.FC<StickerMakerModalProps> = ({
         );
       });
 
-      const imageUrl = await uploadToCloudinary(blob, `dank_sticker_${Date.now()}.png`);
+      const imageUrl = await uploadToCloudinary(blob, `era_sticker_${Date.now()}.png`);
       const label = overlayText.trim().slice(0, 80) || 'Custom Sticker';
       const stickerDocId = await saveUserSticker(currentUid, {
         source: 'custom',
@@ -538,19 +538,19 @@ export const StickerMakerModal: React.FC<StickerMakerModalProps> = ({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full sm:max-w-lg max-h-[94dvh] rounded-t-3xl sm:rounded-3xl bg-[var(--dank-surface)] border border-[var(--dank-border)] text-[var(--dank-text)] shadow-2xl flex flex-col overflow-hidden"
+        className="w-full sm:max-w-lg max-h-[94dvh] rounded-t-3xl sm:rounded-3xl bg-[var(--era-surface)] border border-[var(--era-border)] text-[var(--era-text)] shadow-2xl flex flex-col overflow-hidden"
       >
         {/* Header */}
-        <div className="px-4 py-3 border-b border-[var(--dank-border)] flex items-center justify-between shrink-0">
+        <div className="px-4 py-3 border-b border-[var(--era-border)] flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-[var(--dank-accent)]" />
+            <Sparkles className="w-5 h-5 text-[var(--era-accent)]" />
             <h3 className="text-base font-bold">{t.stickers.makerTitle}</h3>
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label={t.common.close}
-            className="w-9 h-9 rounded-full hover:bg-[var(--dank-hover)] flex items-center justify-center text-[var(--dank-muted)] hover:text-[var(--dank-text)] cursor-pointer"
+            className="w-9 h-9 rounded-full hover:bg-[var(--era-hover)] flex items-center justify-center text-[var(--era-muted)] hover:text-[var(--era-text)] cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -572,14 +572,14 @@ export const StickerMakerModal: React.FC<StickerMakerModalProps> = ({
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="w-60 h-60 rounded-3xl border-2 border-dashed border-[var(--dank-accent-border)] bg-[var(--dank-canvas)] hover:bg-[var(--dank-hover)] flex flex-col items-center justify-center gap-3 p-5 text-center transition-colors cursor-pointer"
+                className="w-60 h-60 rounded-3xl border-2 border-dashed border-[var(--era-accent-border)] bg-[var(--era-canvas)] hover:bg-[var(--era-hover)] flex flex-col items-center justify-center gap-3 p-5 text-center transition-colors cursor-pointer"
               >
-                <div className="w-14 h-14 rounded-2xl bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] flex items-center justify-center">
+                <div className="w-14 h-14 rounded-2xl bg-[var(--era-accent-soft)] text-[var(--era-accent)] flex items-center justify-center">
                   <ImagePlus className="w-7 h-7" />
                 </div>
                 <div>
-                  <p className="text-sm font-bold text-[var(--dank-text)]">{t.stickers.pickPhoto}</p>
-                  <p className="mt-1 text-xs text-[var(--dank-muted)] leading-relaxed">
+                  <p className="text-sm font-bold text-[var(--era-text)]">{t.stickers.pickPhoto}</p>
+                  <p className="mt-1 text-xs text-[var(--era-muted)] leading-relaxed">
                     {t.stickers.pickPhotoHint}
                   </p>
                 </div>
@@ -587,7 +587,7 @@ export const StickerMakerModal: React.FC<StickerMakerModalProps> = ({
             ) : (
               <div className="relative flex flex-col items-center gap-2">
                 <div
-                  className="w-60 h-60 sm:w-64 sm:h-64 rounded-3xl overflow-hidden border border-[var(--dank-border)] shadow-xl touch-none"
+                  className="w-60 h-60 sm:w-64 sm:h-64 rounded-3xl overflow-hidden border border-[var(--era-border)] shadow-xl touch-none"
                   style={{
                     backgroundImage:
                       'linear-gradient(45deg, rgba(255,255,255,0.06) 25%, transparent 25%), linear-gradient(-45deg, rgba(255,255,255,0.06) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, rgba(255,255,255,0.06) 75%), linear-gradient(-45deg, transparent 75%, rgba(255,255,255,0.06) 75%)',
@@ -613,18 +613,18 @@ export const StickerMakerModal: React.FC<StickerMakerModalProps> = ({
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="h-8 px-3 rounded-full bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                    className="h-8 px-3 rounded-full bg-[var(--era-elevated)] hover:bg-[var(--era-hover)] text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
                   >
-                    <ImagePlus className="w-3.5 h-3.5 text-[var(--dank-accent)]" />
+                    <ImagePlus className="w-3.5 h-3.5 text-[var(--era-accent)]" />
                     {t.stickers.changePhoto}
                   </button>
                   {undoCount > 0 && (
                     <button
                       type="button"
                       onClick={handleUndo}
-                      className="h-8 px-3 rounded-full bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                      className="h-8 px-3 rounded-full bg-[var(--era-elevated)] hover:bg-[var(--era-hover)] text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
                     >
-                      <Undo2 className="w-3.5 h-3.5 text-[var(--dank-accent)]" />
+                      <Undo2 className="w-3.5 h-3.5 text-[var(--era-accent)]" />
                       {t.stickers.undoBrush}
                     </button>
                   )}
@@ -636,9 +636,9 @@ export const StickerMakerModal: React.FC<StickerMakerModalProps> = ({
           {sourceImg && (
             <div className="space-y-3.5">
               {/* Crop Shape & Zoom */}
-              <div className="rounded-2xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] p-3 space-y-2.5">
+              <div className="rounded-2xl bg-[var(--era-canvas)] border border-[var(--era-border)] p-3 space-y-2.5">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-bold text-[var(--dank-muted)]">{t.stickers.cropShape}</span>
+                  <span className="text-xs font-bold text-[var(--era-muted)]">{t.stickers.cropShape}</span>
                   <div className="flex items-center gap-1 flex-wrap">
                     {(
                       [
@@ -654,8 +654,8 @@ export const StickerMakerModal: React.FC<StickerMakerModalProps> = ({
                         onClick={() => setCropShape(id)}
                         className={`h-7 px-2.5 rounded-full text-[11px] font-bold transition-colors cursor-pointer ${
                           cropShape === id
-                            ? 'bg-[var(--dank-accent)] text-[var(--dank-accent-fg)]'
-                            : 'bg-[var(--dank-elevated)] text-[var(--dank-text)] hover:bg-[var(--dank-hover)]'
+                            ? 'bg-[var(--era-accent)] text-[var(--era-accent-fg)]'
+                            : 'bg-[var(--era-elevated)] text-[var(--era-text)] hover:bg-[var(--era-hover)]'
                         }`}
                       >
                         {label}
@@ -665,7 +665,7 @@ export const StickerMakerModal: React.FC<StickerMakerModalProps> = ({
                 </div>
 
                 <div className="flex items-center gap-3">
-                  <span className="text-xs font-semibold text-[var(--dank-muted)] w-14 shrink-0">
+                  <span className="text-xs font-semibold text-[var(--era-muted)] w-14 shrink-0">
                     {t.stickers.zoom}
                   </span>
                   <input
@@ -675,18 +675,18 @@ export const StickerMakerModal: React.FC<StickerMakerModalProps> = ({
                     step={0.05}
                     value={zoom}
                     onChange={(e) => setZoom(Number(e.target.value))}
-                    className="flex-1 accent-[var(--dank-accent)]"
+                    className="flex-1 accent-[var(--era-accent)]"
                   />
                 </div>
               </div>
 
               {/* Remove Background + Brush Tools */}
-              <div className="rounded-2xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] p-3 space-y-2.5">
+              <div className="rounded-2xl bg-[var(--era-canvas)] border border-[var(--era-border)] p-3 space-y-2.5">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <button
                     type="button"
                     onClick={() => runAutoRemoveBackground(tolerance)}
-                    className="h-9 px-3.5 rounded-full bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                    className="h-9 px-3.5 rounded-full bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] text-xs font-bold flex items-center gap-1.5 cursor-pointer"
                   >
                     <Wand2 className="w-3.5 h-3.5" />
                     <span>{t.stickers.removeBg}</span>
@@ -697,8 +697,8 @@ export const StickerMakerModal: React.FC<StickerMakerModalProps> = ({
                     onClick={() => setWhiteBorder((v) => !v)}
                     className={`h-8 px-3 rounded-full border text-xs font-semibold flex items-center gap-1.5 cursor-pointer ${
                       whiteBorder
-                        ? 'bg-[var(--dank-accent-soft)] border-[var(--dank-accent)] text-[var(--dank-accent)]'
-                        : 'bg-[var(--dank-elevated)] border-[var(--dank-border)] text-[var(--dank-muted)]'
+                        ? 'bg-[var(--era-accent-soft)] border-[var(--era-accent)] text-[var(--era-accent)]'
+                        : 'bg-[var(--era-elevated)] border-[var(--era-border)] text-[var(--era-muted)]'
                     }`}
                   >
                     {whiteBorder && <Check className="w-3.5 h-3.5" />}
@@ -707,7 +707,7 @@ export const StickerMakerModal: React.FC<StickerMakerModalProps> = ({
                 </div>
 
                 <div className="flex items-center gap-3">
-                  <span className="text-xs font-semibold text-[var(--dank-muted)] shrink-0">
+                  <span className="text-xs font-semibold text-[var(--era-muted)] shrink-0">
                     {t.stickers.bgTolerance}
                   </span>
                   <input
@@ -720,22 +720,22 @@ export const StickerMakerModal: React.FC<StickerMakerModalProps> = ({
                       const val = Number(e.target.value);
                       setTolerance(val);
                     }}
-                    className="flex-1 accent-[var(--dank-accent)]"
+                    className="flex-1 accent-[var(--era-accent)]"
                   />
                   <span className="text-xs font-bold tabular-nums w-7 text-end">{tolerance}</span>
                 </div>
 
                 {/* Manual Mode Selector */}
                 <div className="flex items-center justify-between gap-2 pt-1 flex-wrap">
-                  <span className="text-xs font-bold text-[var(--dank-muted)]">{t.stickers.brushMode}</span>
+                  <span className="text-xs font-bold text-[var(--era-muted)]">{t.stickers.brushMode}</span>
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
                       onClick={() => setBrushMode('move')}
                       className={`h-8 px-2.5 rounded-xl text-xs font-semibold flex items-center gap-1 cursor-pointer ${
                         brushMode === 'move'
-                          ? 'bg-[var(--dank-accent)] text-[var(--dank-accent-fg)]'
-                          : 'bg-[var(--dank-elevated)] text-[var(--dank-text)]'
+                          ? 'bg-[var(--era-accent)] text-[var(--era-accent-fg)]'
+                          : 'bg-[var(--era-elevated)] text-[var(--era-text)]'
                       }`}
                     >
                       <Move className="w-3.5 h-3.5" />
@@ -746,8 +746,8 @@ export const StickerMakerModal: React.FC<StickerMakerModalProps> = ({
                       onClick={() => setBrushMode('erase')}
                       className={`h-8 px-2.5 rounded-xl text-xs font-semibold flex items-center gap-1 cursor-pointer ${
                         brushMode === 'erase'
-                          ? 'bg-[var(--dank-accent)] text-[var(--dank-accent-fg)]'
-                          : 'bg-[var(--dank-elevated)] text-[var(--dank-text)]'
+                          ? 'bg-[var(--era-accent)] text-[var(--era-accent-fg)]'
+                          : 'bg-[var(--era-elevated)] text-[var(--era-text)]'
                       }`}
                     >
                       <Eraser className="w-3.5 h-3.5" />
@@ -758,8 +758,8 @@ export const StickerMakerModal: React.FC<StickerMakerModalProps> = ({
                       onClick={() => setBrushMode('restore')}
                       className={`h-8 px-2.5 rounded-xl text-xs font-semibold flex items-center gap-1 cursor-pointer ${
                         brushMode === 'restore'
-                          ? 'bg-[var(--dank-accent)] text-[var(--dank-accent-fg)]'
-                          : 'bg-[var(--dank-elevated)] text-[var(--dank-text)]'
+                          ? 'bg-[var(--era-accent)] text-[var(--era-accent-fg)]'
+                          : 'bg-[var(--era-elevated)] text-[var(--era-text)]'
                       }`}
                     >
                       <Paintbrush className="w-3.5 h-3.5" />
@@ -770,7 +770,7 @@ export const StickerMakerModal: React.FC<StickerMakerModalProps> = ({
 
                 {brushMode !== 'move' && (
                   <div className="flex items-center gap-3">
-                    <span className="text-xs font-semibold text-[var(--dank-muted)] shrink-0">
+                    <span className="text-xs font-semibold text-[var(--era-muted)] shrink-0">
                       {t.stickers.textSize}
                     </span>
                     <input
@@ -779,17 +779,17 @@ export const StickerMakerModal: React.FC<StickerMakerModalProps> = ({
                       max={64}
                       value={brushSize}
                       onChange={(e) => setBrushSize(Number(e.target.value))}
-                      className="flex-1 accent-[var(--dank-accent)]"
+                      className="flex-1 accent-[var(--era-accent)]"
                     />
                   </div>
                 )}
               </div>
 
               {/* Add Text Overlay */}
-              <div className="rounded-2xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] p-3 space-y-2.5">
+              <div className="rounded-2xl bg-[var(--era-canvas)] border border-[var(--era-border)] p-3 space-y-2.5">
                 <div className="flex items-center gap-2">
-                  <Type className="w-4 h-4 text-[var(--dank-accent)] shrink-0" />
-                  <span className="text-xs font-bold text-[var(--dank-text)]">{t.stickers.addText}</span>
+                  <Type className="w-4 h-4 text-[var(--era-accent)] shrink-0" />
+                  <span className="text-xs font-bold text-[var(--era-text)]">{t.stickers.addText}</span>
                 </div>
                 <input
                   type="text"
@@ -798,7 +798,7 @@ export const StickerMakerModal: React.FC<StickerMakerModalProps> = ({
                   value={overlayText}
                   onChange={(e) => setOverlayText(e.target.value)}
                   placeholder={t.stickers.textPlaceholder}
-                  className="w-full h-10 px-3.5 rounded-xl bg-[var(--dank-elevated)] border border-[var(--dank-border)] text-sm text-[var(--dank-text)] placeholder:text-[var(--dank-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)]"
+                  className="w-full h-10 px-3.5 rounded-xl bg-[var(--era-elevated)] border border-[var(--era-border)] text-sm text-[var(--era-text)] placeholder:text-[var(--era-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--era-accent)]"
                 />
 
                 <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -809,7 +809,7 @@ export const StickerMakerModal: React.FC<StickerMakerModalProps> = ({
                         type="button"
                         onClick={() => setTextColor(c)}
                         className={`w-6 h-6 rounded-full border-2 cursor-pointer transition-transform ${
-                          textColor === c ? 'scale-115 border-[var(--dank-accent)]' : 'border-white/30'
+                          textColor === c ? 'scale-115 border-[var(--era-accent)]' : 'border-white/30'
                         }`}
                         style={{ backgroundColor: c }}
                         aria-label={c}
@@ -831,8 +831,8 @@ export const StickerMakerModal: React.FC<StickerMakerModalProps> = ({
                         onClick={() => setTextPos(pos)}
                         className={`h-7 px-2.5 rounded-full text-[11px] font-bold cursor-pointer ${
                           textPos === pos
-                            ? 'bg-[var(--dank-accent)] text-[var(--dank-accent-fg)]'
-                            : 'bg-[var(--dank-elevated)] text-[var(--dank-muted)]'
+                            ? 'bg-[var(--era-accent)] text-[var(--era-accent-fg)]'
+                            : 'bg-[var(--era-elevated)] text-[var(--era-muted)]'
                         }`}
                       >
                         {label}
@@ -843,7 +843,7 @@ export const StickerMakerModal: React.FC<StickerMakerModalProps> = ({
 
                 {overlayText.trim() && (
                   <div className="flex items-center gap-3">
-                    <span className="text-xs font-semibold text-[var(--dank-muted)] shrink-0">
+                    <span className="text-xs font-semibold text-[var(--era-muted)] shrink-0">
                       {t.stickers.textSize}
                     </span>
                     <input
@@ -852,7 +852,7 @@ export const StickerMakerModal: React.FC<StickerMakerModalProps> = ({
                       max={88}
                       value={textSize}
                       onChange={(e) => setTextSize(Number(e.target.value))}
-                      className="flex-1 accent-[var(--dank-accent)]"
+                      className="flex-1 accent-[var(--era-accent)]"
                     />
                   </div>
                 )}
@@ -862,17 +862,17 @@ export const StickerMakerModal: React.FC<StickerMakerModalProps> = ({
         </div>
 
         {/* Footer Actions */}
-        <div className="px-4 py-3 border-t border-[var(--dank-border)] bg-[var(--dank-surface)] flex items-center gap-2.5 shrink-0">
+        <div className="px-4 py-3 border-t border-[var(--era-border)] bg-[var(--era-surface)] flex items-center gap-2.5 shrink-0">
           <button
             type="button"
             disabled={!sourceImg || savingMode !== null}
             onClick={() => void handleExportAndSave(false)}
-            className="flex-1 h-11 rounded-full bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] text-xs sm:text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-40 cursor-pointer"
+            className="flex-1 h-11 rounded-full bg-[var(--era-elevated)] hover:bg-[var(--era-hover)] text-[var(--era-text)] text-xs sm:text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-40 cursor-pointer"
           >
             {savingMode === 'save' ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
-              <Check className="w-4 h-4 text-[var(--dank-accent)]" />
+              <Check className="w-4 h-4 text-[var(--era-accent)]" />
             )}
             <span>{savingMode === 'save' ? t.stickers.savingSticker : t.stickers.saveSticker}</span>
           </button>
@@ -880,7 +880,7 @@ export const StickerMakerModal: React.FC<StickerMakerModalProps> = ({
             type="button"
             disabled={!sourceImg || savingMode !== null}
             onClick={() => void handleExportAndSave(true)}
-            className="flex-1 h-11 rounded-full bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-xs sm:text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-40 cursor-pointer"
+            className="flex-1 h-11 rounded-full bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] text-xs sm:text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-40 cursor-pointer"
           >
             {savingMode === 'send' ? (
               <Loader2 className="w-4 h-4 animate-spin" />

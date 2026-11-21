@@ -35,7 +35,7 @@ import {
   removeFriend,
   sendFriendRequest,
 } from '../services/socialService';
-import type { Chat, ChatMember, FriendRequest, UserPublic } from '../types/dank';
+import type { Chat, ChatMember, FriendRequest, UserPublic } from '../types/era';
 import { handleFirestoreError, isOfflineError, OperationType } from '../utils/firestoreErrors';
 import { formatLastSeen, isUserActuallyOnline } from '../utils/timeFormat';
 import { Avatar } from './Avatar';
@@ -109,7 +109,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
   }, [chat, currentUser.uid, usersMap, isSaved]);
 
   const inviteUrl = `${window.location.origin}/?join=${chat.id}`;
-  const dankLink = `${t.telegram.dankLinkPrefix}${chat.id}`;
+  const eraLink = `${t.telegram.eraLinkPrefix}${chat.id}`;
 
   const matchingNonMembers = useMemo(() => {
     const trimmed = usernameInput.trim();
@@ -297,8 +297,8 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="w-full max-w-md rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] shadow-2xl overflow-hidden flex flex-col max-h-[88vh]">
-        <div className="bg-[var(--dank-canvas)] text-[var(--dank-text)] px-5 py-4 flex items-center justify-between shrink-0 border-b border-[var(--dank-border)]">
+      <div className="w-full max-w-md rounded-2xl bg-[var(--era-surface)] border border-[var(--era-border)] shadow-2xl overflow-hidden flex flex-col max-h-[88vh]">
+        <div className="bg-[var(--era-canvas)] text-[var(--era-text)] px-5 py-4 flex items-center justify-between shrink-0 border-b border-[var(--era-border)]">
           <h3 className="text-base font-semibold">
             {chat.type === 'private'
               ? t.chatInfo.contactInfo
@@ -310,7 +310,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
             type="button"
             onClick={onClose}
             aria-label={t.common.close}
-            className="w-9 h-9 rounded-xl hover:bg-[var(--dank-hover)] flex items-center justify-center cursor-pointer"
+            className="w-9 h-9 rounded-xl hover:bg-[var(--era-hover)] flex items-center justify-center cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -349,7 +349,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
               <div className="flex items-center gap-1.5 min-w-0">
                 <h4
                   dir="auto"
-                  className="text-lg font-bold text-[var(--dank-text)] truncate"
+                  className="text-lg font-bold text-[var(--era-text)] truncate"
                 >
                   {isSaved
                     ? t.drawer.savedMessages
@@ -367,7 +367,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                   />
                 )}
               </div>
-              <p className="text-xs text-[var(--dank-muted)]">
+              <p className="text-xs text-[var(--era-muted)]">
                 {isSaved
                   ? t.drawer.savedMessagesDesc
                   : chat.type === 'private'
@@ -381,13 +381,13 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                     }`}
               </p>
               {chat.type === 'group' && (
-                <p className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] text-[10px] font-semibold">
+                <p className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[var(--era-accent-soft)] text-[var(--era-accent)] text-[10px] font-semibold">
                   <Users className="w-3 h-3" />
                   {t.telegram.maxMembers200k}
                 </p>
               )}
               {chat.isSecret && (
-                <p className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] text-[10px] font-semibold">
+                <p className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[var(--era-accent-soft)] text-[var(--era-accent)] text-[10px] font-semibold">
                   <Lock className="w-3 h-3" />
                   {t.telegram.secretChat}
                 </p>
@@ -408,9 +408,9 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                     onStartCall?.(peer, chat.id);
                     onClose();
                   }}
-                  className="p-2.5 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] text-[var(--dank-text)] hover:border-[var(--dank-accent)] flex flex-col items-center gap-1 text-xs font-semibold cursor-pointer"
+                  className="p-2.5 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] text-[var(--era-text)] hover:border-[var(--era-accent)] flex flex-col items-center gap-1 text-xs font-semibold cursor-pointer"
                 >
-                  <Phone className="w-4 h-4 text-[var(--dank-accent)]" />
+                  <Phone className="w-4 h-4 text-[var(--era-accent)]" />
                   <span>{t.calls.voiceCall}</span>
                 </button>
               )}
@@ -420,17 +420,17 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                   onClose();
                   onViewProfile?.(peer);
                 }}
-                className="p-2.5 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] text-[var(--dank-text)] hover:border-[var(--dank-accent)] flex flex-col items-center gap-1 text-xs font-semibold cursor-pointer"
+                className="p-2.5 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] text-[var(--era-text)] hover:border-[var(--era-accent)] flex flex-col items-center gap-1 text-xs font-semibold cursor-pointer"
               >
-                <ShieldCheck className="w-4 h-4 text-[var(--dank-accent)]" />
+                <ShieldCheck className="w-4 h-4 text-[var(--era-accent)]" />
                 <span>{t.profile.profileTitle}</span>
               </button>
             </div>
           )}
 
           {chat.type === 'private' && peer?.bio && (
-            <div className="p-3 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] text-xs text-[var(--dank-text)]">
-              <span className="font-semibold block mb-0.5 text-[var(--dank-accent)]">
+            <div className="p-3 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] text-xs text-[var(--era-text)]">
+              <span className="font-semibold block mb-0.5 text-[var(--era-accent)]">
                 {t.chatInfo.bio}
               </span>
               <span dir="auto">{peer.bio}</span>
@@ -446,9 +446,9 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                   type="button"
                   disabled={startingSecret}
                   onClick={() => void handleStartSecret()}
-                  className="w-full h-10 rounded-xl bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] border border-[var(--dank-border)] text-[var(--dank-text)] text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer"
+                  className="w-full h-10 rounded-xl bg-[var(--era-elevated)] hover:bg-[var(--era-hover)] border border-[var(--era-border)] text-[var(--era-text)] text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <Lock className="w-4 h-4 text-[var(--dank-accent)]" />
+                  <Lock className="w-4 h-4 text-[var(--era-accent)]" />
                   {t.telegram.startSecretChat}
                 </button>
               )}
@@ -459,7 +459,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                     type="button"
                     disabled={friendBusy}
                     onClick={() => void handleAcceptFriendRequest()}
-                    className="h-10 rounded-xl bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    className="h-10 rounded-xl bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
                   >
                     <UserPlus className="w-4 h-4" />
                     {t.profile.acceptRequest}
@@ -468,7 +468,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                     type="button"
                     disabled={friendBusy}
                     onClick={() => void handleRejectFriendRequest()}
-                    className="h-10 rounded-xl border border-[var(--dank-border)] bg-[var(--dank-canvas)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    className="h-10 rounded-xl border border-[var(--era-border)] bg-[var(--era-canvas)] hover:bg-[var(--era-hover)] text-[var(--era-text)] text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
                   >
                     <X className="w-4 h-4" />
                     {t.profile.rejectRequest}
@@ -482,7 +482,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                     type="button"
                     disabled={friendBusy}
                     onClick={() => void handleUnfriend()}
-                    className="h-10 rounded-xl border border-[var(--dank-border)] bg-[var(--dank-canvas)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    className="h-10 rounded-xl border border-[var(--era-border)] bg-[var(--era-canvas)] hover:bg-[var(--era-hover)] text-[var(--era-text)] text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
                   >
                     <UserMinus className="w-4 h-4 text-red-500" />
                     {t.profile.unfriend}
@@ -492,9 +492,9 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                     type="button"
                     disabled={friendBusy}
                     onClick={() => void handleCancelFriendRequest()}
-                    className="h-10 rounded-xl border border-[var(--dank-border)] bg-[var(--dank-canvas)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    className="h-10 rounded-xl border border-[var(--era-border)] bg-[var(--era-canvas)] hover:bg-[var(--era-hover)] text-[var(--era-text)] text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
                   >
-                    <Clock className="w-4 h-4 text-[var(--dank-accent)]" />
+                    <Clock className="w-4 h-4 text-[var(--era-accent)]" />
                     {t.profile.cancelRequest}
                   </button>
                 ) : !incomingReq ? (
@@ -502,7 +502,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                     type="button"
                     disabled={friendBusy}
                     onClick={() => void handleSendFriendRequest()}
-                    className="h-10 rounded-xl bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    className="h-10 rounded-xl bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
                   >
                     <UserPlus className="w-4 h-4" />
                     {t.profile.addFriend}
@@ -516,7 +516,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                   onClick={() => void handleToggleBlock()}
                   className={`h-10 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer ${
                     isPeerBlocked
-                      ? 'border-[var(--dank-accent-border)] bg-[var(--dank-accent-soft)] text-[var(--dank-accent)]'
+                      ? 'border-[var(--era-accent-border)] bg-[var(--era-accent-soft)] text-[var(--era-accent)]'
                       : 'border-red-500/30 bg-red-500/10 text-red-500'
                   }`}
                 >
@@ -528,8 +528,8 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
           )}
 
           {chat.type !== 'private' && chat.description && (
-            <div className="p-3 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] text-xs text-[var(--dank-text)]">
-              <span className="font-semibold block mb-0.5 text-[var(--dank-accent)]">
+            <div className="p-3 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] text-xs text-[var(--era-text)]">
+              <span className="font-semibold block mb-0.5 text-[var(--era-accent)]">
                 {t.chatInfo.description}
               </span>
               <span dir="auto">{chat.description}</span>
@@ -537,13 +537,13 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
           )}
 
           {chat.type !== 'private' && (
-            <div className="p-3.5 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] space-y-2">
+            <div className="p-3.5 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-[var(--dank-text)]">
+                <span className="text-xs font-semibold text-[var(--era-text)]">
                   {t.chatInfo.inviteLink}
                 </span>
-                <span dir="ltr" className="text-[11px] font-semibold text-[var(--dank-accent)]">
-                  {dankLink}
+                <span dir="ltr" className="text-[11px] font-semibold text-[var(--era-accent)]">
+                  {eraLink}
                 </span>
               </div>
               <div className="flex items-center gap-2">
@@ -551,12 +551,12 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                   readOnly
                   dir="ltr"
                   value={inviteUrl}
-                  className="flex-1 h-10 px-3 rounded-lg bg-[var(--dank-surface)] text-base text-[var(--dank-text)] border border-[var(--dank-border)] focus:outline-none text-start"
+                  className="flex-1 h-10 px-3 rounded-lg bg-[var(--era-surface)] text-base text-[var(--era-text)] border border-[var(--era-border)] focus:outline-none text-start"
                 />
                 <button
                   type="button"
                   onClick={handleCopyInvite}
-                  className="h-10 px-3 rounded-lg bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-xs font-bold flex items-center gap-1.5 shrink-0 cursor-pointer"
+                  className="h-10 px-3 rounded-lg bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] text-xs font-bold flex items-center gap-1.5 shrink-0 cursor-pointer"
                 >
                   <Copy className="w-3.5 h-3.5" />
                   {t.common.copy}
@@ -568,14 +568,14 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
           {chat.type !== 'private' && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-[var(--dank-text)]">
+                <span className="text-xs font-semibold text-[var(--era-text)]">
                   {t.chatInfo.membersTitle} ({members.length})
                 </span>
                 {isChatAdmin && (
                   <button
                     type="button"
                     onClick={() => setAddingMode((v) => !v)}
-                    className="text-xs font-semibold text-[var(--dank-accent)] hover:underline flex items-center gap-1 cursor-pointer"
+                    className="text-xs font-semibold text-[var(--era-accent)] hover:underline flex items-center gap-1 cursor-pointer"
                   >
                     <UserPlus className="w-3.5 h-3.5" />
                     {addingMode ? t.chatInfo.doneAdding : t.chatInfo.addMember}
@@ -584,7 +584,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
               </div>
 
               {addingMode && isChatAdmin && (
-                <div className="rounded-xl border border-[var(--dank-accent-border)] bg-[var(--dank-canvas)] p-2.5 space-y-2">
+                <div className="rounded-xl border border-[var(--era-accent-border)] bg-[var(--era-canvas)] p-2.5 space-y-2">
                   <form onSubmit={handleAddUsername} className="flex items-center gap-2">
                     <input
                       type="text"
@@ -592,19 +592,19 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                       value={usernameInput}
                       onChange={(e) => setUsernameInput(e.target.value)}
                       placeholder={t.telegram.addByUsername}
-                      className="flex-1 h-10 px-3 rounded-lg bg-[var(--dank-surface)] border border-[var(--dank-border)] text-base text-[var(--dank-text)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)]"
+                      className="flex-1 h-10 px-3 rounded-lg bg-[var(--era-surface)] border border-[var(--era-border)] text-base text-[var(--era-text)] focus:outline-none focus:ring-2 focus:ring-[var(--era-accent)]"
                     />
                     <button
                       type="submit"
                       disabled={addingByUsername || !usernameInput.trim()}
-                      className="h-10 px-3 rounded-lg bg-[var(--dank-accent)] text-[var(--dank-accent-fg)] text-xs font-bold disabled:opacity-50 cursor-pointer"
+                      className="h-10 px-3 rounded-lg bg-[var(--era-accent)] text-[var(--era-accent-fg)] text-xs font-bold disabled:opacity-50 cursor-pointer"
                     >
                       {t.common.add}
                     </button>
                   </form>
 
                   {matchingNonMembers.length > 0 && (
-                    <div className="rounded-lg border border-[var(--dank-border)] bg-[var(--dank-surface)] divide-y divide-[var(--dank-border)] max-h-36 overflow-y-auto">
+                    <div className="rounded-lg border border-[var(--era-border)] bg-[var(--era-surface)] divide-y divide-[var(--era-border)] max-h-36 overflow-y-auto">
                       {matchingNonMembers.map((u) => (
                         <div
                           key={u.uid}
@@ -614,7 +614,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                             <Avatar src={u.photoURL} name={u.name} size="xs" />
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-1 min-w-0">
-                                <span dir="auto" className="min-w-0 text-xs font-medium text-[var(--dank-text)] truncate">
+                                <span dir="auto" className="min-w-0 text-xs font-medium text-[var(--era-text)] truncate">
                                   {u.name}
                                 </span>
                                 <UserBadges
@@ -625,13 +625,13 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                                   size="xs"
                                 />
                               </div>
-                              <p className="text-[10px] text-[var(--dank-muted)] truncate">@{u.username}</p>
+                              <p className="text-[10px] text-[var(--era-muted)] truncate">@{u.username}</p>
                             </div>
                           </div>
                           <button
                             type="button"
                             onClick={() => void handleAdd(u.uid)}
-                            className="px-2.5 py-1 rounded-lg bg-[var(--dank-accent)] text-[var(--dank-accent-fg)] text-[11px] font-medium shrink-0 cursor-pointer"
+                            className="px-2.5 py-1 rounded-lg bg-[var(--era-accent)] text-[var(--era-accent-fg)] text-[11px] font-medium shrink-0 cursor-pointer"
                           >
                             {t.common.add}
                           </button>
@@ -642,7 +642,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                 </div>
               )}
 
-              <div className="rounded-xl border border-[var(--dank-border)] bg-[var(--dank-canvas)] divide-y divide-[var(--dank-border)] max-h-56 overflow-y-auto">
+              <div className="rounded-xl border border-[var(--era-border)] bg-[var(--era-canvas)] divide-y divide-[var(--era-border)] max-h-56 overflow-y-auto">
                 {members.map((m) => {
                   const u = usersMap[m.uid];
                   const canSeeStatus = u
@@ -673,7 +673,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                         />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5 min-w-0">
-                            <p dir="auto" className="min-w-0 text-xs font-semibold text-[var(--dank-text)] truncate">
+                            <p dir="auto" className="min-w-0 text-xs font-semibold text-[var(--era-text)] truncate">
                               {u?.name || m.uid}
                               {m.uid === currentUser.uid ? ` (${t.common.you})` : ''}
                             </p>
@@ -685,7 +685,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
                               size="xs"
                             />
                           </div>
-                          <p className="text-[11px] text-[var(--dank-muted)]">
+                          <p className="text-[11px] text-[var(--era-muted)]">
                             {m.role === 'admin' ? t.common.admin : t.common.member}
                           </p>
                         </div>

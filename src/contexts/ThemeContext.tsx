@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import type { AppThemeId } from '../types/dank';
+import type { AppThemeId } from '../types/era';
 
 export type AppTheme = AppThemeId;
 export type NeonThemeColor = 'purple' | 'cyan' | 'pink' | 'green' | 'red';
@@ -32,8 +32,8 @@ export const NEON_COLORS: { id: NeonThemeColor; labelEn: string; labelAr: string
   { id: 'red', labelEn: 'Fire Red', labelAr: 'أحمر ناري', hex: '#EF4444' },
 ];
 
-const THEME_STORAGE_KEY = 'dank_theme';
-const NEON_STORAGE_KEY = 'dank_neon_theme';
+const THEME_STORAGE_KEY = 'era_theme';
+const NEON_STORAGE_KEY = 'era_neon_theme';
 
 function readStoredNeon(): NeonThemeColor {
   try {

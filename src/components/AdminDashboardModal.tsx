@@ -51,7 +51,7 @@ import {
   adminDeleteUserAccount,
   adminUpdateChat,
   adminUpdateUserProfile,
-  DANK_TEAM_CHANNEL_ID,
+  ERA_TEAM_CHANNEL_ID,
   deleteStory,
   fetchAdminCalls,
   fetchAdminStats,
@@ -74,7 +74,7 @@ import type {
   SystemSettings,
   UserPrivate,
   UserPublic,
-} from '../types/dank';
+} from '../types/era';
 import { compressImageFile } from '../utils/imageCompress';
 import { formatLastSeen, isUserActuallyOnline, timestampToMs } from '../utils/timeFormat';
 import { Avatar } from './Avatar';
@@ -170,7 +170,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
   const [sendingNotifBroadcast, setSendingNotifBroadcast] = useState(false);
 
   const [channelTarget, setChannelTarget] = useState<
-    typeof OFFICIAL_CHANNEL_ID | typeof DANK_TEAM_CHANNEL_ID
+    typeof OFFICIAL_CHANNEL_ID | typeof ERA_TEAM_CHANNEL_ID
   >(OFFICIAL_CHANNEL_ID);
   const [channelBroadcastText, setChannelBroadcastText] = useState('');
   const [sendingChannelBroadcast, setSendingChannelBroadcast] = useState(false);
@@ -553,7 +553,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `dank-users-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = `era-users-${new Date().toISOString().slice(0, 10)}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -894,16 +894,16 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4">
-      <div className="w-full max-w-6xl rounded-2xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] shadow-2xl overflow-hidden flex flex-col max-h-[94vh]">
+      <div className="w-full max-w-6xl rounded-2xl bg-[var(--era-canvas)] border border-[var(--era-border)] shadow-2xl overflow-hidden flex flex-col max-h-[94vh]">
         {/* Top Bar */}
-        <div className="bg-[var(--dank-surface)] text-[var(--dank-text)] px-4 sm:px-6 py-3.5 flex items-center justify-between gap-3 shrink-0 border-b border-[var(--dank-border)]">
+        <div className="bg-[var(--era-surface)] text-[var(--era-text)] px-4 sm:px-6 py-3.5 flex items-center justify-between gap-3 shrink-0 border-b border-[var(--era-border)]">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-9 h-9 rounded-xl bg-[var(--dank-accent-soft)] border border-[var(--dank-accent-border)] text-[var(--dank-accent)] flex items-center justify-center shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-[var(--era-accent-soft)] border border-[var(--era-accent-border)] text-[var(--era-accent)] flex items-center justify-center shrink-0">
               <Shield className="w-5 h-5" />
             </div>
             <div className="min-w-0">
               <h3 className="text-sm sm:text-base font-bold truncate">{t.admin.title}</h3>
-              <p className="text-[11px] text-[var(--dank-muted)] truncate">
+              <p className="text-[11px] text-[var(--era-muted)] truncate">
                 {t.admin.restrictedTo}
               </p>
             </div>
@@ -914,9 +914,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
               type="button"
               onClick={handleExportCsv}
               disabled={mergedUsers.length === 0}
-              className="h-9 px-3 rounded-xl bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap cursor-pointer disabled:opacity-40"
+              className="h-9 px-3 rounded-xl bg-[var(--era-elevated)] hover:bg-[var(--era-hover)] text-[var(--era-text)] text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap cursor-pointer disabled:opacity-40"
             >
-              <Download className="w-3.5 h-3.5 text-[var(--dank-accent)]" />
+              <Download className="w-3.5 h-3.5 text-[var(--era-accent)]" />
               <span className="hidden sm:inline">{t.admin.exportCsv}</span>
             </button>
             <button
@@ -926,7 +926,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                 if (storiesLoaded) void loadStories();
                 if (callsLoaded) void loadCalls();
               }}
-              className="h-9 px-3 rounded-xl bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
+              className="h-9 px-3 rounded-xl bg-[var(--era-elevated)] hover:bg-[var(--era-hover)] text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
               <span className="hidden sm:inline">{t.common.refresh}</span>
@@ -935,7 +935,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
               type="button"
               onClick={onClose}
               aria-label={t.common.close}
-              className="w-9 h-9 rounded-xl hover:bg-[var(--dank-hover)] flex items-center justify-center cursor-pointer"
+              className="w-9 h-9 rounded-xl hover:bg-[var(--era-hover)] flex items-center justify-center cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -943,7 +943,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
         </div>
 
         {/* Mobile Horizontal Tabs */}
-        <div className="md:hidden px-3 py-2 bg-[var(--dank-surface)] border-b border-[var(--dank-border)] flex items-center gap-1.5 overflow-x-auto shrink-0">
+        <div className="md:hidden px-3 py-2 bg-[var(--era-surface)] border-b border-[var(--era-border)] flex items-center gap-1.5 overflow-x-auto shrink-0">
           {navItems.map((item) => {
             const active = activeTab === item.id;
             return (
@@ -953,8 +953,8 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                 onClick={() => setActiveTab(item.id)}
                 className={`h-9 px-3 rounded-xl text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
                   active
-                    ? 'bg-[var(--dank-accent)] text-[var(--dank-accent-fg)]'
-                    : 'text-[var(--dank-muted)] hover:bg-[var(--dank-hover)]'
+                    ? 'bg-[var(--era-accent)] text-[var(--era-accent-fg)]'
+                    : 'text-[var(--era-muted)] hover:bg-[var(--era-hover)]'
                 }`}
               >
                 {item.icon}
@@ -969,7 +969,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
 
         {/* Body: Desktop Sidebar + Scrollable Content */}
         <div className="flex-1 min-h-0 flex overflow-hidden">
-          <aside className="hidden md:flex w-56 shrink-0 flex-col bg-[var(--dank-surface)] border-e border-[var(--dank-border)] p-3 gap-1.5 overflow-y-auto">
+          <aside className="hidden md:flex w-56 shrink-0 flex-col bg-[var(--era-surface)] border-e border-[var(--era-border)] p-3 gap-1.5 overflow-y-auto">
             {navItems.map((item) => {
               const active = activeTab === item.id;
               return (
@@ -979,8 +979,8 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                   onClick={() => setActiveTab(item.id)}
                   className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-between gap-2 transition-colors cursor-pointer whitespace-nowrap ${
                     active
-                      ? 'bg-[var(--dank-accent)] text-[var(--dank-accent-fg)]'
-                      : 'text-[var(--dank-text)] hover:bg-[var(--dank-hover)]'
+                      ? 'bg-[var(--era-accent)] text-[var(--era-accent-fg)]'
+                      : 'text-[var(--era-text)] hover:bg-[var(--era-hover)]'
                   }`}
                 >
                   <span className="flex items-center gap-2.5 min-w-0 truncate">
@@ -991,8 +991,8 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                     <span
                       className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md tabular-nums shrink-0 ${
                         active
-                          ? 'bg-black/20 text-[var(--dank-accent-fg)]'
-                          : 'bg-[var(--dank-elevated)] text-[var(--dank-muted)]'
+                          ? 'bg-black/20 text-[var(--era-accent-fg)]'
+                          : 'bg-[var(--era-elevated)] text-[var(--era-muted)]'
                       }`}
                     >
                       {item.badge}
@@ -1002,20 +1002,20 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
               );
             })}
 
-            <div className="mt-auto pt-3 border-t border-[var(--dank-border)] px-2 space-y-2 text-[11px] text-[var(--dank-muted)]">
+            <div className="mt-auto pt-3 border-t border-[var(--era-border)] px-2 space-y-2 text-[11px] text-[var(--era-muted)]">
               <div className="flex items-center justify-between tabular-nums">
                 <span>{t.admin.onlineRightNow}</span>
                 <span className="font-bold text-emerald-400">{onlineNow}</span>
               </div>
               <div className="flex items-center justify-between tabular-nums">
                 <span>{t.admin.newUsersToday}</span>
-                <span className="font-bold text-[var(--dank-text)]">{newUsersTodayCount}</span>
+                <span className="font-bold text-[var(--era-text)]">{newUsersTodayCount}</span>
               </div>
               <div className="flex items-center justify-between tabular-nums">
                 <span>{t.admin.maintenanceModeLabel}</span>
                 <span
                   className={`font-bold ${
-                    maintenanceMode ? 'text-amber-400' : 'text-[var(--dank-muted)]'
+                    maintenanceMode ? 'text-amber-400' : 'text-[var(--era-muted)]'
                   }`}
                 >
                   {maintenanceMode ? t.admin.active : t.admin.off}
@@ -1042,7 +1042,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
             {activeTab === 'analytics' && loading && !stats ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {[0, 1, 2, 3].map((n) => (
-                  <div key={n} className="h-28 rounded-xl bg-[var(--dank-surface)] animate-pulse" />
+                  <div key={n} className="h-28 rounded-xl bg-[var(--era-surface)] animate-pulse" />
                 ))}
               </div>
             ) : null}
@@ -1051,12 +1051,12 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
               <div className="space-y-5">
                 {/* Primary KPI Cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div className="p-4 rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)]">
-                    <div className="flex items-center justify-between text-xs font-semibold text-[var(--dank-muted)]">
+                  <div className="p-4 rounded-xl bg-[var(--era-surface)] border border-[var(--era-border)]">
+                    <div className="flex items-center justify-between text-xs font-semibold text-[var(--era-muted)]">
                       <span>{t.admin.totalUsers}</span>
-                      <Users className="w-4 h-4 text-[var(--dank-accent)]" />
+                      <Users className="w-4 h-4 text-[var(--era-accent)]" />
                     </div>
-                    <div className="mt-2 text-2xl font-bold text-[var(--dank-text)] tabular-nums">
+                    <div className="mt-2 text-2xl font-bold text-[var(--era-text)] tabular-nums">
                       {totalUsersCount}
                     </div>
                     <div className="mt-1 text-xs text-emerald-400 font-medium tabular-nums">
@@ -1064,44 +1064,44 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                     </div>
                   </div>
 
-                  <div className="p-4 rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)]">
-                    <div className="flex items-center justify-between text-xs font-semibold text-[var(--dank-muted)]">
+                  <div className="p-4 rounded-xl bg-[var(--era-surface)] border border-[var(--era-border)]">
+                    <div className="flex items-center justify-between text-xs font-semibold text-[var(--era-muted)]">
                       <span>{t.admin.newUsersToday}</span>
-                      <UserPlus className="w-4 h-4 text-[var(--dank-accent)]" />
+                      <UserPlus className="w-4 h-4 text-[var(--era-accent)]" />
                     </div>
-                    <div className="mt-2 text-2xl font-bold text-[var(--dank-text)] tabular-nums">
+                    <div className="mt-2 text-2xl font-bold text-[var(--era-text)] tabular-nums">
                       {newUsersTodayCount}
                     </div>
-                    <div className="mt-1 text-xs text-[var(--dank-muted)] tabular-nums">
+                    <div className="mt-1 text-xs text-[var(--era-muted)] tabular-nums">
                       {t.admin.joinedSinceMidnight}
                     </div>
                   </div>
 
-                  <div className="p-4 rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)]">
-                    <div className="flex items-center justify-between text-xs font-semibold text-[var(--dank-muted)]">
+                  <div className="p-4 rounded-xl bg-[var(--era-surface)] border border-[var(--era-border)]">
+                    <div className="flex items-center justify-between text-xs font-semibold text-[var(--era-muted)]">
                       <span>{t.admin.totalMessagesToday}</span>
-                      <MessageSquare className="w-4 h-4 text-[var(--dank-accent)]" />
+                      <MessageSquare className="w-4 h-4 text-[var(--era-accent)]" />
                     </div>
-                    <div className="mt-2 text-2xl font-bold text-[var(--dank-text)] tabular-nums">
+                    <div className="mt-2 text-2xl font-bold text-[var(--era-text)] tabular-nums">
                       {stats.totalMessagesToday}
                     </div>
-                    <div className="mt-1 text-xs text-[var(--dank-muted)] tabular-nums">
+                    <div className="mt-1 text-xs text-[var(--era-muted)] tabular-nums">
                       {stats.totalMessages} {t.admin.totalAllTime}
                     </div>
                   </div>
 
-                  <div className="p-4 rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)]">
-                    <div className="flex items-center justify-between text-xs font-semibold text-[var(--dank-muted)]">
+                  <div className="p-4 rounded-xl bg-[var(--era-surface)] border border-[var(--era-border)]">
+                    <div className="flex items-center justify-between text-xs font-semibold text-[var(--era-muted)]">
                       <span>{t.admin.mostActiveGroup}</span>
-                      <UsersRound className="w-4 h-4 text-[var(--dank-accent)]" />
+                      <UsersRound className="w-4 h-4 text-[var(--era-accent)]" />
                     </div>
                     <div
                       dir="auto"
-                      className="mt-2 text-lg font-bold text-[var(--dank-text)] truncate"
+                      className="mt-2 text-lg font-bold text-[var(--era-text)] truncate"
                     >
                       {topGroup ? topGroup.name : t.admin.noGroupsYet}
                     </div>
-                    <div className="mt-1 text-xs text-[var(--dank-muted)] tabular-nums">
+                    <div className="mt-1 text-xs text-[var(--era-muted)] tabular-nums">
                       {topGroup
                         ? `${topGroup.messageCount} ${t.admin.msgsLabel} · ${topGroup.memberCount} ${t.common.members}`
                         : `${stats.totalGroups} ${t.admin.groupsTotal}`}
@@ -1110,52 +1110,52 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                 </div>
 
                 {/* Audience & Platform Health Breakdown */}
-                <div className="p-4 rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)] space-y-3">
-                  <div className="flex items-center gap-2 text-xs font-bold text-[var(--dank-text)]">
-                    <Activity className="w-4 h-4 text-[var(--dank-accent)]" />
+                <div className="p-4 rounded-xl bg-[var(--era-surface)] border border-[var(--era-border)] space-y-3">
+                  <div className="flex items-center gap-2 text-xs font-bold text-[var(--era-text)]">
+                    <Activity className="w-4 h-4 text-[var(--era-accent)]" />
                     <span>{t.admin.audienceHealthTitle}</span>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-                    <div className="p-3 rounded-lg bg-[var(--dank-canvas)] border border-[var(--dank-border)]">
-                      <div className="text-[11px] text-[var(--dank-muted)]">
+                    <div className="p-3 rounded-lg bg-[var(--era-canvas)] border border-[var(--era-border)]">
+                      <div className="text-[11px] text-[var(--era-muted)]">
                         {t.admin.verifiedAccountsLabel}
                       </div>
-                      <div className="mt-1 text-lg font-bold text-[var(--dank-accent)] tabular-nums">
+                      <div className="mt-1 text-lg font-bold text-[var(--era-accent)] tabular-nums">
                         {verifiedCount}
                       </div>
                     </div>
-                    <div className="p-3 rounded-lg bg-[var(--dank-canvas)] border border-[var(--dank-border)]">
-                      <div className="text-[11px] text-[var(--dank-muted)]">
+                    <div className="p-3 rounded-lg bg-[var(--era-canvas)] border border-[var(--era-border)]">
+                      <div className="text-[11px] text-[var(--era-muted)]">
                         {t.admin.vipPlusAccountsLabel}
                       </div>
                       <div className="mt-1 text-lg font-bold text-amber-400 tabular-nums">
                         {vipPlusCount}
                       </div>
                     </div>
-                    <div className="p-3 rounded-lg bg-[var(--dank-canvas)] border border-[var(--dank-border)]">
-                      <div className="text-[11px] text-[var(--dank-muted)]">
+                    <div className="p-3 rounded-lg bg-[var(--era-canvas)] border border-[var(--era-border)]">
+                      <div className="text-[11px] text-[var(--era-muted)]">
                         {t.admin.moderatedAccountsLabel}
                       </div>
                       <div className="mt-1 text-lg font-bold text-red-400 tabular-nums">
                         {moderatedCount}
                       </div>
                     </div>
-                    <div className="p-3 rounded-lg bg-[var(--dank-canvas)] border border-[var(--dank-border)]">
-                      <div className="text-[11px] text-[var(--dank-muted)]">
+                    <div className="p-3 rounded-lg bg-[var(--era-canvas)] border border-[var(--era-border)]">
+                      <div className="text-[11px] text-[var(--era-muted)]">
                         {t.admin.activeStoriesLabel}
                       </div>
-                      <div className="mt-1 text-lg font-bold text-[var(--dank-text)] tabular-nums">
+                      <div className="mt-1 text-lg font-bold text-[var(--era-text)] tabular-nums">
                         {stats.storiesCount ?? 0}
                       </div>
                     </div>
-                    <div className="p-3 rounded-lg bg-[var(--dank-canvas)] border border-[var(--dank-border)] col-span-2 sm:col-span-1">
-                      <div className="text-[11px] text-[var(--dank-muted)]">
+                    <div className="p-3 rounded-lg bg-[var(--era-canvas)] border border-[var(--era-border)] col-span-2 sm:col-span-1">
+                      <div className="text-[11px] text-[var(--era-muted)]">
                         {t.admin.callsSummaryLabel}
                       </div>
-                      <div className="mt-1 text-lg font-bold text-[var(--dank-text)] tabular-nums">
+                      <div className="mt-1 text-lg font-bold text-[var(--era-text)] tabular-nums">
                         {stats.callsCount ?? 0}
                       </div>
-                      <div className="text-[10px] text-[var(--dank-muted)] tabular-nums">
+                      <div className="text-[10px] text-[var(--era-muted)] tabular-nums">
                         {stats.connectedCallsCount ?? 0} {t.admin.connectedLabel} ·{' '}
                         {stats.missedCallsCount ?? 0} {t.admin.missedLabel}
                       </div>
@@ -1164,27 +1164,27 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                 </div>
 
                 {/* 7-Day Activity Chart */}
-                <div className="p-5 rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)] space-y-4">
+                <div className="p-5 rounded-xl bg-[var(--era-surface)] border border-[var(--era-border)] space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
-                      <h4 className="text-sm font-bold text-[var(--dank-text)]">
+                      <h4 className="text-sm font-bold text-[var(--era-text)]">
                         {t.admin.sevenDayTitle}
                       </h4>
-                      <p className="text-xs text-[var(--dank-muted)]">{t.admin.sevenDayDesc}</p>
+                      <p className="text-xs text-[var(--era-muted)]">{t.admin.sevenDayDesc}</p>
                     </div>
-                    <div className="flex items-center gap-4 text-xs text-[var(--dank-text)]">
+                    <div className="flex items-center gap-4 text-xs text-[var(--era-text)]">
                       <span className="flex items-center gap-1.5 font-medium">
-                        <span className="w-3 h-3 rounded-xs bg-[var(--dank-muted)] inline-block" />
+                        <span className="w-3 h-3 rounded-xs bg-[var(--era-muted)] inline-block" />
                         {t.admin.messagesLegend}
                       </span>
                       <span className="flex items-center gap-1.5 font-medium">
-                        <span className="w-3 h-3 rounded-xs bg-[var(--dank-accent)] inline-block" />
+                        <span className="w-3 h-3 rounded-xs bg-[var(--era-accent)] inline-block" />
                         {t.admin.newUsersLegend}
                       </span>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-7 gap-2 sm:gap-4 items-end h-44 pt-4 border-b border-[var(--dank-border)] pb-2">
+                  <div className="grid grid-cols-7 gap-2 sm:gap-4 items-end h-44 pt-4 border-b border-[var(--era-border)] pb-2">
                     {stats.dailyActivity.map((day) => {
                       const msgHeight =
                         day.messages > 0
@@ -1201,27 +1201,27 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                         >
                           <div className="w-full flex-1 flex items-end justify-center gap-1.5">
                             <div className="flex flex-col items-center justify-end h-full flex-1 max-w-[20px]">
-                              <span className="text-[10px] font-semibold text-[var(--dank-muted)] tabular-nums mb-1">
+                              <span className="text-[10px] font-semibold text-[var(--era-muted)] tabular-nums mb-1">
                                 {day.messages}
                               </span>
                               <div
                                 style={{ height: `${msgHeight}%` }}
-                                className="w-full rounded-t-md bg-[var(--dank-muted)]/60 transition-all"
+                                className="w-full rounded-t-md bg-[var(--era-muted)]/60 transition-all"
                                 title={`${day.label}: ${day.messages}`}
                               />
                             </div>
                             <div className="flex flex-col items-center justify-end h-full flex-1 max-w-[20px]">
-                              <span className="text-[10px] font-semibold text-[var(--dank-accent)] tabular-nums mb-1">
+                              <span className="text-[10px] font-semibold text-[var(--era-accent)] tabular-nums mb-1">
                                 {day.newUsers}
                               </span>
                               <div
                                 style={{ height: `${usrHeight}%` }}
-                                className="w-full rounded-t-md bg-[var(--dank-accent)] transition-all"
+                                className="w-full rounded-t-md bg-[var(--era-accent)] transition-all"
                                 title={`${day.label}: ${day.newUsers}`}
                               />
                             </div>
                           </div>
-                          <span className="text-[11px] font-medium text-[var(--dank-muted)] whitespace-nowrap">
+                          <span className="text-[11px] font-medium text-[var(--era-muted)] whitespace-nowrap">
                             {day.label}
                           </span>
                         </div>
@@ -1232,16 +1232,16 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
 
                 {/* Top Users & Groups */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <div className="p-5 rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)] space-y-4">
+                  <div className="p-5 rounded-xl bg-[var(--era-surface)] border border-[var(--era-border)] space-y-4">
                     <div>
-                      <h4 className="text-sm font-bold text-[var(--dank-text)]">
+                      <h4 className="text-sm font-bold text-[var(--era-text)]">
                         {t.admin.mostActiveUsers}
                       </h4>
-                      <p className="text-xs text-[var(--dank-muted)]">{t.admin.rankedByMsgsSent}</p>
+                      <p className="text-xs text-[var(--era-muted)]">{t.admin.rankedByMsgsSent}</p>
                     </div>
 
                     {stats.mostActiveUsers.length === 0 ? (
-                      <p className="text-xs text-[var(--dank-muted)] py-6 text-center">
+                      <p className="text-xs text-[var(--era-muted)] py-6 text-center">
                         {t.admin.noUserActivity}
                       </p>
                     ) : (
@@ -1255,11 +1255,11 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                             <div key={u.uid} className="space-y-1">
                               <div className="flex items-center justify-between gap-2">
                                 <div className="flex items-center gap-2 min-w-0">
-                                  <span className="text-xs font-bold text-[var(--dank-muted)] w-4 tabular-nums">
+                                  <span className="text-xs font-bold text-[var(--era-muted)] w-4 tabular-nums">
                                     {idx + 1}
                                   </span>
                                   <Avatar src={u.photoURL} name={u.name} size="xs" />
-                                  <span className="text-xs font-semibold text-[var(--dank-text)] truncate">
+                                  <span className="text-xs font-semibold text-[var(--era-text)] truncate">
                                     {u.name}
                                   </span>
                                   <UserBadges
@@ -1269,14 +1269,14 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                                     size="xs"
                                   />
                                 </div>
-                                <span className="text-xs font-bold text-[var(--dank-text)] tabular-nums shrink-0">
+                                <span className="text-xs font-bold text-[var(--era-text)] tabular-nums shrink-0">
                                   {u.messageCount} {t.admin.msgsLabel}
                                 </span>
                               </div>
-                              <div className="h-2 w-full rounded-full bg-[var(--dank-elevated)] overflow-hidden">
+                              <div className="h-2 w-full rounded-full bg-[var(--era-elevated)] overflow-hidden">
                                 <div
                                   style={{ width: `${u.messageCount > 0 ? pct : 0}%` }}
-                                  className="h-full rounded-full bg-[var(--dank-accent)]"
+                                  className="h-full rounded-full bg-[var(--era-accent)]"
                                 />
                               </div>
                             </div>
@@ -1286,19 +1286,19 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                     )}
                   </div>
 
-                  <div className="p-5 rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)] space-y-4">
+                  <div className="p-5 rounded-xl bg-[var(--era-surface)] border border-[var(--era-border)] space-y-4">
                     <div>
-                      <h4 className="text-sm font-bold text-[var(--dank-text)]">
+                      <h4 className="text-sm font-bold text-[var(--era-text)]">
                         {t.admin.mostActiveGroups}
                       </h4>
-                      <p className="text-xs text-[var(--dank-muted)]">
+                      <p className="text-xs text-[var(--era-muted)]">
                         {t.admin.rankedByVolume} ({stats.totalGroups} {t.admin.groupsLabel} ·{' '}
                         {stats.totalChannels} {t.admin.channelsLabel})
                       </p>
                     </div>
 
                     {stats.mostActiveGroups.length === 0 ? (
-                      <p className="text-xs text-[var(--dank-muted)] py-6 text-center">
+                      <p className="text-xs text-[var(--era-muted)] py-6 text-center">
                         {t.admin.noGroupsCreated}
                       </p>
                     ) : (
@@ -1312,7 +1312,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                             <div key={g.id} className="space-y-1">
                               <div className="flex items-center justify-between gap-2">
                                 <div className="flex items-center gap-2 min-w-0">
-                                  <span className="text-xs font-bold text-[var(--dank-muted)] w-4 tabular-nums">
+                                  <span className="text-xs font-bold text-[var(--era-muted)] w-4 tabular-nums">
                                     {idx + 1}
                                   </span>
                                   <Avatar
@@ -1323,22 +1323,22 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                                   />
                                   <span
                                     dir="auto"
-                                    className="text-xs font-semibold text-[var(--dank-text)] truncate"
+                                    className="text-xs font-semibold text-[var(--era-text)] truncate"
                                   >
                                     {g.name}
                                   </span>
-                                  <span className="text-[11px] text-[var(--dank-muted)] tabular-nums shrink-0">
+                                  <span className="text-[11px] text-[var(--era-muted)] tabular-nums shrink-0">
                                     · {g.memberCount} {t.common.members}
                                   </span>
                                 </div>
-                                <span className="text-xs font-bold text-[var(--dank-text)] tabular-nums shrink-0">
+                                <span className="text-xs font-bold text-[var(--era-text)] tabular-nums shrink-0">
                                   {g.messageCount} {t.admin.msgsLabel}
                                 </span>
                               </div>
-                              <div className="h-2 w-full rounded-full bg-[var(--dank-elevated)] overflow-hidden">
+                              <div className="h-2 w-full rounded-full bg-[var(--era-elevated)] overflow-hidden">
                                 <div
                                   style={{ width: `${g.messageCount > 0 ? pct : 0}%` }}
-                                  className="h-full rounded-full bg-[var(--dank-accent)]"
+                                  className="h-full rounded-full bg-[var(--era-accent)]"
                                 />
                               </div>
                             </div>
@@ -1354,45 +1354,45 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
             {/* TAB 2: USERS & MODERATION */}
             {activeTab === 'users' && (
               <div className="space-y-4">
-                <div className="rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)] overflow-hidden">
+                <div className="rounded-xl bg-[var(--era-surface)] border border-[var(--era-border)] overflow-hidden">
                   {/* Search + Sort Header */}
-                  <div className="p-4 border-b border-[var(--dank-border)] bg-[var(--dank-canvas)] space-y-3">
+                  <div className="p-4 border-b border-[var(--era-border)] bg-[var(--era-canvas)] space-y-3">
                     <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
                       <div className="flex items-center gap-2.5">
                         <button
                           type="button"
                           onClick={toggleSelectAllFiltered}
-                          className="text-[var(--dank-muted)] hover:text-[var(--dank-accent)] cursor-pointer"
+                          className="text-[var(--era-muted)] hover:text-[var(--era-accent)] cursor-pointer"
                           title={t.admin.filterAll}
                         >
                           {allFilteredSelected ? (
-                            <CheckSquare className="w-4 h-4 text-[var(--dank-accent)]" />
+                            <CheckSquare className="w-4 h-4 text-[var(--era-accent)]" />
                           ) : (
                             <Square className="w-4 h-4" />
                           )}
                         </button>
-                        <div className="text-xs font-bold text-[var(--dank-text)]">
+                        <div className="text-xs font-bold text-[var(--era-text)]">
                           {t.admin.registeredUsers} ({filteredUsers.length})
                         </div>
                       </div>
 
                       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                         <div className="relative flex-1 sm:w-64">
-                          <Search className="w-3.5 h-3.5 text-[var(--dank-muted)] absolute start-3 top-1/2 -translate-y-1/2" />
+                          <Search className="w-3.5 h-3.5 text-[var(--era-muted)] absolute start-3 top-1/2 -translate-y-1/2" />
                           <input
                             type="text"
                             dir="auto"
                             value={userSearch}
                             onChange={(e) => setUserSearch(e.target.value)}
                             placeholder={t.admin.filterUsersPlaceholder}
-                            className="w-full h-9 ps-8 pe-3 rounded-lg bg-[var(--dank-surface)] border border-[var(--dank-border)] text-xs text-[var(--dank-text)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)]"
+                            className="w-full h-9 ps-8 pe-3 rounded-lg bg-[var(--era-surface)] border border-[var(--era-border)] text-xs text-[var(--era-text)] focus:outline-none focus:ring-2 focus:ring-[var(--era-accent)]"
                           />
                         </div>
 
                         <select
                           value={userSort}
                           onChange={(e) => setUserSort(e.target.value as UserSort)}
-                          className="h-9 px-3 rounded-lg bg-[var(--dank-surface)] border border-[var(--dank-border)] text-xs font-semibold text-[var(--dank-text)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)] cursor-pointer"
+                          className="h-9 px-3 rounded-lg bg-[var(--era-surface)] border border-[var(--era-border)] text-xs font-semibold text-[var(--era-text)] focus:outline-none focus:ring-2 focus:ring-[var(--era-accent)] cursor-pointer"
                         >
                           <option value="newest">{t.admin.sortNewest}</option>
                           <option value="active">{t.admin.sortActive}</option>
@@ -1422,8 +1422,8 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                           onClick={() => setUserFilter(key)}
                           className={`h-7 px-2.5 rounded-lg text-[11px] font-semibold whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
                             userFilter === key
-                              ? 'bg-[var(--dank-accent)] text-[var(--dank-accent-fg)]'
-                              : 'bg-[var(--dank-surface)] text-[var(--dank-muted)] hover:text-[var(--dank-text)] border border-[var(--dank-border)]'
+                              ? 'bg-[var(--era-accent)] text-[var(--era-accent-fg)]'
+                              : 'bg-[var(--era-surface)] text-[var(--era-muted)] hover:text-[var(--era-text)] border border-[var(--era-border)]'
                           }`}
                         >
                           {label}
@@ -1433,8 +1433,8 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
 
                     {/* Bulk Action Bar */}
                     {selectedUids.size > 0 && (
-                      <div className="p-2.5 rounded-xl bg-[var(--dank-accent-soft)] border border-[var(--dank-accent-border)] flex flex-wrap items-center justify-between gap-2">
-                        <span className="text-xs font-bold text-[var(--dank-accent)] tabular-nums">
+                      <div className="p-2.5 rounded-xl bg-[var(--era-accent-soft)] border border-[var(--era-accent-border)] flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-xs font-bold text-[var(--era-accent)] tabular-nums">
                           {t.admin.selectedCount(selectedUids.size)}
                         </span>
                         <div className="flex flex-wrap items-center gap-1.5">
@@ -1442,7 +1442,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                             type="button"
                             disabled={bulkBusy}
                             onClick={() => void handleBulkAction('verify')}
-                            className="h-7 px-2.5 rounded-lg bg-[var(--dank-accent)] text-[var(--dank-accent-fg)] text-[11px] font-bold cursor-pointer disabled:opacity-50"
+                            className="h-7 px-2.5 rounded-lg bg-[var(--era-accent)] text-[var(--era-accent-fg)] text-[11px] font-bold cursor-pointer disabled:opacity-50"
                           >
                             {t.admin.bulkVerify}
                           </button>
@@ -1466,14 +1466,14 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                             type="button"
                             disabled={bulkBusy}
                             onClick={() => void handleBulkAction('unban')}
-                            className="h-7 px-2.5 rounded-lg bg-[var(--dank-elevated)] text-[var(--dank-text)] text-[11px] font-bold cursor-pointer disabled:opacity-50"
+                            className="h-7 px-2.5 rounded-lg bg-[var(--era-elevated)] text-[var(--era-text)] text-[11px] font-bold cursor-pointer disabled:opacity-50"
                           >
                             {t.admin.bulkUnban}
                           </button>
                           <button
                             type="button"
                             onClick={() => setSelectedUids(new Set())}
-                            className="h-7 px-2.5 rounded-lg text-[var(--dank-muted)] hover:text-[var(--dank-text)] text-[11px] font-semibold cursor-pointer"
+                            className="h-7 px-2.5 rounded-lg text-[var(--era-muted)] hover:text-[var(--era-text)] text-[11px] font-semibold cursor-pointer"
                           >
                             {t.admin.clearSelection}
                           </button>
@@ -1483,7 +1483,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                   </div>
 
                   {/* User Rows */}
-                  <div className="max-h-[56vh] overflow-y-auto divide-y divide-[var(--dank-border)]">
+                  <div className="max-h-[56vh] overflow-y-auto divide-y divide-[var(--era-border)]">
                     {filteredUsers.map((u) => {
                       const online = isUserActuallyOnline(u.isOnline, u.lastSeen);
                       const isBusy = busyUid === u.uid;
@@ -1496,16 +1496,16 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                       return (
                         <div
                           key={u.uid}
-                          className="px-4 py-3 flex flex-col xl:flex-row xl:items-center justify-between gap-3 hover:bg-[var(--dank-hover)]/40 transition-colors"
+                          className="px-4 py-3 flex flex-col xl:flex-row xl:items-center justify-between gap-3 hover:bg-[var(--era-hover)]/40 transition-colors"
                         >
                           <div className="flex items-center gap-3 min-w-0">
                             <button
                               type="button"
                               onClick={() => toggleSelectUid(u.uid)}
-                              className="text-[var(--dank-muted)] hover:text-[var(--dank-accent)] shrink-0 cursor-pointer"
+                              className="text-[var(--era-muted)] hover:text-[var(--era-accent)] shrink-0 cursor-pointer"
                             >
                               {isSelected ? (
-                                <CheckSquare className="w-4 h-4 text-[var(--dank-accent)]" />
+                                <CheckSquare className="w-4 h-4 text-[var(--era-accent)]" />
                               ) : (
                                 <Square className="w-4 h-4" />
                               )}
@@ -1521,7 +1521,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                               <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
                                 <p
                                   dir="auto"
-                                  className="text-xs font-semibold text-[var(--dank-text)] truncate"
+                                  className="text-xs font-semibold text-[var(--era-text)] truncate"
                                 >
                                   {u.name}
                                 </p>
@@ -1549,7 +1549,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                                   </span>
                                 )}
                               </div>
-                              <p className="text-[11px] text-[var(--dank-muted)] truncate tabular-nums">
+                              <p className="text-[11px] text-[var(--era-muted)] truncate tabular-nums">
                                 @{u.username} · {formatLastSeen(u.isOnline, u.lastSeen, language)} ·{' '}
                                 {u.inviteCount ?? 0} {t.admin.invitesLabel}
                               </p>
@@ -1560,9 +1560,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                             <button
                               type="button"
                               onClick={() => void openInspector(u)}
-                              className="h-8 px-2.5 rounded-lg bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] text-xs font-semibold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                              className="h-8 px-2.5 rounded-lg bg-[var(--era-elevated)] hover:bg-[var(--era-hover)] text-[var(--era-text)] text-xs font-semibold flex items-center gap-1 cursor-pointer whitespace-nowrap"
                             >
-                              <Eye className="w-3.5 h-3.5 text-[var(--dank-accent)]" />
+                              <Eye className="w-3.5 h-3.5 text-[var(--era-accent)]" />
                               {t.admin.inspectUser}
                             </button>
 
@@ -1572,8 +1572,8 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                               onClick={() => void handleToggleFlag(u, 'isVerified')}
                               className={`h-8 px-2.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer whitespace-nowrap ${
                                 u.isVerified
-                                  ? 'bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] border border-[var(--dank-accent-border)]'
-                                  : 'bg-[var(--dank-accent)] text-[var(--dank-accent-fg)]'
+                                  ? 'bg-[var(--era-accent-soft)] text-[var(--era-accent)] border border-[var(--era-accent-border)]'
+                                  : 'bg-[var(--era-accent)] text-[var(--era-accent-fg)]'
                               }`}
                             >
                               {u.isVerified ? t.admin.unverify : t.admin.verify}
@@ -1586,7 +1586,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                               className={`h-8 px-2.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer whitespace-nowrap ${
                                 u.isVip
                                   ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                                  : 'bg-[var(--dank-elevated)] text-[var(--dank-text)]'
+                                  : 'bg-[var(--era-elevated)] text-[var(--era-text)]'
                               }`}
                             >
                               {u.isVip ? t.admin.removeVip : t.admin.grantVip}
@@ -1599,7 +1599,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                               className={`h-8 px-2.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer whitespace-nowrap ${
                                 u.isPlus
                                   ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                                  : 'bg-[var(--dank-elevated)] text-[var(--dank-text)]'
+                                  : 'bg-[var(--era-elevated)] text-[var(--era-text)]'
                               }`}
                             >
                               {u.isPlus ? t.admin.removePlus : t.admin.grantPlus}
@@ -1611,8 +1611,8 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                               onClick={() => void handleToggleFlag(u, 'isAdmin')}
                               className={`h-8 px-2.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer whitespace-nowrap ${
                                 u.isAdmin
-                                  ? 'bg-[var(--dank-accent-soft)] text-amber-400 border border-[var(--dank-accent-border)]'
-                                  : 'bg-[var(--dank-elevated)] text-[var(--dank-text)]'
+                                  ? 'bg-[var(--era-accent-soft)] text-amber-400 border border-[var(--era-accent-border)]'
+                                  : 'bg-[var(--era-elevated)] text-[var(--era-text)]'
                               }`}
                             >
                               {u.isAdmin ? t.admin.removeAdmin : t.admin.makeAdmin}
@@ -1645,7 +1645,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                                     type="button"
                                     disabled={isBusy}
                                     onClick={() => void handleMuteDuration(u, null)}
-                                    className="h-8 px-2 rounded-lg bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] text-xs font-semibold disabled:opacity-50 cursor-pointer whitespace-nowrap"
+                                    className="h-8 px-2 rounded-lg bg-[var(--era-elevated)] hover:bg-[var(--era-hover)] text-[var(--era-text)] text-xs font-semibold disabled:opacity-50 cursor-pointer whitespace-nowrap"
                                   >
                                     {t.admin.unmute}
                                   </button>
@@ -1657,7 +1657,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                                   onClick={() => void handleToggleBan(u)}
                                   className={`h-8 px-2.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors disabled:opacity-50 cursor-pointer whitespace-nowrap ${
                                     u.isBanned
-                                      ? 'bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)]'
+                                      ? 'bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)]'
                                       : 'bg-red-600 hover:bg-red-700 text-white'
                                   }`}
                                 >
@@ -1671,7 +1671,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                       );
                     })}
                     {filteredUsers.length === 0 && (
-                      <p className="p-6 text-xs text-[var(--dank-muted)] text-center">
+                      <p className="p-6 text-xs text-[var(--era-muted)] text-center">
                         {t.admin.noMatchingUsers}
                       </p>
                     )}
@@ -1689,8 +1689,8 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                     onClick={() => setCommunitySubTab('chats')}
                     className={`h-9 px-4 rounded-xl text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
                       communitySubTab === 'chats'
-                        ? 'bg-[var(--dank-accent)] text-[var(--dank-accent-fg)]'
-                        : 'bg-[var(--dank-surface)] border border-[var(--dank-border)] text-[var(--dank-muted)]'
+                        ? 'bg-[var(--era-accent)] text-[var(--era-accent-fg)]'
+                        : 'bg-[var(--era-surface)] border border-[var(--era-border)] text-[var(--era-muted)]'
                     }`}
                   >
                     <UsersRound className="w-4 h-4" />
@@ -1701,8 +1701,8 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                     onClick={() => setCommunitySubTab('stories')}
                     className={`h-9 px-4 rounded-xl text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
                       communitySubTab === 'stories'
-                        ? 'bg-[var(--dank-accent)] text-[var(--dank-accent-fg)]'
-                        : 'bg-[var(--dank-surface)] border border-[var(--dank-border)] text-[var(--dank-muted)]'
+                        ? 'bg-[var(--era-accent)] text-[var(--era-accent-fg)]'
+                        : 'bg-[var(--era-surface)] border border-[var(--era-border)] text-[var(--era-muted)]'
                     }`}
                   >
                     <Film className="w-4 h-4" />
@@ -1713,8 +1713,8 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                     onClick={() => setCommunitySubTab('calls')}
                     className={`h-9 px-4 rounded-xl text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
                       communitySubTab === 'calls'
-                        ? 'bg-[var(--dank-accent)] text-[var(--dank-accent-fg)]'
-                        : 'bg-[var(--dank-surface)] border border-[var(--dank-border)] text-[var(--dank-muted)]'
+                        ? 'bg-[var(--era-accent)] text-[var(--era-accent-fg)]'
+                        : 'bg-[var(--era-surface)] border border-[var(--era-border)] text-[var(--era-muted)]'
                     }`}
                   >
                     <PhoneCall className="w-4 h-4" />
@@ -1724,8 +1724,8 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
 
                 {/* Subtab: Groups & Channels */}
                 {communitySubTab === 'chats' && (
-                  <div className="rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)] overflow-hidden">
-                    <div className="p-4 border-b border-[var(--dank-border)] bg-[var(--dank-canvas)] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="rounded-xl bg-[var(--era-surface)] border border-[var(--era-border)] overflow-hidden">
+                    <div className="p-4 border-b border-[var(--era-border)] bg-[var(--era-canvas)] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="flex items-center gap-1.5">
                         {(
                           [
@@ -1740,8 +1740,8 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                             onClick={() => setChatTypeFilter(k)}
                             className={`h-8 px-3 rounded-lg text-xs font-semibold cursor-pointer ${
                               chatTypeFilter === k
-                                ? 'bg-[var(--dank-accent)] text-[var(--dank-accent-fg)]'
-                                : 'bg-[var(--dank-surface)] text-[var(--dank-muted)] border border-[var(--dank-border)]'
+                                ? 'bg-[var(--era-accent)] text-[var(--era-accent-fg)]'
+                                : 'bg-[var(--era-surface)] text-[var(--era-muted)] border border-[var(--era-border)]'
                             }`}
                           >
                             {lbl}
@@ -1749,19 +1749,19 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                         ))}
                       </div>
                       <div className="relative w-full sm:w-64">
-                        <Search className="w-3.5 h-3.5 text-[var(--dank-muted)] absolute start-3 top-1/2 -translate-y-1/2" />
+                        <Search className="w-3.5 h-3.5 text-[var(--era-muted)] absolute start-3 top-1/2 -translate-y-1/2" />
                         <input
                           type="text"
                           dir="auto"
                           value={chatSearch}
                           onChange={(e) => setChatSearch(e.target.value)}
                           placeholder={t.admin.searchChatsPlaceholder}
-                          className="w-full h-9 ps-8 pe-3 rounded-lg bg-[var(--dank-surface)] border border-[var(--dank-border)] text-xs text-[var(--dank-text)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)]"
+                          className="w-full h-9 ps-8 pe-3 rounded-lg bg-[var(--era-surface)] border border-[var(--era-border)] text-xs text-[var(--era-text)] focus:outline-none focus:ring-2 focus:ring-[var(--era-accent)]"
                         />
                       </div>
                     </div>
 
-                    <div className="max-h-[56vh] overflow-y-auto divide-y divide-[var(--dank-border)]">
+                    <div className="max-h-[56vh] overflow-y-auto divide-y divide-[var(--era-border)]">
                       {filteredChats.map((chat) => {
                         const isEditing = editingChatId === chat.id;
                         const isBusy = busyChatId === chat.id;
@@ -1781,11 +1781,11 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <p
                                       dir="auto"
-                                      className="text-sm font-bold text-[var(--dank-text)] truncate"
+                                      className="text-sm font-bold text-[var(--era-text)] truncate"
                                     >
                                       {chat.name || chat.id}
                                     </p>
-                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-[var(--dank-elevated)] text-[var(--dank-accent)]">
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-[var(--era-elevated)] text-[var(--era-accent)]">
                                       {chat.type === 'channel'
                                         ? t.common.channel
                                         : t.common.group}
@@ -1794,7 +1794,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                                       className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
                                         chat.isPublic
                                           ? 'bg-emerald-500/15 text-emerald-400'
-                                          : 'bg-zinc-500/20 text-[var(--dank-muted)]'
+                                          : 'bg-zinc-500/20 text-[var(--era-muted)]'
                                       }`}
                                     >
                                       {chat.isPublic
@@ -1804,7 +1804,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                                   </div>
                                   <p
                                     dir="auto"
-                                    className="text-xs text-[var(--dank-muted)] truncate mt-0.5 tabular-nums"
+                                    className="text-xs text-[var(--era-muted)] truncate mt-0.5 tabular-nums"
                                   >
                                     {chat.memberCount || 0}{' '}
                                     {chat.type === 'channel'
@@ -1820,9 +1820,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                                   <button
                                     type="button"
                                     onClick={() => onOpenChat(chat.id)}
-                                    className="h-8 px-2.5 rounded-lg bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                                    className="h-8 px-2.5 rounded-lg bg-[var(--era-elevated)] hover:bg-[var(--era-hover)] text-[var(--era-text)] text-xs font-semibold flex items-center gap-1 cursor-pointer"
                                   >
-                                    <ExternalLink className="w-3.5 h-3.5 text-[var(--dank-accent)]" />
+                                    <ExternalLink className="w-3.5 h-3.5 text-[var(--era-accent)]" />
                                     {t.common.open}
                                   </button>
                                 )}
@@ -1830,9 +1830,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                                   type="button"
                                   disabled={isBusy}
                                   onClick={() => void handleToggleChatPublic(chat)}
-                                  className="h-8 px-2.5 rounded-lg bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] text-xs font-semibold flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                                  className="h-8 px-2.5 rounded-lg bg-[var(--era-elevated)] hover:bg-[var(--era-hover)] text-[var(--era-text)] text-xs font-semibold flex items-center gap-1 cursor-pointer disabled:opacity-50"
                                 >
-                                  <Globe className="w-3.5 h-3.5 text-[var(--dank-accent)]" />
+                                  <Globe className="w-3.5 h-3.5 text-[var(--era-accent)]" />
                                   {chat.isPublic ? t.admin.makePrivate : t.admin.makePublic}
                                 </button>
                                 <button
@@ -1846,7 +1846,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                                       setEditChatDesc(chat.description || '');
                                     }
                                   }}
-                                  className="h-8 px-2.5 rounded-lg bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                                  className="h-8 px-2.5 rounded-lg bg-[var(--era-elevated)] hover:bg-[var(--era-hover)] text-[var(--era-text)] text-xs font-semibold flex items-center gap-1 cursor-pointer"
                                 >
                                   <Edit3 className="w-3.5 h-3.5" />
                                   {t.admin.editChat}
@@ -1870,14 +1870,14 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                             </div>
 
                             {isEditing && (
-                              <div className="p-3 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] flex flex-col sm:flex-row gap-2">
+                              <div className="p-3 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] flex flex-col sm:flex-row gap-2">
                                 <input
                                   type="text"
                                   dir="auto"
                                   value={editChatName}
                                   onChange={(e) => setEditChatName(e.target.value)}
                                   placeholder={t.createChat.groupName}
-                                  className="h-9 px-3 rounded-lg bg-[var(--dank-surface)] border border-[var(--dank-border)] text-xs text-[var(--dank-text)] flex-1"
+                                  className="h-9 px-3 rounded-lg bg-[var(--era-surface)] border border-[var(--era-border)] text-xs text-[var(--era-text)] flex-1"
                                 />
                                 <input
                                   type="text"
@@ -1885,21 +1885,21 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                                   value={editChatDesc}
                                   onChange={(e) => setEditChatDesc(e.target.value)}
                                   placeholder={t.chatInfo.description}
-                                  className="h-9 px-3 rounded-lg bg-[var(--dank-surface)] border border-[var(--dank-border)] text-xs text-[var(--dank-text)] flex-1"
+                                  className="h-9 px-3 rounded-lg bg-[var(--era-surface)] border border-[var(--era-border)] text-xs text-[var(--era-text)] flex-1"
                                 />
                                 <div className="flex items-center gap-1.5">
                                   <button
                                     type="button"
                                     disabled={isBusy || !editChatName.trim()}
                                     onClick={() => void handleSaveChatEdit(chat)}
-                                    className="h-9 px-3 rounded-lg bg-[var(--dank-accent)] text-[var(--dank-accent-fg)] text-xs font-bold cursor-pointer disabled:opacity-50"
+                                    className="h-9 px-3 rounded-lg bg-[var(--era-accent)] text-[var(--era-accent-fg)] text-xs font-bold cursor-pointer disabled:opacity-50"
                                   >
                                     {t.common.save}
                                   </button>
                                   <button
                                     type="button"
                                     onClick={() => setEditingChatId(null)}
-                                    className="h-9 px-3 rounded-lg bg-[var(--dank-elevated)] text-[var(--dank-text)] text-xs font-semibold cursor-pointer"
+                                    className="h-9 px-3 rounded-lg bg-[var(--era-elevated)] text-[var(--era-text)] text-xs font-semibold cursor-pointer"
                                   >
                                     {t.common.cancel}
                                   </button>
@@ -1910,7 +1910,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                         );
                       })}
                       {filteredChats.length === 0 && (
-                        <p className="p-6 text-xs text-[var(--dank-muted)] text-center">
+                        <p className="p-6 text-xs text-[var(--era-muted)] text-center">
                           {t.admin.noChatsMatching}
                         </p>
                       )}
@@ -1920,13 +1920,13 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
 
                 {/* Subtab: Active Stories */}
                 {communitySubTab === 'stories' && (
-                  <div className="rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)] p-4">
+                  <div className="rounded-xl bg-[var(--era-surface)] border border-[var(--era-border)] p-4">
                     {loadingStories ? (
-                      <div className="py-10 text-center text-xs text-[var(--dank-muted)]">
+                      <div className="py-10 text-center text-xs text-[var(--era-muted)]">
                         {t.common.loading}
                       </div>
                     ) : adminStories.length === 0 ? (
-                      <div className="py-10 text-center text-xs text-[var(--dank-muted)]">
+                      <div className="py-10 text-center text-xs text-[var(--era-muted)]">
                         {t.admin.noStoriesActive}
                       </div>
                     ) : (
@@ -1934,7 +1934,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                         {adminStories.map((st) => (
                           <div
                             key={st.id}
-                            className="rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] overflow-hidden flex flex-col"
+                            className="rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] overflow-hidden flex flex-col"
                           >
                             {st.mediaType === 'image' && st.mediaData ? (
                               <img
@@ -1943,7 +1943,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                                 className="w-full h-36 object-cover bg-black"
                               />
                             ) : (
-                              <div className="w-full h-36 bg-black/50 flex flex-col items-center justify-center gap-1.5 text-[var(--dank-accent)]">
+                              <div className="w-full h-36 bg-black/50 flex flex-col items-center justify-center gap-1.5 text-[var(--era-accent)]">
                                 <Film className="w-7 h-7" />
                                 <span className="text-[11px] font-semibold">
                                   {t.telegram.videoLabel}
@@ -1958,14 +1958,14 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                                     name={st.authorName}
                                     size="xs"
                                   />
-                                  <span className="text-xs font-bold text-[var(--dank-text)] truncate">
+                                  <span className="text-xs font-bold text-[var(--era-text)] truncate">
                                     {st.authorName}
                                   </span>
                                 </div>
                                 {st.caption && (
                                   <p
                                     dir="auto"
-                                    className="mt-1.5 text-xs text-[var(--dank-muted)] line-clamp-2"
+                                    className="mt-1.5 text-xs text-[var(--era-muted)] line-clamp-2"
                                   >
                                     {st.caption}
                                   </p>
@@ -1990,17 +1990,17 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
 
                 {/* Subtab: Calls Monitor */}
                 {communitySubTab === 'calls' && (
-                  <div className="rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)] overflow-hidden">
+                  <div className="rounded-xl bg-[var(--era-surface)] border border-[var(--era-border)] overflow-hidden">
                     {loadingCalls ? (
-                      <div className="p-8 text-center text-xs text-[var(--dank-muted)]">
+                      <div className="p-8 text-center text-xs text-[var(--era-muted)]">
                         {t.common.loading}
                       </div>
                     ) : adminCalls.length === 0 ? (
-                      <div className="p-8 text-center text-xs text-[var(--dank-muted)]">
+                      <div className="p-8 text-center text-xs text-[var(--era-muted)]">
                         {t.admin.noCallsRecorded}
                       </div>
                     ) : (
-                      <div className="max-h-[58vh] overflow-y-auto divide-y divide-[var(--dank-border)]">
+                      <div className="max-h-[58vh] overflow-y-auto divide-y divide-[var(--era-border)]">
                         {adminCalls.map((c) => {
                           const isMissed = c.status === 'missed' || c.status === 'declined';
                           const startedMs = timestampToMs(c.startedAt);
@@ -2024,10 +2024,10 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                                   )}
                                 </div>
                                 <div className="min-w-0">
-                                  <p className="text-xs font-semibold text-[var(--dank-text)] truncate">
+                                  <p className="text-xs font-semibold text-[var(--era-text)] truncate">
                                     {c.callerName} → {c.calleeName}
                                   </p>
-                                  <p className="text-[11px] text-[var(--dank-muted)] tabular-nums">
+                                  <p className="text-[11px] text-[var(--era-muted)] tabular-nums">
                                     {startedMs > 0
                                       ? new Date(startedMs).toLocaleString(
                                           language === 'ar' ? 'ar-EG' : 'en-US'
@@ -2038,7 +2038,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                               </div>
                               <div className="flex items-center gap-2 shrink-0">
                                 {(c.durationSeconds ?? 0) > 0 && (
-                                  <span className="text-xs font-bold text-[var(--dank-text)] tabular-nums">
+                                  <span className="text-xs font-bold text-[var(--era-text)] tabular-nums">
                                     {formatCallDuration(c.durationSeconds)}
                                   </span>
                                 )}
@@ -2048,7 +2048,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                                       ? 'bg-red-500/15 text-red-400'
                                       : c.status === 'connected'
                                       ? 'bg-emerald-500/15 text-emerald-400'
-                                      : 'bg-[var(--dank-elevated)] text-[var(--dank-muted)]'
+                                      : 'bg-[var(--era-elevated)] text-[var(--era-muted)]'
                                   }`}
                                 >
                                   {c.status}
@@ -2070,22 +2070,22 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                 {/* Push In-App Notification */}
                 <form
                   onSubmit={(e) => void handleSendNotificationBroadcast(e)}
-                  className="p-5 rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)] space-y-4"
+                  className="p-5 rounded-xl bg-[var(--era-surface)] border border-[var(--era-border)] space-y-4"
                 >
                   <div className="flex items-start gap-2.5">
-                    <Bell className="w-5 h-5 text-[var(--dank-accent)] shrink-0 mt-0.5" />
+                    <Bell className="w-5 h-5 text-[var(--era-accent)] shrink-0 mt-0.5" />
                     <div>
-                      <h4 className="text-sm font-bold text-[var(--dank-text)]">
+                      <h4 className="text-sm font-bold text-[var(--era-text)]">
                         {t.admin.broadcastNotifTitle}
                       </h4>
-                      <p className="text-xs text-[var(--dank-muted)]">
+                      <p className="text-xs text-[var(--era-muted)]">
                         {t.admin.broadcastNotifDesc}
                       </p>
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-[var(--dank-muted)] mb-1.5">
+                    <label className="block text-xs font-semibold text-[var(--era-muted)] mb-1.5">
                       {t.admin.audienceLabel}
                     </label>
                     <div className="grid grid-cols-2 gap-2">
@@ -2103,8 +2103,8 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                           onClick={() => setBroadcastAudience(val)}
                           className={`h-9 px-3 rounded-xl text-xs font-semibold cursor-pointer border transition-colors ${
                             broadcastAudience === val
-                              ? 'bg-[var(--dank-accent-soft)] border-[var(--dank-accent)] text-[var(--dank-accent)]'
-                              : 'bg-[var(--dank-canvas)] border-[var(--dank-border)] text-[var(--dank-text)]'
+                              ? 'bg-[var(--era-accent-soft)] border-[var(--era-accent)] text-[var(--era-accent)]'
+                              : 'bg-[var(--era-canvas)] border-[var(--era-border)] text-[var(--era-text)]'
                           }`}
                         >
                           {lbl}
@@ -2114,7 +2114,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-[var(--dank-muted)] mb-1">
+                    <label className="block text-xs font-semibold text-[var(--era-muted)] mb-1">
                       {t.admin.notifMessageLabel}
                     </label>
                     <textarea
@@ -2124,14 +2124,14 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                       value={broadcastNotifText}
                       onChange={(e) => setBroadcastNotifText(e.target.value)}
                       placeholder={t.admin.notifPlaceholder}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] text-sm text-[var(--dank-text)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)] resize-none"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] text-sm text-[var(--era-text)] focus:outline-none focus:ring-2 focus:ring-[var(--era-accent)] resize-none"
                     />
                   </div>
 
                   <button
                     type="submit"
                     disabled={sendingNotifBroadcast || !broadcastNotifText.trim()}
-                    className="w-full h-11 rounded-xl bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] font-bold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50 cursor-pointer"
+                    className="w-full h-11 rounded-xl bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] font-bold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50 cursor-pointer"
                   >
                     <Send className="w-4 h-4" />
                     {sendingNotifBroadcast ? t.common.pleaseWait : t.admin.sendNotifBroadcastBtn}
@@ -2141,22 +2141,22 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                 {/* Official Channel Announcement */}
                 <form
                   onSubmit={(e) => void handlePublishChannelBroadcast(e)}
-                  className="p-5 rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)] space-y-4"
+                  className="p-5 rounded-xl bg-[var(--era-surface)] border border-[var(--era-border)] space-y-4"
                 >
                   <div className="flex items-start gap-2.5">
-                    <Radio className="w-5 h-5 text-[var(--dank-accent)] shrink-0 mt-0.5" />
+                    <Radio className="w-5 h-5 text-[var(--era-accent)] shrink-0 mt-0.5" />
                     <div>
-                      <h4 className="text-sm font-bold text-[var(--dank-text)]">
+                      <h4 className="text-sm font-bold text-[var(--era-text)]">
                         {t.admin.channelBroadcastTitle}
                       </h4>
-                      <p className="text-xs text-[var(--dank-muted)]">
+                      <p className="text-xs text-[var(--era-muted)]">
                         {t.admin.channelBroadcastDesc}
                       </p>
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-[var(--dank-muted)] mb-1.5">
+                    <label className="block text-xs font-semibold text-[var(--era-muted)] mb-1.5">
                       {t.admin.selectChannelLabel}
                     </label>
                     <div className="grid grid-cols-2 gap-2">
@@ -2165,28 +2165,28 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                         onClick={() => setChannelTarget(OFFICIAL_CHANNEL_ID)}
                         className={`h-9 px-3 rounded-xl text-xs font-semibold cursor-pointer border transition-colors ${
                           channelTarget === OFFICIAL_CHANNEL_ID
-                            ? 'bg-[var(--dank-accent-soft)] border-[var(--dank-accent)] text-[var(--dank-accent)]'
-                            : 'bg-[var(--dank-canvas)] border-[var(--dank-border)] text-[var(--dank-text)]'
+                            ? 'bg-[var(--era-accent-soft)] border-[var(--era-accent)] text-[var(--era-accent)]'
+                            : 'bg-[var(--era-canvas)] border-[var(--era-border)] text-[var(--era-text)]'
                         }`}
                       >
-                        DANK Official
+                        ERA Official
                       </button>
                       <button
                         type="button"
-                        onClick={() => setChannelTarget(DANK_TEAM_CHANNEL_ID)}
+                        onClick={() => setChannelTarget(ERA_TEAM_CHANNEL_ID)}
                         className={`h-9 px-3 rounded-xl text-xs font-semibold cursor-pointer border transition-colors ${
-                          channelTarget === DANK_TEAM_CHANNEL_ID
-                            ? 'bg-[var(--dank-accent-soft)] border-[var(--dank-accent)] text-[var(--dank-accent)]'
-                            : 'bg-[var(--dank-canvas)] border-[var(--dank-border)] text-[var(--dank-text)]'
+                          channelTarget === ERA_TEAM_CHANNEL_ID
+                            ? 'bg-[var(--era-accent-soft)] border-[var(--era-accent)] text-[var(--era-accent)]'
+                            : 'bg-[var(--era-canvas)] border-[var(--era-border)] text-[var(--era-text)]'
                         }`}
                       >
-                        DANK Team
+                        ERA Team
                       </button>
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-[var(--dank-muted)] mb-1">
+                    <label className="block text-xs font-semibold text-[var(--era-muted)] mb-1">
                       {t.admin.notifMessageLabel}
                     </label>
                     <textarea
@@ -2196,14 +2196,14 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                       value={channelBroadcastText}
                       onChange={(e) => setChannelBroadcastText(e.target.value)}
                       placeholder={t.admin.channelMsgPlaceholder}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] text-sm text-[var(--dank-text)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)] resize-none"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] text-sm text-[var(--era-text)] focus:outline-none focus:ring-2 focus:ring-[var(--era-accent)] resize-none"
                     />
                   </div>
 
                   <button
                     type="submit"
                     disabled={sendingChannelBroadcast || !channelBroadcastText.trim()}
-                    className="w-full h-11 rounded-xl bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] font-bold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50 cursor-pointer"
+                    className="w-full h-11 rounded-xl bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] font-bold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50 cursor-pointer"
                   >
                     <Megaphone className="w-4 h-4" />
                     {sendingChannelBroadcast ? t.common.pleaseWait : t.admin.publishChannelBtn}
@@ -2218,15 +2218,15 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                 {/* System Operational Controls */}
                 <form
                   onSubmit={(e) => void handleSaveSystemSettings(e)}
-                  className="p-5 rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)] space-y-4"
+                  className="p-5 rounded-xl bg-[var(--era-surface)] border border-[var(--era-border)] space-y-4"
                 >
                   <div className="flex items-start gap-2.5">
-                    <Wrench className="w-5 h-5 text-[var(--dank-accent)] shrink-0 mt-0.5" />
+                    <Wrench className="w-5 h-5 text-[var(--era-accent)] shrink-0 mt-0.5" />
                     <div>
-                      <h4 className="text-sm font-bold text-[var(--dank-text)]">
+                      <h4 className="text-sm font-bold text-[var(--era-text)]">
                         {t.admin.systemControlsTitle}
                       </h4>
-                      <p className="text-xs text-[var(--dank-muted)]">
+                      <p className="text-xs text-[var(--era-muted)]">
                         {t.admin.systemControlsDesc}
                       </p>
                     </div>
@@ -2234,9 +2234,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {/* Maintenance Mode Switch */}
-                    <div className="p-4 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] space-y-3">
+                    <div className="p-4 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] space-y-3">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-bold text-[var(--dank-text)]">
+                        <span className="text-xs font-bold text-[var(--era-text)]">
                           {t.admin.maintenanceModeLabel}
                         </span>
                         <button
@@ -2245,13 +2245,13 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                           className={`h-7 px-3 rounded-lg text-[11px] font-bold cursor-pointer transition-colors ${
                             maintenanceMode
                               ? 'bg-amber-500 text-black'
-                              : 'bg-[var(--dank-elevated)] text-[var(--dank-muted)]'
+                              : 'bg-[var(--era-elevated)] text-[var(--era-muted)]'
                           }`}
                         >
                           {maintenanceMode ? t.admin.active : t.admin.off}
                         </button>
                       </div>
-                      <p className="text-[11px] text-[var(--dank-muted)]">
+                      <p className="text-[11px] text-[var(--era-muted)]">
                         {t.admin.maintenanceModeDesc}
                       </p>
                       <input
@@ -2261,14 +2261,14 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                         value={maintenanceMessage}
                         onChange={(e) => setMaintenanceMessage(e.target.value)}
                         placeholder={t.admin.maintenanceMsgPlaceholder}
-                        className="w-full h-9 px-3 rounded-lg bg-[var(--dank-surface)] border border-[var(--dank-border)] text-xs text-[var(--dank-text)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)]"
+                        className="w-full h-9 px-3 rounded-lg bg-[var(--era-surface)] border border-[var(--era-border)] text-xs text-[var(--era-text)] focus:outline-none focus:ring-2 focus:ring-[var(--era-accent)]"
                       />
                     </div>
 
                     {/* Allow New Signups Switch */}
-                    <div className="p-4 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] space-y-3">
+                    <div className="p-4 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] space-y-3">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-bold text-[var(--dank-text)]">
+                        <span className="text-xs font-bold text-[var(--era-text)]">
                           {t.admin.allowSignupsLabel}
                         </span>
                         <button
@@ -2283,15 +2283,15 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                           {allowSignups ? t.admin.enabledLabel : t.admin.disabledLabel}
                         </button>
                       </div>
-                      <p className="text-[11px] text-[var(--dank-muted)]">
+                      <p className="text-[11px] text-[var(--era-muted)]">
                         {t.admin.allowSignupsDesc}
                       </p>
                     </div>
 
                     {/* Top Global Notice Strip */}
-                    <div className="p-4 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] space-y-3">
+                    <div className="p-4 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] space-y-3">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-bold text-[var(--dank-text)]">
+                        <span className="text-xs font-bold text-[var(--era-text)]">
                           {t.admin.globalNoticeLabel}
                         </span>
                         <button
@@ -2299,14 +2299,14 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                           onClick={() => setGlobalNoticeEnabled((v) => !v)}
                           className={`h-7 px-3 rounded-lg text-[11px] font-bold cursor-pointer transition-colors ${
                             globalNoticeEnabled
-                              ? 'bg-[var(--dank-accent)] text-[var(--dank-accent-fg)]'
-                              : 'bg-[var(--dank-elevated)] text-[var(--dank-muted)]'
+                              ? 'bg-[var(--era-accent)] text-[var(--era-accent-fg)]'
+                              : 'bg-[var(--era-elevated)] text-[var(--era-muted)]'
                           }`}
                         >
                           {globalNoticeEnabled ? t.admin.active : t.admin.off}
                         </button>
                       </div>
-                      <p className="text-[11px] text-[var(--dank-muted)]">
+                      <p className="text-[11px] text-[var(--era-muted)]">
                         {t.admin.globalNoticeDesc}
                       </p>
                       <input
@@ -2316,7 +2316,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                         value={globalNoticeText}
                         onChange={(e) => setGlobalNoticeText(e.target.value)}
                         placeholder={t.admin.globalNoticePlaceholder}
-                        className="w-full h-9 px-3 rounded-lg bg-[var(--dank-surface)] border border-[var(--dank-border)] text-xs text-[var(--dank-text)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)]"
+                        className="w-full h-9 px-3 rounded-lg bg-[var(--era-surface)] border border-[var(--era-border)] text-xs text-[var(--era-text)] focus:outline-none focus:ring-2 focus:ring-[var(--era-accent)]"
                       />
                     </div>
                   </div>
@@ -2324,7 +2324,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                   <button
                     type="submit"
                     disabled={savingSystem}
-                    className="h-10 px-5 rounded-xl bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] font-bold text-xs flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                    className="h-10 px-5 rounded-xl bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] font-bold text-xs flex items-center gap-2 cursor-pointer disabled:opacity-50"
                   >
                     <Power className="w-4 h-4" />
                     {savingSystem ? t.common.saving : t.admin.saveSystemBtn}
@@ -2335,14 +2335,14 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <form
                     onSubmit={(e) => void handleSaveAdBanner(e)}
-                    className="p-5 rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)] space-y-4"
+                    className="p-5 rounded-xl bg-[var(--era-surface)] border border-[var(--era-border)] space-y-4"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div>
-                        <h4 className="text-sm font-bold text-[var(--dank-text)]">
+                        <h4 className="text-sm font-bold text-[var(--era-text)]">
                           {t.admin.globalBannerTitle}
                         </h4>
-                        <p className="text-xs text-[var(--dank-muted)]">
+                        <p className="text-xs text-[var(--era-muted)]">
                           {t.admin.globalBannerDesc}
                         </p>
                       </div>
@@ -2353,8 +2353,8 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                         disabled={savingAd}
                         className={`h-9 px-3.5 rounded-xl text-xs font-bold transition-colors cursor-pointer whitespace-nowrap ${
                           adEnabled
-                            ? 'bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)]'
-                            : 'bg-[var(--dank-elevated)] text-[var(--dank-text)]'
+                            ? 'bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)]'
+                            : 'bg-[var(--era-elevated)] text-[var(--era-text)]'
                         }`}
                       >
                         {adEnabled ? t.admin.bannerOn : t.admin.bannerOff}
@@ -2362,7 +2362,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-[var(--dank-muted)] mb-1">
+                      <label className="block text-xs font-semibold text-[var(--era-muted)] mb-1">
                         {t.admin.bannerTextLabel}
                       </label>
                       <textarea
@@ -2372,12 +2372,12 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                         value={adText}
                         onChange={(e) => setAdText(e.target.value)}
                         placeholder={t.admin.bannerTextPlaceholder}
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] text-sm text-[var(--dank-text)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)] resize-none"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] text-sm text-[var(--era-text)] focus:outline-none focus:ring-2 focus:ring-[var(--era-accent)] resize-none"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-[var(--dank-muted)] mb-1">
+                      <label className="block text-xs font-semibold text-[var(--era-muted)] mb-1">
                         {t.admin.destinationLinkLabel}
                       </label>
                       <input
@@ -2387,12 +2387,12 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                         value={adLink}
                         onChange={(e) => setAdLink(e.target.value)}
                         placeholder="https://example.com"
-                        className="w-full h-10 px-3.5 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] text-sm text-[var(--dank-text)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)] text-start"
+                        className="w-full h-10 px-3.5 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] text-sm text-[var(--era-text)] focus:outline-none focus:ring-2 focus:ring-[var(--era-accent)] text-start"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-[var(--dank-muted)] mb-1.5">
+                      <label className="block text-xs font-semibold text-[var(--era-muted)] mb-1.5">
                         {t.admin.bannerImageLabel}
                       </label>
                       <input
@@ -2406,9 +2406,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                         <button
                           type="button"
                           onClick={() => adFileRef.current?.click()}
-                          className="h-10 px-3.5 rounded-xl bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                          className="h-10 px-3.5 rounded-xl bg-[var(--era-elevated)] hover:bg-[var(--era-hover)] text-[var(--era-text)] text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
                         >
-                          <ImagePlus className="w-4 h-4 text-[var(--dank-accent)]" />
+                          <ImagePlus className="w-4 h-4 text-[var(--era-accent)]" />
                           {adImageData ? t.admin.changeImage : t.admin.uploadImage}
                         </button>
                         {adImageData && (
@@ -2426,25 +2426,25 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                     <button
                       type="submit"
                       disabled={savingAd}
-                      className="w-full h-11 rounded-xl bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] font-bold text-sm transition-colors disabled:opacity-50 cursor-pointer"
+                      className="w-full h-11 rounded-xl bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] font-bold text-sm transition-colors disabled:opacity-50 cursor-pointer"
                     >
                       {savingAd ? t.common.saving : t.admin.saveBannerBtn}
                     </button>
                   </form>
 
-                  <div className="p-5 rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)] space-y-3">
+                  <div className="p-5 rounded-xl bg-[var(--era-surface)] border border-[var(--era-border)] space-y-3">
                     <div className="flex items-center justify-between">
-                      <h4 className="text-sm font-bold text-[var(--dank-text)]">
+                      <h4 className="text-sm font-bold text-[var(--era-text)]">
                         {t.admin.livePreview}
                       </h4>
-                      <span className="text-xs font-semibold text-[var(--dank-muted)]">
+                      <span className="text-xs font-semibold text-[var(--era-muted)]">
                         {adEnabled ? t.admin.visibleToAll : t.admin.currentlyHidden}
                       </span>
                     </div>
 
-                    <div className="p-4 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)]">
+                    <div className="p-4 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)]">
                       {adText || adImageData ? (
-                        <div className="rounded-xl bg-[var(--dank-surface)] text-[var(--dank-text)] border border-[var(--dank-accent-border)] overflow-hidden shadow-xs">
+                        <div className="rounded-xl bg-[var(--era-surface)] text-[var(--era-text)] border border-[var(--era-accent-border)] overflow-hidden shadow-xs">
                           {adImageData.trim() && (
                             <img
                               src={adImageData.trim()}
@@ -2455,13 +2455,13 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                           )}
                           <div className="p-3 flex items-center justify-between gap-2">
                             <div className="min-w-0">
-                              <span className="text-[10px] font-semibold text-[var(--dank-accent)]">
+                              <span className="text-[10px] font-semibold text-[var(--era-accent)]">
                                 {t.common.sponsored}
                               </span>
                               {adText && (
                                 <p
                                   dir="auto"
-                                  className="text-xs font-medium text-[var(--dank-text)] mt-0.5"
+                                  className="text-xs font-medium text-[var(--era-text)] mt-0.5"
                                 >
                                   {adText}
                                 </p>
@@ -2469,19 +2469,19 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                               {adLink && (
                                 <p
                                   dir="ltr"
-                                  className="text-[11px] text-[var(--dank-muted)] truncate mt-0.5 text-start"
+                                  className="text-[11px] text-[var(--era-muted)] truncate mt-0.5 text-start"
                                 >
                                   {adLink}
                                 </p>
                               )}
                             </div>
                             {adLink && (
-                              <ExternalLink className="w-4 h-4 text-[var(--dank-accent)] shrink-0" />
+                              <ExternalLink className="w-4 h-4 text-[var(--era-accent)] shrink-0" />
                             )}
                           </div>
                         </div>
                       ) : (
-                        <p className="text-xs text-[var(--dank-muted)] text-center py-8">
+                        <p className="text-xs text-[var(--era-muted)] text-center py-8">
                           {t.admin.previewEmptyHint}
                         </p>
                       )}
@@ -2497,8 +2497,8 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
       {/* USER ACCOUNT INSPECTOR MODAL */}
       {inspectedUser && (
         <div className="fixed inset-0 z-[60] bg-black/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5">
-          <div className="w-full max-w-2xl rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="px-5 py-4 border-b border-[var(--dank-border)] flex items-center justify-between gap-3 shrink-0">
+          <div className="w-full max-w-2xl rounded-2xl bg-[var(--era-surface)] border border-[var(--era-border)] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="px-5 py-4 border-b border-[var(--era-border)] flex items-center justify-between gap-3 shrink-0">
               <div className="flex items-center gap-3 min-w-0">
                 <Avatar
                   src={inspectedUser.photoURL}
@@ -2509,7 +2509,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                 />
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <h4 className="text-sm font-bold text-[var(--dank-text)] truncate">
+                    <h4 className="text-sm font-bold text-[var(--era-text)] truncate">
                       {inspectedUser.name}
                     </h4>
                     <UserBadges
@@ -2520,7 +2520,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                       size="sm"
                     />
                   </div>
-                  <p className="text-[11px] text-[var(--dank-muted)] truncate tabular-nums">
+                  <p className="text-[11px] text-[var(--era-muted)] truncate tabular-nums">
                     @{inspectedUser.username} · UID: {inspectedUser.uid}
                   </p>
                 </div>
@@ -2528,7 +2528,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
               <button
                 type="button"
                 onClick={() => setInspectedUserId(null)}
-                className="w-8 h-8 rounded-lg hover:bg-[var(--dank-hover)] flex items-center justify-center cursor-pointer"
+                className="w-8 h-8 rounded-lg hover:bg-[var(--era-hover)] flex items-center justify-center cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -2537,25 +2537,25 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
             <div className="p-5 overflow-y-auto space-y-5">
               {/* Private Details & Sessions */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="p-3 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)]">
-                  <div className="text-[11px] text-[var(--dank-muted)]">{t.admin.accountEmail}</div>
-                  <div className="mt-1 text-xs font-semibold text-[var(--dank-text)] truncate" dir="ltr">
+                <div className="p-3 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)]">
+                  <div className="text-[11px] text-[var(--era-muted)]">{t.admin.accountEmail}</div>
+                  <div className="mt-1 text-xs font-semibold text-[var(--era-text)] truncate" dir="ltr">
                     {inspectorLoading ? '...' : inspectorPrivate?.email || '—'}
                   </div>
                 </div>
-                <div className="p-3 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)]">
-                  <div className="text-[11px] text-[var(--dank-muted)]">{t.admin.accountPhone}</div>
-                  <div className="mt-1 text-xs font-semibold text-[var(--dank-text)] truncate" dir="ltr">
+                <div className="p-3 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)]">
+                  <div className="text-[11px] text-[var(--era-muted)]">{t.admin.accountPhone}</div>
+                  <div className="mt-1 text-xs font-semibold text-[var(--era-text)] truncate" dir="ltr">
                     {inspectorLoading ? '...' : inspectorPrivate?.phone || '—'}
                   </div>
                 </div>
-                <div className="p-3 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)]">
-                  <div className="text-[11px] text-[var(--dank-muted)]">{t.admin.twoFactorLabel}</div>
+                <div className="p-3 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)]">
+                  <div className="text-[11px] text-[var(--era-muted)]">{t.admin.twoFactorLabel}</div>
                   <div className="mt-1 text-xs font-semibold flex items-center gap-1.5">
-                    <KeyRound className="w-3.5 h-3.5 text-[var(--dank-accent)]" />
+                    <KeyRound className="w-3.5 h-3.5 text-[var(--era-accent)]" />
                     <span
                       className={
-                        inspectorPrivate?.twoStepEnabled ? 'text-emerald-400' : 'text-[var(--dank-muted)]'
+                        inspectorPrivate?.twoStepEnabled ? 'text-emerald-400' : 'text-[var(--era-muted)]'
                       }
                     >
                       {inspectorLoading
@@ -2566,11 +2566,11 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                     </span>
                   </div>
                 </div>
-                <div className="p-3 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)]">
-                  <div className="text-[11px] text-[var(--dank-muted)]">
+                <div className="p-3 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)]">
+                  <div className="text-[11px] text-[var(--era-muted)]">
                     {t.admin.joinedDateLabel}
                   </div>
-                  <div className="mt-1 text-xs font-semibold text-[var(--dank-text)] tabular-nums">
+                  <div className="mt-1 text-xs font-semibold text-[var(--era-text)] tabular-nums">
                     {timestampToMs(inspectedUser.createdAt) > 0
                       ? new Date(timestampToMs(inspectedUser.createdAt)).toLocaleDateString(
                           language === 'ar' ? 'ar-EG' : 'en-US'
@@ -2581,33 +2581,33 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
               </div>
 
               {/* Active Sessions (Read-only telemetry) */}
-              <div className="p-4 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] space-y-2.5">
-                <div className="flex items-center gap-2 text-xs font-bold text-[var(--dank-text)]">
-                  <Monitor className="w-4 h-4 text-[var(--dank-accent)]" />
+              <div className="p-4 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] space-y-2.5">
+                <div className="flex items-center gap-2 text-xs font-bold text-[var(--era-text)]">
+                  <Monitor className="w-4 h-4 text-[var(--era-accent)]" />
                   <span>
                     {t.admin.activeSessionsLabel} ({inspectorSessions.length})
                   </span>
                 </div>
                 {inspectorLoading ? (
-                  <p className="text-xs text-[var(--dank-muted)]">{t.common.loading}</p>
+                  <p className="text-xs text-[var(--era-muted)]">{t.common.loading}</p>
                 ) : inspectorSessions.length === 0 ? (
-                  <p className="text-xs text-[var(--dank-muted)]">{t.admin.noSessionsLabel}</p>
+                  <p className="text-xs text-[var(--era-muted)]">{t.admin.noSessionsLabel}</p>
                 ) : (
                   <div className="space-y-2 max-h-36 overflow-y-auto">
                     {inspectorSessions.map((sess) => (
                       <div
                         key={sess.id}
-                        className="flex items-center justify-between gap-2 text-xs border-b border-[var(--dank-border)] pb-1.5 last:border-0 last:pb-0"
+                        className="flex items-center justify-between gap-2 text-xs border-b border-[var(--era-border)] pb-1.5 last:border-0 last:pb-0"
                       >
                         <div className="min-w-0">
-                          <div className="font-semibold text-[var(--dank-text)] truncate">
+                          <div className="font-semibold text-[var(--era-text)] truncate">
                             {sess.deviceName}
                           </div>
-                          <div className="text-[11px] text-[var(--dank-muted)] truncate">
+                          <div className="text-[11px] text-[var(--era-muted)] truncate">
                             {sess.platform}
                           </div>
                         </div>
-                        <span className="text-[11px] text-[var(--dank-muted)] tabular-nums shrink-0">
+                        <span className="text-[11px] text-[var(--era-muted)] tabular-nums shrink-0">
                           {timestampToMs(sess.lastActiveAt) > 0
                             ? new Date(timestampToMs(sess.lastActiveAt)).toLocaleDateString(
                                 language === 'ar' ? 'ar-EG' : 'en-US'
@@ -2623,9 +2623,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
               {/* Edit Profile Section */}
               <form
                 onSubmit={(e) => void handleSaveInspectedProfile(e)}
-                className="p-4 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] space-y-3"
+                className="p-4 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] space-y-3"
               >
-                <div className="text-xs font-bold text-[var(--dank-text)]">
+                <div className="text-xs font-bold text-[var(--era-text)]">
                   {t.admin.editProfileSection}
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -2636,7 +2636,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
                     placeholder={t.profile.displayName}
-                    className="h-9 px-3 rounded-lg bg-[var(--dank-surface)] border border-[var(--dank-border)] text-xs text-[var(--dank-text)]"
+                    className="h-9 px-3 rounded-lg bg-[var(--era-surface)] border border-[var(--era-border)] text-xs text-[var(--era-text)]"
                   />
                   <input
                     type="text"
@@ -2645,7 +2645,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                     value={editUsername}
                     onChange={(e) => setEditUsername(e.target.value)}
                     placeholder={t.profile.username}
-                    className="h-9 px-3 rounded-lg bg-[var(--dank-surface)] border border-[var(--dank-border)] text-xs text-[var(--dank-text)]"
+                    className="h-9 px-3 rounded-lg bg-[var(--era-surface)] border border-[var(--era-border)] text-xs text-[var(--era-text)]"
                   />
                 </div>
                 <textarea
@@ -2655,13 +2655,13 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                   value={editBio}
                   onChange={(e) => setEditBio(e.target.value)}
                   placeholder={t.profile.bioPlaceholder}
-                  className="w-full px-3 py-2 rounded-lg bg-[var(--dank-surface)] border border-[var(--dank-border)] text-xs text-[var(--dank-text)] resize-none"
+                  className="w-full px-3 py-2 rounded-lg bg-[var(--era-surface)] border border-[var(--era-border)] text-xs text-[var(--era-text)] resize-none"
                 />
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <button
                     type="submit"
                     disabled={savingProfile || !editName.trim()}
-                    className="h-9 px-4 rounded-lg bg-[var(--dank-accent)] text-[var(--dank-accent-fg)] text-xs font-bold cursor-pointer disabled:opacity-50"
+                    className="h-9 px-4 rounded-lg bg-[var(--era-accent)] text-[var(--era-accent-fg)] text-xs font-bold cursor-pointer disabled:opacity-50"
                   >
                     {savingProfile ? t.common.saving : t.admin.saveProfileChanges}
                   </button>
@@ -2670,9 +2670,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                     <button
                       type="button"
                       onClick={() => onStartDmWithUser(inspectedUser)}
-                      className="h-9 px-3.5 rounded-lg bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                      className="h-9 px-3.5 rounded-lg bg-[var(--era-elevated)] hover:bg-[var(--era-hover)] text-[var(--era-text)] text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
                     >
-                      <MessageCircle className="w-3.5 h-3.5 text-[var(--dank-accent)]" />
+                      <MessageCircle className="w-3.5 h-3.5 text-[var(--era-accent)]" />
                       {t.admin.openChatWithUser}
                     </button>
                   )}
@@ -2683,9 +2683,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
               {inspectedUser.uid !== currentAdminUid && (
                 <form
                   onSubmit={(e) => void handleSendDirectAlert(e)}
-                  className="p-4 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] space-y-2.5"
+                  className="p-4 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] space-y-2.5"
                 >
-                  <label className="block text-xs font-bold text-[var(--dank-text)]">
+                  <label className="block text-xs font-bold text-[var(--era-text)]">
                     {t.admin.directAlertLabel}
                   </label>
                   <div className="flex gap-2">
@@ -2696,12 +2696,12 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                       value={directAlertText}
                       onChange={(e) => setDirectAlertText(e.target.value)}
                       placeholder={t.admin.directAlertPlaceholder}
-                      className="flex-1 h-9 px-3 rounded-lg bg-[var(--dank-surface)] border border-[var(--dank-border)] text-xs text-[var(--dank-text)]"
+                      className="flex-1 h-9 px-3 rounded-lg bg-[var(--era-surface)] border border-[var(--era-border)] text-xs text-[var(--era-text)]"
                     />
                     <button
                       type="submit"
                       disabled={sendingAlert || !directAlertText.trim()}
-                      className="h-9 px-3.5 rounded-lg bg-[var(--dank-accent)] text-[var(--dank-accent-fg)] text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0"
+                      className="h-9 px-3.5 rounded-lg bg-[var(--era-accent)] text-[var(--era-accent-fg)] text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0"
                     >
                       <Send className="w-3.5 h-3.5" />
                       {t.admin.sendAlertBtn}
@@ -2712,7 +2712,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
 
               {/* Moderation & Delete Actions */}
               {inspectedUser.uid !== currentAdminUid && (
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[var(--dank-border)]">
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[var(--era-border)]">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <button
                       type="button"
@@ -2726,7 +2726,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                       onClick={() => void handleToggleBan(inspectedUser)}
                       className={`h-8 px-3 rounded-lg text-xs font-semibold cursor-pointer ${
                         inspectedUser.isBanned
-                          ? 'bg-[var(--dank-accent)] text-[var(--dank-accent-fg)]'
+                          ? 'bg-[var(--era-accent)] text-[var(--era-accent-fg)]'
                           : 'bg-red-600 text-white'
                       }`}
                     >

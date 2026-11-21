@@ -32,7 +32,7 @@ export const UserBadges: React.FC<UserBadgesProps> = ({
         <span
           title="Verified Account"
           aria-label="Verified Account"
-          className="inline-flex items-center justify-center shrink-0 dank-arcade-verified-badge"
+          className="inline-flex items-center justify-center shrink-0 era-arcade-verified-badge"
         >
           <svg
             viewBox="0 0 16 16"
@@ -66,7 +66,7 @@ export const UserBadges: React.FC<UserBadgesProps> = ({
             />
 
             {/* Blinking Neon White Pixel Checkmark (0.8s arcade bulb blink) */}
-            <g className="dank-arcade-verified-check" fill="#FFFFFF">
+            <g className="era-arcade-verified-check" fill="#FFFFFF">
               <rect x="3" y="8" width="2" height="2" />
               <rect x="4" y="9" width="2" height="2" />
               <rect x="5" y="10" width="2" height="2" />
@@ -83,9 +83,9 @@ export const UserBadges: React.FC<UserBadgesProps> = ({
 
       {isPlus && (
         <span
-          title="DANK Plus"
-          aria-label="DANK Plus"
-          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-[var(--dank-accent-soft)] border border-[var(--dank-accent-border)] text-[var(--dank-accent)] font-bold leading-none text-[9px] tracking-wide shrink-0"
+          title="ERA Plus"
+          aria-label="ERA Plus"
+          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-[var(--era-accent-soft)] border border-[var(--era-accent-border)] text-[var(--era-accent)] font-bold leading-none text-[9px] tracking-wide shrink-0"
         >
           <Sparkles className="w-2.5 h-2.5" />
           <span>PLUS</span>
@@ -94,12 +94,12 @@ export const UserBadges: React.FC<UserBadgesProps> = ({
 
       {isVip && (
         <span
-          title="DANK VIP (5+ Invites)"
-          aria-label="DANK VIP"
+          title="ERA VIP (5+ Invites)"
+          aria-label="ERA VIP"
           className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-black font-bold leading-none shadow-xs text-[9px] tracking-wide shrink-0"
         >
           <Crown className="w-2.5 h-2.5 stroke-[2.5]" />
-          <span>DANK VIP</span>
+          <span>ERA VIP</span>
         </span>
       )}
     </span>

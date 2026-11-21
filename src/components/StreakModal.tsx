@@ -11,9 +11,9 @@ import {
   X,
   Check,
 } from 'lucide-react';
-import type { ChatStreak, UserPublic, UserStreakInventory } from '../types/dank';
-import { buyExtraFreeze, ensureUserStreakInventory } from '../services/streakService';
-import { dankAudio } from '../utils/dankAudio';
+import type { ChatStreak, UserPublic, UserStreakInventory } from '../types/era';
+import { buyExtraFreeze, ensureUserStreakInventory, getLocalDayKey } from '../services/streakService';
+import { eraAudio } from '../utils/eraAudio';
 
 interface StreakModalProps {
   streak: ChatStreak | null;
@@ -78,6 +78,14 @@ export const StreakModal: React.FC<StreakModalProps> = ({
 
   const streakDays = streak?.streakCount || 0;
   const isGolden = Boolean(streak?.isGoldenTheme || streakDays >= 100);
+  const todayKey = getLocalDayKey(Date.now());
+  const isTodayCompleted = streak?.completedDayKey === todayKey;
+  const todaySenders = streak?.currentDayKey === todayKey ? streak?.daySenderIds || [] : [];
+  const iSentToday = todaySenders.includes(currentUser.uid);
+  const peerSentToday = todaySenders.includes(peerUser.uid);
+  const recentlyFrozen = Boolean(
+    streak?.frozenAt && Date.now() - streak.frozenAt.toMillis() < 48 * 3600 * 1000
+  );
 
   const handleBuyFreeze = async () => {
     if (buying) return;
@@ -86,8 +94,8 @@ export const StreakModal: React.FC<StreakModalProps> = ({
       const updated = await buyExtraFreeze(currentUser.uid);
       setInventory(updated);
       onInventoryUpdate?.(updated);
-      dankAudio.playArcadeStickerBleep();
-      onNotify('تم شراء تلجية إضافية بنجاح! ❄️ (خصم 50 نقطة دانك)');
+      eraAudio.playArcadeStickerBleep();
+      onNotify('تم شراء تلجية إضافية بنجاح! ❄️ (خصم 50 نقطة إيرا)');
     } catch (err) {
       onNotify(err instanceof Error ? err.message : 'تعذر شراء التلجية');
     } finally {
@@ -97,22 +105,22 @@ export const StreakModal: React.FC<StreakModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="w-full max-w-md rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] shadow-2xl overflow-hidden flex flex-col max-h-[92vh] text-[var(--dank-text)] animate-in fade-in zoom-in-95 duration-200">
+      <div className="w-full max-w-md rounded-2xl bg-[var(--era-surface)] border border-[var(--era-border)] shadow-2xl overflow-hidden flex flex-col max-h-[92vh] text-[var(--era-text)] animate-in fade-in zoom-in-95 duration-200">
         {/* Modal Header */}
-        <div className="bg-[var(--dank-canvas)] px-5 py-4 border-b border-[var(--dank-border)] flex items-center justify-between">
+        <div className="bg-[var(--era-canvas)] px-5 py-4 border-b border-[var(--era-border)] flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className={`w-8 h-8 rounded-lg flex items-center justify-center ${isGolden ? 'bg-amber-500/20 text-amber-400' : 'bg-orange-500/20 text-orange-400'}`}>
               <Flame className="w-5 h-5 fill-current animate-pulse" />
             </span>
             <div>
-              <h3 className="text-base font-extrabold">نظام السلسلة (Dank Streak)</h3>
-              <p className="text-[11px] text-[var(--dank-muted)]">مع {peerUser.name}</p>
+              <h3 className="text-base font-extrabold">نظام السلسلة (Era Streak)</h3>
+              <p className="text-[11px] text-[var(--era-muted)]">مع {peerUser.name}</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-lg hover:bg-[var(--dank-hover)] text-[var(--dank-muted)] hover:text-white flex items-center justify-center cursor-pointer"
+            className="w-8 h-8 rounded-lg hover:bg-[var(--era-hover)] text-[var(--era-muted)] hover:text-white flex items-center justify-center cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -123,8 +131,8 @@ export const StreakModal: React.FC<StreakModalProps> = ({
           {/* Main Streak Counter Card */}
           <div className={`p-5 rounded-2xl text-center relative overflow-hidden border ${
             isGolden
-              ? 'bg-gradient-to-b from-amber-950/40 via-[var(--dank-canvas)] to-amber-950/30 border-amber-500/50 shadow-[0_0_20px_rgba(245,158,11,0.2)]'
-              : 'bg-gradient-to-b from-orange-950/40 via-[var(--dank-canvas)] to-purple-950/20 border-orange-500/40 shadow-[0_0_20px_rgba(249,115,22,0.15)]'
+              ? 'bg-gradient-to-b from-amber-950/40 via-[var(--era-canvas)] to-amber-950/30 border-amber-500/50 shadow-[0_0_20px_rgba(245,158,11,0.2)]'
+              : 'bg-gradient-to-b from-orange-950/40 via-[var(--era-canvas)] to-purple-950/20 border-orange-500/40 shadow-[0_0_20px_rgba(249,115,22,0.15)]'
           }`}>
             <div className="inline-flex items-center justify-center p-3 rounded-full bg-black/40 border border-white/10 mb-2">
               <span className="text-4xl">{isGolden ? '👑' : '🔥'}</span>
@@ -132,25 +140,38 @@ export const StreakModal: React.FC<StreakModalProps> = ({
             <h2 className="text-3xl font-black tracking-wider text-white">
               {streakDays} <span className="text-lg font-bold text-orange-400">{streakDays === 1 ? 'يوم' : 'أيام'}</span>
             </h2>
-            <p className="text-xs text-[var(--dank-muted)] mt-1">
-              {streakDays > 0 ? 'السلسلة متصلة بنجاح بينكما!' : 'ابدأ السلسلة الآن بإرسال رسالة اليوم!'}
+            <p className="text-xs text-[var(--era-muted)] mt-1">
+              {isTodayCompleted
+                ? '✅ اكتملت سلسلة اليوم! أرسلتما لبعضكما بنجاح'
+                : iSentToday
+                ? `⏳ أرسلت رسالتك اليوم — بانتظار رسالة من ${peerUser.name} لتُحسب`
+                : peerSentToday
+                ? `🔥 ${peerUser.name} بعتلك النهاردة! ابعت رسالة الآن عشان اليوم يتحسب`
+                : '💬 السلسلة تتحسب لما الاتنين يبعتوا لبعض في نفس اليوم!'}
             </p>
 
+            {recentlyFrozen && (
+              <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/20 border border-cyan-400/40 text-[11px] font-bold text-cyan-300">
+                <Snowflake className="w-3.5 h-3.5" />
+                <span>التلجية اشتغلت تلقائياً وحمت السلسلة!</span>
+              </div>
+            )}
+
             {/* Countdown Badge */}
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/60 border border-[var(--dank-border)] text-xs font-mono font-bold text-orange-300 mt-3 tabular-nums">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/60 border border-[var(--era-border)] text-xs font-mono font-bold text-orange-300 mt-3 tabular-nums">
               <Clock className="w-3.5 h-3.5" />
               <span>متبقي: {timeLeftStr}</span>
             </div>
           </div>
 
           {/* 1. Freeze Section (التجميد) */}
-          <div className="p-4 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] space-y-3">
+          <div className="p-4 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] space-y-3">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <span className="w-7 h-7 rounded-lg bg-cyan-500/20 text-cyan-400 flex items-center justify-center">
                   <Snowflake className="w-4 h-4" />
                 </span>
-                <span className="text-xs font-bold text-[var(--dank-text)]">
+                <span className="text-xs font-bold text-[var(--era-text)]">
                   التجميد التلقائي (Streak Freeze)
                 </span>
               </div>
@@ -160,23 +181,23 @@ export const StreakModal: React.FC<StreakModalProps> = ({
               </span>
             </div>
 
-            <p className="text-[11px] text-[var(--dank-muted)] leading-relaxed">
+            <p className="text-[11px] text-[var(--era-muted)] leading-relaxed">
               تحصل على <strong className="text-cyan-300">1 تلجية مجانية كل أسبوع</strong>. إذا نسيت إرسال رسالة في يوم، تعمل التلجية تلقائياً لتحمي السلسلة وتمنع انقطاعها! ❄️
             </p>
 
-            {/* Dank Points & Buy Extra Freeze */}
-            <div className="pt-2 border-t border-[var(--dank-border)] flex items-center justify-between gap-2 flex-wrap">
+            {/* Era Points & Buy Extra Freeze */}
+            <div className="pt-2 border-t border-[var(--era-border)] flex items-center justify-between gap-2 flex-wrap">
               <div className="flex items-center gap-1.5 text-xs">
                 <Coins className="w-4 h-4 text-amber-400" />
-                <span className="text-[var(--dank-muted)]">رصيدك:</span>
+                <span className="text-[var(--era-muted)]">رصيدك:</span>
                 <span className="font-extrabold text-amber-300 tabular-nums">
-                  {inventory?.dankPoints ?? 100} نقطة
+                  {inventory?.eraPoints ?? 100} نقطة
                 </span>
               </div>
 
               <button
                 type="button"
-                disabled={buying || (inventory?.dankPoints ?? 100) < 50}
+                disabled={buying || (inventory?.eraPoints ?? 100) < 50}
                 onClick={() => void handleBuyFreeze()}
                 className="h-8 px-3 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold flex items-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
               >
@@ -186,72 +207,83 @@ export const StreakModal: React.FC<StreakModalProps> = ({
             </div>
           </div>
 
-          {/* 2. Celebration Milestones (الاحتفالات) */}
-          <div className="p-4 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] space-y-2.5">
+          {/* 2. Celebration Milestones (الاحتفالات: 7 / 14 / 30 / 50 / 100) */}
+          <div className="p-4 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] space-y-2.5">
             <div className="flex items-center gap-2">
-              <Award className="w-4 h-4 text-[var(--dank-accent)]" />
-              <h4 className="text-xs font-bold text-[var(--dank-text)]">
-                مكافآت واحتفالات السلسلة
+              <Award className="w-4 h-4 text-[var(--era-accent)]" />
+              <h4 className="text-xs font-bold text-[var(--era-text)]">
+                مكافآت واحتفالات السلسلة (7 / 14 / 30 / 50 / 100)
               </h4>
             </div>
 
             <div className="space-y-2 text-xs">
-              <div className={`p-2.5 rounded-xl border flex items-center justify-between gap-3 ${
-                streakDays >= 7
-                  ? 'bg-orange-500/10 border-orange-500/40 text-orange-200'
-                  : 'bg-[var(--dank-surface)] border-[var(--dank-border)] text-[var(--dank-muted)]'
-              }`}>
-                <div className="flex items-center gap-2">
-                  <span>🔥</span>
-                  <div>
-                    <p className="font-bold">7 أيام متواصلة</p>
-                    <p className="text-[10px] opacity-80">احتفال أركيد خاص في الشات</p>
+              {[
+                {
+                  days: 7,
+                  icon: '🔥',
+                  title: '7 أيام متواصلة',
+                  desc: 'احتفال أركيد خاص في الشات',
+                  activeBg: 'bg-orange-500/10 border-orange-500/40 text-orange-200',
+                  checkColor: 'text-orange-400',
+                },
+                {
+                  days: 14,
+                  icon: '⚡',
+                  title: '14 يوماً متواصلة',
+                  desc: 'احتفال الثنائي الناري في الشات',
+                  activeBg: 'bg-cyan-500/10 border-cyan-500/40 text-cyan-200',
+                  checkColor: 'text-cyan-400',
+                },
+                {
+                  days: 30,
+                  icon: '🎮',
+                  title: '30 يوم إيرا',
+                  desc: 'نور نيون للشاشة + ستيكر حصري باسميكما',
+                  activeBg: 'bg-pink-500/10 border-pink-500/40 text-pink-200',
+                  checkColor: 'text-pink-400',
+                },
+                {
+                  days: 50,
+                  icon: '💎',
+                  title: '50 يوم خارق',
+                  desc: 'احتفال أركيد نيون + ستيكر 50 يوم الحصري',
+                  activeBg: 'bg-purple-500/10 border-purple-500/40 text-purple-200',
+                  checkColor: 'text-purple-400',
+                },
+                {
+                  days: 100,
+                  icon: '👑',
+                  title: '100 يوم ذهبي',
+                  desc: 'ستيكر دهبي + ثيم أركيد ذهبي للشات بالكامل',
+                  activeBg: 'bg-amber-500/10 border-amber-500/40 text-amber-200',
+                  checkColor: 'text-amber-400',
+                },
+              ].map((m) => {
+                const unlocked = streakDays >= m.days;
+                return (
+                  <div
+                    key={m.days}
+                    className={`p-2.5 rounded-xl border flex items-center justify-between gap-3 ${
+                      unlocked
+                        ? m.activeBg
+                        : 'bg-[var(--era-surface)] border-[var(--era-border)] text-[var(--era-muted)]'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span>{m.icon}</span>
+                      <div>
+                        <p className="font-bold">{m.title}</p>
+                        <p className="text-[10px] opacity-80">{m.desc}</p>
+                      </div>
+                    </div>
+                    {unlocked ? (
+                      <Check className={`w-4 h-4 ${m.checkColor}`} />
+                    ) : (
+                      <span className="text-[10px] font-mono">قيد التقدم</span>
+                    )}
                   </div>
-                </div>
-                {streakDays >= 7 ? (
-                  <Check className="w-4 h-4 text-orange-400" />
-                ) : (
-                  <span className="text-[10px] font-mono">قيد التقدم</span>
-                )}
-              </div>
-
-              <div className={`p-2.5 rounded-xl border flex items-center justify-between gap-3 ${
-                streakDays >= 30
-                  ? 'bg-pink-500/10 border-pink-500/40 text-pink-200'
-                  : 'bg-[var(--dank-surface)] border-[var(--dank-border)] text-[var(--dank-muted)]'
-              }`}>
-                <div className="flex items-center gap-2">
-                  <span>🎮</span>
-                  <div>
-                    <p className="font-bold">30 يوم دانك</p>
-                    <p className="text-[10px] opacity-80">نور نيون للشاشة + ستيكر حصري باسميكما</p>
-                  </div>
-                </div>
-                {streakDays >= 30 ? (
-                  <Check className="w-4 h-4 text-pink-400" />
-                ) : (
-                  <span className="text-[10px] font-mono">قيد التقدم</span>
-                )}
-              </div>
-
-              <div className={`p-2.5 rounded-xl border flex items-center justify-between gap-3 ${
-                streakDays >= 100
-                  ? 'bg-amber-500/10 border-amber-500/40 text-amber-200'
-                  : 'bg-[var(--dank-surface)] border-[var(--dank-border)] text-[var(--dank-muted)]'
-              }`}>
-                <div className="flex items-center gap-2">
-                  <span>👑</span>
-                  <div>
-                    <p className="font-bold">100 يوم ذهبي</p>
-                    <p className="text-[10px] opacity-80">ستيكر دهبي + ثيم أركيد ذهبي للشات بالكامل</p>
-                  </div>
-                </div>
-                {streakDays >= 100 ? (
-                  <Check className="w-4 h-4 text-amber-400" />
-                ) : (
-                  <span className="text-[10px] font-mono">قيد التقدم</span>
-                )}
-              </div>
+                );
+              })}
             </div>
           </div>
 
@@ -265,11 +297,11 @@ export const StreakModal: React.FC<StreakModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-4 bg-[var(--dank-canvas)] border-t border-[var(--dank-border)] flex items-center justify-end">
+        <div className="p-4 bg-[var(--era-canvas)] border-t border-[var(--era-border)] flex items-center justify-end">
           <button
             type="button"
             onClick={onClose}
-            className="w-full h-10 rounded-xl bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-white text-xs font-bold transition-colors cursor-pointer"
+            className="w-full h-10 rounded-xl bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-white text-xs font-bold transition-colors cursor-pointer"
           >
             حسناً، فهمت
           </button>

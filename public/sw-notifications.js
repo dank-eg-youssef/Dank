@@ -12,13 +12,13 @@ self.addEventListener('push', (event) => {
   try {
     payload = event.data.json();
   } catch {
-    payload = { title: 'DANK', body: event.data.text() };
+    payload = { title: 'ERA', body: event.data.text() };
   }
-  const title = payload.title || 'DANK';
+  const title = payload.title || 'ERA';
   const options = {
     body: payload.body || '',
-    icon: '/pwa-192x192.png',
-    badge: '/pwa-192x192.png',
+    icon: '/icon.svg',
+    badge: '/icon.svg',
     data: { chatId: payload.chatId || '' },
   };
   event.waitUntil(self.registration.showNotification(title, options));
@@ -34,7 +34,7 @@ self.addEventListener('notificationclick', (event) => {
       for (const client of clientList) {
         if ('focus' in client) {
           client.focus();
-          client.postMessage({ type: 'DANK_OPEN_CHAT', chatId });
+          client.postMessage({ type: 'ERA_OPEN_CHAT', chatId });
           return;
         }
       }

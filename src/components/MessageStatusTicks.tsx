@@ -1,7 +1,7 @@
 import React from 'react';
 import { Check, CheckCheck } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
-import type { MessageStatus } from '../types/dank';
+import type { MessageStatus } from '../types/era';
 
 interface MessageStatusTicksProps {
   status?: MessageStatus | '';
@@ -27,10 +27,10 @@ export const MessageStatusTicks: React.FC<MessageStatusTicksProps> = ({
             inheritColor
               ? 'text-current'
               : onSpotifyBubble
-              ? 'text-[var(--dank-accent-fg)] opacity-65'
+              ? 'text-[var(--era-accent-fg)] opacity-65'
               : onDarkBubble
-              ? 'text-[var(--dank-muted)]'
-              : 'text-[var(--dank-muted)]'
+              ? 'text-[var(--era-muted)]'
+              : 'text-[var(--era-muted)]'
           }`}
         />
       </span>
@@ -45,10 +45,10 @@ export const MessageStatusTicks: React.FC<MessageStatusTicksProps> = ({
             inheritColor
               ? 'text-current'
               : onSpotifyBubble
-              ? 'text-[var(--dank-accent-fg)] opacity-65'
+              ? 'text-[var(--era-accent-fg)] opacity-65'
               : onDarkBubble
-              ? 'text-[var(--dank-muted)]'
-              : 'text-[var(--dank-muted)]'
+              ? 'text-[var(--era-muted)]'
+              : 'text-[var(--era-muted)]'
           }`}
         />
       </span>
@@ -62,8 +62,8 @@ export const MessageStatusTicks: React.FC<MessageStatusTicksProps> = ({
           inheritColor
             ? 'text-current'
             : onSpotifyBubble
-            ? 'text-[var(--dank-accent-fg)]'
-            : 'text-[var(--dank-accent)]'
+            ? 'text-[var(--era-accent-fg)]'
+            : 'text-[var(--era-accent)]'
         }`}
       />
     </span>

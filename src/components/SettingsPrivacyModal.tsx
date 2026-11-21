@@ -31,7 +31,7 @@ import type {
   BlockedUser,
   PrivacyVisibility,
   UserPublic,
-} from '../types/dank';
+} from '../types/era';
 import { formatChatTime, sanitizeUsername } from '../utils/timeFormat';
 
 interface SettingsPrivacyModalProps {
@@ -181,18 +181,18 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-[2px] flex items-center justify-center p-4">
-      <div className="w-full max-w-2xl max-h-[92vh] rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] shadow-2xl flex flex-col overflow-hidden">
+      <div className="w-full max-w-2xl max-h-[92vh] rounded-2xl bg-[var(--era-surface)] border border-[var(--era-border)] shadow-2xl flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="px-5 py-4 bg-[var(--dank-canvas)] text-[var(--dank-text)] flex items-center justify-between border-b border-[var(--dank-border)]">
+        <div className="px-5 py-4 bg-[var(--era-canvas)] text-[var(--era-text)] flex items-center justify-between border-b border-[var(--era-border)]">
           <div className="flex items-center gap-2.5">
-            <Shield className="w-5 h-5 text-[var(--dank-accent)]" />
+            <Shield className="w-5 h-5 text-[var(--era-accent)]" />
             <h3 className="text-base font-bold">{t.privacy.title}</h3>
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label={t.common.close}
-            className="w-8 h-8 rounded-lg hover:bg-[var(--dank-hover)] flex items-center justify-center cursor-pointer"
+            className="w-8 h-8 rounded-lg hover:bg-[var(--era-hover)] flex items-center justify-center cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -200,19 +200,19 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
 
         <div className="flex-1 overflow-y-auto p-5 space-y-6">
           {/* Privacy Assurance Banner */}
-          <div className="p-3.5 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-accent-border)] flex items-center gap-3">
-            <ShieldCheck className="w-5 h-5 text-[var(--dank-accent)] shrink-0" />
-            <p className="text-xs font-medium text-[var(--dank-text)] leading-relaxed">
+          <div className="p-3.5 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-accent-border)] flex items-center gap-3">
+            <ShieldCheck className="w-5 h-5 text-[var(--era-accent)] shrink-0" />
+            <p className="text-xs font-medium text-[var(--era-text)] leading-relaxed">
               {t.brand.privacyNotice}
             </p>
           </div>
 
           {/* Appearance & Language & Notifications */}
           <section className="space-y-3">
-            <div className="p-3.5 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] space-y-3">
+            <div className="p-3.5 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] space-y-3">
               <div className="flex items-center gap-2">
-                <Palette className="w-4 h-4 text-[var(--dank-accent)]" />
-                <span className="text-xs font-bold text-[var(--dank-text)]">
+                <Palette className="w-4 h-4 text-[var(--era-accent)]" />
+                <span className="text-xs font-bold text-[var(--era-text)]">
                   {t.theme.appearanceTitle}
                 </span>
               </div>
@@ -229,17 +229,17 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
                       }}
                       className={`p-2.5 rounded-xl border text-center flex items-center gap-3 transition-colors cursor-pointer ${
                         selected
-                          ? 'bg-[var(--dank-accent-soft)] border-[var(--dank-accent)]'
-                          : 'bg-[var(--dank-surface)] border-[var(--dank-border)] hover:bg-[var(--dank-hover)]'
+                          ? 'bg-[var(--era-accent-soft)] border-[var(--era-accent)]'
+                          : 'bg-[var(--era-surface)] border-[var(--era-border)] hover:bg-[var(--era-hover)]'
                       }`}
                     >
                       <span
-                        className="w-9 h-9 rounded-full border border-[var(--dank-border)] shrink-0 relative overflow-hidden"
+                        className="w-9 h-9 rounded-full border border-[var(--era-border)] shrink-0 relative overflow-hidden"
                         style={{
                           background: 'linear-gradient(135deg, #040409 42%, #A855F7 70%, #22D3EE 100%)',
                         }}
                       />
-                      <span className="text-xs font-semibold text-[var(--dank-text)] leading-tight">
+                      <span className="text-xs font-semibold text-[var(--era-text)] leading-tight">
                         {t.theme.arcade}
                       </span>
                     </button>
@@ -248,14 +248,14 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
               </div>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] space-y-3">
+            <div className="p-3.5 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] space-y-3">
               <div className="flex items-center gap-2">
-                <Palette className="w-4 h-4 text-[var(--dank-accent)]" />
-                <span className="text-xs font-bold text-[var(--dank-text)]">
+                <Palette className="w-4 h-4 text-[var(--era-accent)]" />
+                <span className="text-xs font-bold text-[var(--era-text)]">
                   الثيمات (Themes)
                 </span>
               </div>
-              <p className="text-[11px] text-[var(--dank-muted)]">
+              <p className="text-[11px] text-[var(--era-muted)]">
                 اختر لون نيون التطبيق (الشات، الأزرار، البروفايل، وكل مكان):
               </p>
               <div className="grid grid-cols-5 gap-2 pt-1">
@@ -272,8 +272,8 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
                       }}
                       className={`flex flex-col items-center gap-1.5 p-2 rounded-xl border transition-all cursor-pointer ${
                         active
-                          ? 'bg-[var(--dank-accent-soft)] border-[var(--dank-accent)] shadow-md'
-                          : 'bg-[var(--dank-surface)] border-[var(--dank-border)] hover:bg-[var(--dank-hover)]'
+                          ? 'bg-[var(--era-accent-soft)] border-[var(--era-accent)] shadow-md'
+                          : 'bg-[var(--era-surface)] border-[var(--era-border)] hover:bg-[var(--era-hover)]'
                       }`}
                     >
                       <span
@@ -282,7 +282,7 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
                       >
                         {active && <Check className="w-3.5 h-3.5 text-white drop-shadow" />}
                       </span>
-                      <span className="text-[10px] font-bold text-[var(--dank-text)] truncate">
+                      <span className="text-[10px] font-bold text-[var(--era-text)] truncate">
                         {language === 'ar' ? nc.labelAr : nc.labelEn}
                       </span>
                     </button>
@@ -291,10 +291,10 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
               </div>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] flex items-center justify-between gap-2">
+            <div className="p-3.5 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <Globe className="w-4 h-4 text-[var(--dank-accent)]" />
-                <span className="text-xs font-bold text-[var(--dank-text)]">
+                <Globe className="w-4 h-4 text-[var(--era-accent)]" />
+                <span className="text-xs font-bold text-[var(--era-text)]">
                   {t.common.language}
                 </span>
               </div>
@@ -304,8 +304,8 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
                   onClick={() => void handleLanguage('ar')}
                   className={`px-2.5 py-1 rounded-lg text-xs font-bold cursor-pointer ${
                     language === 'ar'
-                      ? 'bg-[var(--dank-accent)] text-[var(--dank-accent-fg)]'
-                      : 'bg-[var(--dank-surface)] text-[var(--dank-muted)]'
+                      ? 'bg-[var(--era-accent)] text-[var(--era-accent-fg)]'
+                      : 'bg-[var(--era-surface)] text-[var(--era-muted)]'
                   }`}
                 >
                   {t.common.arabic}
@@ -315,8 +315,8 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
                   onClick={() => void handleLanguage('en')}
                   className={`px-2.5 py-1 rounded-lg text-xs font-bold cursor-pointer ${
                     language === 'en'
-                      ? 'bg-[var(--dank-accent)] text-[var(--dank-accent-fg)]'
-                      : 'bg-[var(--dank-surface)] text-[var(--dank-muted)]'
+                      ? 'bg-[var(--era-accent)] text-[var(--era-accent-fg)]'
+                      : 'bg-[var(--era-surface)] text-[var(--era-muted)]'
                   }`}
                 >
                   {t.common.english}
@@ -329,9 +329,9 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
             <button
               type="button"
               onClick={onRequestNotifications}
-              className="w-full h-10 px-4 rounded-xl bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] border border-[var(--dank-border)] text-[var(--dank-text)] text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full h-10 px-4 rounded-xl bg-[var(--era-elevated)] hover:bg-[var(--era-hover)] border border-[var(--era-border)] text-[var(--era-text)] text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer"
             >
-              <Bell className="w-4 h-4 text-[var(--dank-accent)]" />
+              <Bell className="w-4 h-4 text-[var(--era-accent)]" />
               {t.sidebar.enableNotifications}
             </button>
           )}
@@ -339,20 +339,20 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
 
 
           {/* Privacy Controls */}
-          <section className="p-4 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] space-y-3">
-            <h4 className="text-sm font-bold text-[var(--dank-text)]">
+          <section className="p-4 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] space-y-3">
+            <h4 className="text-sm font-bold text-[var(--era-text)]">
               {t.privacy.privacySecurity}
             </h4>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-[11px] font-semibold text-[var(--dank-muted)] mb-1">
+                <label className="block text-[11px] font-semibold text-[var(--era-muted)] mb-1">
                   {t.privacy.whoSeesPhone}
                 </label>
                 <select
                   value={privacyPhone}
                   onChange={(e) => setPrivacyPhone(e.target.value as PrivacyVisibility)}
-                  className="w-full h-10 px-3 rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)] text-base text-[var(--dank-text)]"
+                  className="w-full h-10 px-3 rounded-xl bg-[var(--era-surface)] border border-[var(--era-border)] text-base text-[var(--era-text)]"
                 >
                   <option value="nobody">{t.privacy.nobody}</option>
                   <option value="contacts">{t.privacy.contacts}</option>
@@ -361,13 +361,13 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-[var(--dank-muted)] mb-1">
+                <label className="block text-[11px] font-semibold text-[var(--era-muted)] mb-1">
                   {t.privacy.whoSeesLastSeen}
                 </label>
                 <select
                   value={privacyLastSeen}
                   onChange={(e) => setPrivacyLastSeen(e.target.value as PrivacyVisibility)}
-                  className="w-full h-10 px-3 rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)] text-base text-[var(--dank-text)]"
+                  className="w-full h-10 px-3 rounded-xl bg-[var(--era-surface)] border border-[var(--era-border)] text-base text-[var(--era-text)]"
                 >
                   <option value="everyone">{t.privacy.everyone}</option>
                   <option value="contacts">{t.privacy.contacts}</option>
@@ -376,13 +376,13 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-[var(--dank-muted)] mb-1">
+                <label className="block text-[11px] font-semibold text-[var(--era-muted)] mb-1">
                   {t.privacy.whoSeesPhoto}
                 </label>
                 <select
                   value={privacyPhoto}
                   onChange={(e) => setPrivacyPhoto(e.target.value as PrivacyVisibility)}
-                  className="w-full h-10 px-3 rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)] text-base text-[var(--dank-text)]"
+                  className="w-full h-10 px-3 rounded-xl bg-[var(--era-surface)] border border-[var(--era-border)] text-base text-[var(--era-text)]"
                 >
                   <option value="everyone">{t.privacy.everyone}</option>
                   <option value="contacts">{t.privacy.contacts}</option>
@@ -391,13 +391,13 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-[var(--dank-muted)] mb-1">
+                <label className="block text-[11px] font-semibold text-[var(--era-muted)] mb-1">
                   {t.privacy.whoAddsGroups}
                 </label>
                 <select
                   value={privacyGroupAdd}
                   onChange={(e) => setPrivacyGroupAdd(e.target.value as 'everyone' | 'contacts')}
-                  className="w-full h-10 px-3 rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)] text-base text-[var(--dank-text)]"
+                  className="w-full h-10 px-3 rounded-xl bg-[var(--era-surface)] border border-[var(--era-border)] text-base text-[var(--era-text)]"
                 >
                   <option value="everyone">{t.privacy.everyone}</option>
                   <option value="contacts">{t.privacy.contacts}</option>
@@ -405,13 +405,13 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-[var(--dank-muted)] mb-1">
+                <label className="block text-[11px] font-semibold text-[var(--era-muted)] mb-1">
                   {t.privacy.whoCanCall}
                 </label>
                 <select
                   value={privacyCall}
                   onChange={(e) => setPrivacyCall(e.target.value as PrivacyVisibility)}
-                  className="w-full h-10 px-3 rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)] text-base text-[var(--dank-text)]"
+                  className="w-full h-10 px-3 rounded-xl bg-[var(--era-surface)] border border-[var(--era-border)] text-base text-[var(--era-text)]"
                 >
                   <option value="everyone">{t.privacy.everyone}</option>
                   <option value="contacts">{t.privacy.contacts}</option>
@@ -420,13 +420,13 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-[var(--dank-muted)] mb-1">
+                <label className="block text-[11px] font-semibold text-[var(--era-muted)] mb-1">
                   {t.privacy.whoCanMessage}
                 </label>
                 <select
                   value={privacyMessages}
                   onChange={(e) => setPrivacyMessages(e.target.value as 'everyone' | 'contacts')}
-                  className="w-full h-10 px-3 rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)] text-base text-[var(--dank-text)]"
+                  className="w-full h-10 px-3 rounded-xl bg-[var(--era-surface)] border border-[var(--era-border)] text-base text-[var(--era-text)]"
                 >
                   <option value="everyone">{t.privacy.everyone}</option>
                   <option value="contacts">{t.privacy.contacts}</option>
@@ -441,7 +441,7 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
                 value={exceptionsInput}
                 onChange={(e) => setExceptionsInput(e.target.value)}
                 placeholder={t.privacy.exceptionsPlaceholder}
-                className="w-full h-10 px-3 rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)] text-base text-[var(--dank-text)]"
+                className="w-full h-10 px-3 rounded-xl bg-[var(--era-surface)] border border-[var(--era-border)] text-base text-[var(--era-text)]"
               />
             </div>
 
@@ -449,7 +449,7 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
               type="button"
               disabled={savingPrivacy}
               onClick={() => void handleSavePrivacy()}
-              className="w-full h-10 rounded-xl bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+              className="w-full h-10 rounded-xl bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <Check className="w-4 h-4" />
               {savingPrivacy ? t.common.saving : t.profile.saveChanges}
@@ -457,19 +457,19 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
           </section>
 
           {/* Two-Step Verification */}
-          <section className="p-4 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] space-y-3">
+          <section className="p-4 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <KeyRound className="w-4 h-4 text-[var(--dank-accent)]" />
-                <h4 className="text-sm font-bold text-[var(--dank-text)]">
+                <KeyRound className="w-4 h-4 text-[var(--era-accent)]" />
+                <h4 className="text-sm font-bold text-[var(--era-text)]">
                   {t.privacy.twoStepTitle}
                 </h4>
               </div>
               <span
                 className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
                   privateProfile?.twoStepEnabled
-                    ? 'bg-[var(--dank-accent-soft)] text-[var(--dank-accent)]'
-                    : 'bg-[var(--dank-elevated)] text-[var(--dank-muted)]'
+                    ? 'bg-[var(--era-accent-soft)] text-[var(--era-accent)]'
+                    : 'bg-[var(--era-elevated)] text-[var(--era-muted)]'
                 }`}
               >
                 {privateProfile?.twoStepEnabled
@@ -477,13 +477,13 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
                   : t.privacy.twoStepDisabled}
               </span>
             </div>
-            <p className="text-[11px] text-[var(--dank-muted)]">
+            <p className="text-[11px] text-[var(--era-muted)]">
               {t.privacy.twoStepDesc}
             </p>
 
             {recoveryCode && (
-              <div className="p-3 rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)] text-[var(--dank-text)] space-y-1.5">
-                <p className="text-[11px] font-semibold text-[var(--dank-accent)]">
+              <div className="p-3 rounded-xl bg-[var(--era-surface)] border border-[var(--era-border)] text-[var(--era-text)] space-y-1.5">
+                <p className="text-[11px] font-semibold text-[var(--era-accent)]">
                   {t.privacy.recoveryCodeTitle}
                 </p>
                 <div className="flex items-center justify-between gap-2">
@@ -496,7 +496,7 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
                       void navigator.clipboard.writeText(recoveryCode);
                       onNotify(t.common.copied);
                     }}
-                    className="px-2.5 py-1 rounded-lg bg-[var(--dank-accent)] text-[var(--dank-accent-fg)] text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer"
+                    className="px-2.5 py-1 rounded-lg bg-[var(--era-accent)] text-[var(--era-accent-fg)] text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer"
                   >
                     <Copy className="w-3 h-3" />
                     {t.common.copy}
@@ -524,20 +524,20 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
                     value={twoStepPass}
                     onChange={(e) => setTwoStepPass(e.target.value)}
                     placeholder={t.privacy.passwordPlaceholder}
-                    className="h-10 px-3 rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)] text-base text-[var(--dank-text)]"
+                    className="h-10 px-3 rounded-xl bg-[var(--era-surface)] border border-[var(--era-border)] text-base text-[var(--era-text)]"
                   />
                   <input
                     type="text"
                     value={twoStepHint}
                     onChange={(e) => setTwoStepHint(e.target.value)}
                     placeholder={t.privacy.hintOptional}
-                    className="h-10 px-3 rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)] text-base text-[var(--dank-text)]"
+                    className="h-10 px-3 rounded-xl bg-[var(--era-surface)] border border-[var(--era-border)] text-base text-[var(--era-text)]"
                   />
                 </div>
                 <button
                   type="submit"
                   disabled={saving2fa || twoStepPass.trim().length < 4}
-                  className="h-10 px-4 rounded-xl bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] disabled:opacity-50 text-[var(--dank-accent-fg)] text-xs font-bold cursor-pointer"
+                  className="h-10 px-4 rounded-xl bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] disabled:opacity-50 text-[var(--era-accent-fg)] text-xs font-bold cursor-pointer"
                 >
                   {t.privacy.enableTwoStep}
                 </button>
@@ -546,26 +546,26 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
           </section>
 
           {/* Blocked Users */}
-          <section className="p-4 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] space-y-2.5">
+          <section className="p-4 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] space-y-2.5">
             <div className="flex items-center gap-2">
               <Ban className="w-4 h-4 text-red-500" />
-              <h4 className="text-sm font-bold text-[var(--dank-text)]">
+              <h4 className="text-sm font-bold text-[var(--era-text)]">
                 {t.privacy.blockedUsers} ({blockedUsers.length})
               </h4>
             </div>
             {blockedUsers.length === 0 ? (
-              <p className="text-xs text-[var(--dank-muted)]">
+              <p className="text-xs text-[var(--era-muted)]">
                 {t.privacy.noBlockedUsers}
               </p>
             ) : (
-              <div className="divide-y divide-[var(--dank-border)]">
+              <div className="divide-y divide-[var(--era-border)]">
                 {blockedUsers.map((b) => (
                   <div key={b.uid} className="py-2 flex items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="text-xs font-bold text-[var(--dank-text)] truncate">
+                      <p className="text-xs font-bold text-[var(--era-text)] truncate">
                         {b.name}
                       </p>
-                      <p className="text-[11px] text-[var(--dank-muted)] truncate">@{b.username}</p>
+                      <p className="text-[11px] text-[var(--era-muted)] truncate">@{b.username}</p>
                     </div>
                     <button
                       type="button"
@@ -574,7 +574,7 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
                           onNotify(t.privacy.unblockedSuccess)
                         )
                       }
-                      className="px-2.5 py-1 rounded-lg bg-[var(--dank-surface)] border border-[var(--dank-border)] text-xs font-semibold text-[var(--dank-text)] cursor-pointer"
+                      className="px-2.5 py-1 rounded-lg bg-[var(--era-surface)] border border-[var(--era-border)] text-xs font-semibold text-[var(--era-text)] cursor-pointer"
                     >
                       {t.privacy.unblockUser}
                     </button>
@@ -585,30 +585,30 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
           </section>
 
           {/* Active Sessions */}
-          <section className="p-4 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] space-y-2.5">
+          <section className="p-4 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] space-y-2.5">
             <div className="flex items-center gap-2">
-              <MonitorSmartphone className="w-4 h-4 text-[var(--dank-accent)]" />
-              <h4 className="text-sm font-bold text-[var(--dank-text)]">
+              <MonitorSmartphone className="w-4 h-4 text-[var(--era-accent)]" />
+              <h4 className="text-sm font-bold text-[var(--era-text)]">
                 {t.privacy.activeSessions} ({sessions.length})
               </h4>
             </div>
-            <div className="divide-y divide-[var(--dank-border)]">
+            <div className="divide-y divide-[var(--era-border)]">
               {sessions.map((s) => {
                 const isCurrent = s.id === sessionId;
                 return (
                   <div key={s.id} className="py-2 flex items-center justify-between gap-2">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-[var(--dank-text)] truncate">
+                        <span className="text-xs font-bold text-[var(--era-text)] truncate">
                           {s.deviceName}
                         </span>
                         {isCurrent && (
-                          <span className="px-1.5 py-0.5 rounded bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] text-[10px] font-bold">
+                          <span className="px-1.5 py-0.5 rounded bg-[var(--era-accent-soft)] text-[var(--era-accent)] text-[10px] font-bold">
                             {t.privacy.thisDevice}
                           </span>
                         )}
                       </div>
-                      <p className="text-[11px] text-[var(--dank-muted)] truncate">
+                      <p className="text-[11px] text-[var(--era-muted)] truncate">
                         {s.platform} · {formatChatTime(s.lastActiveAt)}
                       </p>
                     </div>
@@ -629,7 +629,7 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
           </section>
 
           {/* Footer Copyright */}
-          <p className="text-center text-xs font-medium text-[var(--dank-muted)] pt-1">
+          <p className="text-center text-xs font-medium text-[var(--era-muted)] pt-1">
             {t.brand.footerCopyright}
           </p>
         </div>

@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Forward, Search, X } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { forwardMessage } from '../services/chatService';
-import type { Chat, Message, UserPublic } from '../types/dank';
+import type { Chat, Message, UserPublic } from '../types/era';
 import { Avatar } from './Avatar';
 
 interface ForwardModalProps {
@@ -39,7 +39,7 @@ export const ForwardModal: React.FC<ForwardModalProps> = ({
       .filter((c) => {
         if (c.type === 'channel' && c.createdBy !== currentUser.uid) return false;
         if (c.type === 'private') {
-          if (c.id === `saved_${currentUser.uid}` || c.id.startsWith('dank_bot_')) return true;
+          if (c.id === `saved_${currentUser.uid}` || c.id.startsWith('era_bot_')) return true;
           const peerId = c.dmPeerIds?.find((id) => id !== currentUser.uid);
           if (!peerId || !friendIds.has(peerId)) return false;
         }
@@ -86,44 +86,44 @@ export const ForwardModal: React.FC<ForwardModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-[2px] flex items-center justify-center p-4">
-      <div className="w-full max-w-md rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] shadow-2xl overflow-hidden">
-        <div className="px-4 py-3 bg-[var(--dank-canvas)] text-[var(--dank-text)] flex items-center justify-between border-b border-[var(--dank-border)]">
+      <div className="w-full max-w-md rounded-2xl bg-[var(--era-surface)] border border-[var(--era-border)] shadow-2xl overflow-hidden">
+        <div className="px-4 py-3 bg-[var(--era-canvas)] text-[var(--era-text)] flex items-center justify-between border-b border-[var(--era-border)]">
           <div className="flex items-center gap-2">
-            <Forward className="w-4 h-4 text-[var(--dank-accent)]" />
+            <Forward className="w-4 h-4 text-[var(--era-accent)]" />
             <h3 className="text-sm font-bold">{t.telegram.forwardTo}</h3>
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label={t.common.close}
-            className="w-8 h-8 rounded-lg hover:bg-[var(--dank-hover)] flex items-center justify-center cursor-pointer"
+            className="w-8 h-8 rounded-lg hover:bg-[var(--era-hover)] flex items-center justify-center cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="p-3 border-b border-[var(--dank-border)]">
+        <div className="p-3 border-b border-[var(--era-border)]">
           <div className="relative">
-            <Search className="w-4 h-4 text-[var(--dank-muted)] absolute start-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-[var(--era-muted)] absolute start-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               dir="auto"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={t.common.search}
-              className="w-full h-10 ps-9 pe-3 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] text-base text-[var(--dank-text)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)]"
+              className="w-full h-10 ps-9 pe-3 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] text-base text-[var(--era-text)] focus:outline-none focus:ring-2 focus:ring-[var(--era-accent)]"
             />
           </div>
         </div>
 
-        <div className="max-h-80 overflow-y-auto divide-y divide-[var(--dank-border)]">
+        <div className="max-h-80 overflow-y-auto divide-y divide-[var(--era-border)]">
           {availableChats.map(({ chat, title, photo, specialType }) => (
             <button
               key={chat.id}
               type="button"
               disabled={sendingTo !== null}
               onClick={() => void handleForward(chat)}
-              className="w-full px-4 py-2.5 flex items-center gap-3 hover:bg-[var(--dank-hover)] transition-colors cursor-pointer text-start"
+              className="w-full px-4 py-2.5 flex items-center gap-3 hover:bg-[var(--era-hover)] transition-colors cursor-pointer text-start"
             >
               <Avatar
                 src={photo}
@@ -132,10 +132,10 @@ export const ForwardModal: React.FC<ForwardModalProps> = ({
                 chatType={chat.type}
                 specialType={specialType}
               />
-              <span dir="auto" className="flex-1 min-w-0 text-sm font-semibold text-[var(--dank-text)] truncate">
+              <span dir="auto" className="flex-1 min-w-0 text-sm font-semibold text-[var(--era-text)] truncate">
                 {title}
               </span>
-              <span className="text-xs font-semibold text-[var(--dank-accent)] shrink-0 whitespace-nowrap">
+              <span className="text-xs font-semibold text-[var(--era-accent)] shrink-0 whitespace-nowrap">
                 {sendingTo === chat.id ? t.common.saving : t.telegram.forward}
               </span>
             </button>

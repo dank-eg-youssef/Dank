@@ -31,7 +31,7 @@ import {
   removeFriend,
   sendFriendRequest,
 } from '../services/socialService';
-import type { AppLanguage, AppThemeId, FriendRequest, UserPublic } from '../types/dank';
+import type { AppLanguage, AppThemeId, FriendRequest, UserPublic } from '../types/era';
 import { compressImageFile } from '../utils/imageCompress';
 import { isUserActuallyOnline } from '../utils/timeFormat';
 import { Avatar } from './Avatar';
@@ -277,13 +277,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
   const renderLanguageAndThemeCard = () => (
     <div className="space-y-2.5">
-      <div className="p-3.5 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] space-y-2.5">
+      <div className="p-3.5 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] space-y-2.5">
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-xs font-bold text-[var(--dank-text)]">
-            <Globe className="w-4 h-4 text-[var(--dank-accent)]" />
+          <div className="flex items-center gap-2 text-xs font-bold text-[var(--era-text)]">
+            <Globe className="w-4 h-4 text-[var(--era-accent)]" />
             <span>{t.common.language}</span>
           </div>
-          <span className="text-[11px] font-medium text-[var(--dank-muted)]">
+          <span className="text-[11px] font-medium text-[var(--era-muted)]">
             {language === 'ar' ? t.common.arabic : t.common.english}
           </span>
         </div>
@@ -294,8 +294,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             onClick={() => void handleLanguageChange('ar')}
             className={`h-10 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border transition-colors cursor-pointer ${
               language === 'ar'
-                ? 'bg-[var(--dank-accent)] border-[var(--dank-accent)] text-[var(--dank-accent-fg)]'
-                : 'bg-[var(--dank-surface)] border-[var(--dank-border)] text-[var(--dank-text)]'
+                ? 'bg-[var(--era-accent)] border-[var(--era-accent)] text-[var(--era-accent-fg)]'
+                : 'bg-[var(--era-surface)] border-[var(--era-border)] text-[var(--era-text)]'
             }`}
           >
             {language === 'ar' && <Check className="w-3.5 h-3.5" />}
@@ -306,8 +306,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             onClick={() => void handleLanguageChange('en')}
             className={`h-10 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border transition-colors cursor-pointer ${
               language === 'en'
-                ? 'bg-[var(--dank-accent)] border-[var(--dank-accent)] text-[var(--dank-accent-fg)]'
-                : 'bg-[var(--dank-surface)] border-[var(--dank-border)] text-[var(--dank-text)]'
+                ? 'bg-[var(--era-accent)] border-[var(--era-accent)] text-[var(--era-accent-fg)]'
+                : 'bg-[var(--era-surface)] border-[var(--era-border)] text-[var(--era-text)]'
             }`}
           >
             {language === 'en' && <Check className="w-3.5 h-3.5" />}
@@ -316,13 +316,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         </div>
       </div>
 
-      <div className="p-3.5 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] space-y-3">
+      <div className="p-3.5 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] space-y-3">
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-xs font-bold text-[var(--dank-text)]">
-            <Palette className="w-4 h-4 text-[var(--dank-accent)]" />
+          <div className="flex items-center gap-2 text-xs font-bold text-[var(--era-text)]">
+            <Palette className="w-4 h-4 text-[var(--era-accent)]" />
             <span>{t.theme.appearanceTitle}</span>
           </div>
-          <span className="text-[11px] font-semibold text-[var(--dank-accent)]">
+          <span className="text-[11px] font-semibold text-[var(--era-accent)]">
             {getThemeLabel(theme)}
           </span>
         </div>
@@ -340,12 +340,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 }}
                 className={`p-2.5 rounded-xl border flex items-center gap-3 transition-colors cursor-pointer ${
                   active
-                    ? 'bg-[var(--dank-accent-soft)] border-[var(--dank-accent)]'
-                    : 'bg-[var(--dank-surface)] border-[var(--dank-border)] hover:border-[var(--dank-muted)]'
+                    ? 'bg-[var(--era-accent-soft)] border-[var(--era-accent)]'
+                    : 'bg-[var(--era-surface)] border-[var(--era-border)] hover:border-[var(--era-muted)]'
                 }`}
               >
                 <span
-                  className="relative w-9 h-9 rounded-full border border-[var(--dank-border)] shadow-sm overflow-hidden flex items-center justify-center shrink-0"
+                  className="relative w-9 h-9 rounded-full border border-[var(--era-border)] shadow-sm overflow-hidden flex items-center justify-center shrink-0"
                   style={{
                     background: 'linear-gradient(135deg, #040409 42%, #A855F7 70%, #22D3EE 100%)',
                   }}
@@ -356,7 +356,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     </span>
                   )}
                 </span>
-                <span className="text-xs font-semibold text-[var(--dank-text)] text-start leading-tight">
+                <span className="text-xs font-semibold text-[var(--era-text)] text-start leading-tight">
                   {getThemeLabel(opt.id)}
                 </span>
               </button>
@@ -369,8 +369,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="w-full max-w-lg rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] shadow-2xl overflow-hidden flex flex-col max-h-[92vh] text-[var(--dank-text)]">
-        <div className="bg-[var(--dank-canvas)] text-[var(--dank-text)] px-5 py-4 flex items-center justify-between shrink-0 border-b border-[var(--dank-border)]">
+      <div className="w-full max-w-lg rounded-2xl bg-[var(--era-surface)] border border-[var(--era-border)] shadow-2xl overflow-hidden flex flex-col max-h-[92vh] text-[var(--era-text)]">
+        <div className="bg-[var(--era-canvas)] text-[var(--era-text)] px-5 py-4 flex items-center justify-between shrink-0 border-b border-[var(--era-border)]">
           <div className="flex items-center gap-2 min-w-0">
             <h3 className="text-base font-semibold truncate">
               {editMode ? t.profile.editAccountTitle : `@${displayedUser.username}`}
@@ -391,8 +391,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 }}
                 className={`h-8 px-3 rounded-full text-xs font-semibold flex items-center gap-1.5 cursor-pointer ${
                   editMode
-                    ? 'bg-[var(--dank-accent)] text-[var(--dank-accent-fg)]'
-                    : 'bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)]'
+                    ? 'bg-[var(--era-accent)] text-[var(--era-accent-fg)]'
+                    : 'bg-[var(--era-elevated)] hover:bg-[var(--era-hover)] text-[var(--era-text)]'
                 }`}
               >
                 <Settings className="w-3.5 h-3.5" />
@@ -403,7 +403,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               type="button"
               onClick={onClose}
               aria-label={t.common.close}
-              className="w-9 h-9 rounded-full hover:bg-[var(--dank-hover)] flex items-center justify-center cursor-pointer"
+              className="w-9 h-9 rounded-full hover:bg-[var(--era-hover)] flex items-center justify-center cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -413,7 +413,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         {editMode && isOwnProfile ? (
           <form onSubmit={handleSave} className="p-5 space-y-4 overflow-y-auto">
             {/* Cover Photo Editor */}
-            <div className="relative h-28 rounded-xl overflow-hidden bg-[var(--dank-elevated)] border border-[var(--dank-border)]">
+            <div className="relative h-28 rounded-xl overflow-hidden bg-[var(--era-elevated)] border border-[var(--era-border)]">
               {coverURL?.trim() && (
                 <img src={coverURL.trim()} alt="" className="w-full h-full object-cover" />
               )}
@@ -429,7 +429,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 onClick={() => coverRef.current?.click()}
                 className="absolute bottom-2 end-2 h-8 px-3 rounded-lg bg-black/65 hover:bg-black/80 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
               >
-                <Camera className="w-3.5 h-3.5 text-[var(--dank-accent)]" />
+                <Camera className="w-3.5 h-3.5 text-[var(--era-accent)]" />
                 {t.profile.changeCover}
               </button>
             </div>
@@ -454,14 +454,14 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   type="button"
                   onClick={() => fileRef.current?.click()}
                   title={t.profile.profileTitle}
-                  className="absolute -bottom-1 -end-1 w-8 h-8 rounded-full bg-[var(--dank-accent)] text-[var(--dank-accent-fg)] flex items-center justify-center shadow-md hover:bg-[var(--dank-accent-hover)] cursor-pointer"
+                  className="absolute -bottom-1 -end-1 w-8 h-8 rounded-full bg-[var(--era-accent)] text-[var(--era-accent-fg)] flex items-center justify-center shadow-md hover:bg-[var(--era-accent-hover)] cursor-pointer"
                 >
                   <Camera className="w-4 h-4" />
                 </button>
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
-                  <p className="text-sm font-semibold text-[var(--dank-text)] truncate">
+                  <p className="text-sm font-semibold text-[var(--era-text)] truncate">
                     {profile.name}
                   </p>
                   <UserBadges
@@ -472,11 +472,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     size="sm"
                   />
                 </div>
-                <p dir="ltr" className="text-xs text-[var(--dank-accent)] truncate">
+                <p dir="ltr" className="text-xs text-[var(--era-accent)] truncate">
                   @{profile.username}
                 </p>
                 {privateProfile?.email && (
-                  <p dir="ltr" className="text-[11px] text-[var(--dank-muted)] truncate mt-0.5">
+                  <p dir="ltr" className="text-[11px] text-[var(--era-muted)] truncate mt-0.5">
                     {privateProfile.email}
                   </p>
                 )}
@@ -492,22 +492,22 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   onClose();
                   onOpenPrivacySettings();
                 }}
-                className="w-full h-10 px-4 rounded-xl bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] text-xs font-semibold flex items-center justify-between cursor-pointer"
+                className="w-full h-10 px-4 rounded-xl bg-[var(--era-elevated)] hover:bg-[var(--era-hover)] text-[var(--era-text)] text-xs font-semibold flex items-center justify-between cursor-pointer"
               >
                 <span className="flex items-center gap-2">
-                  <Shield className="w-4 h-4 text-[var(--dank-accent)]" />
+                  <Shield className="w-4 h-4 text-[var(--era-accent)]" />
                   {t.privacy.privacySecurity}
                 </span>
-                <span className="text-[var(--dank-accent)] text-[11px]">{t.common.open}</span>
+                <span className="text-[var(--era-accent)] text-[11px]">{t.common.open}</span>
               </button>
             )}
 
             <PWAInstallButton variant="card" />
 
-            <div className="p-3.5 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] space-y-2.5">
+            <div className="p-3.5 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] space-y-2.5">
               <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-[var(--dank-text)]">
-                  <Gift className="w-4 h-4 text-[var(--dank-accent)]" />
+                <div className="flex items-center gap-1.5 text-xs font-bold text-[var(--era-text)]">
+                  <Gift className="w-4 h-4 text-[var(--era-accent)]" />
                   <span>{t.profile.myInviteCode}</span>
                 </div>
                 {isVip ? (
@@ -516,17 +516,17 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     {t.profile.vipUnlocked}
                   </span>
                 ) : (
-                  <span className="text-[11px] font-semibold text-[var(--dank-muted)] tabular-nums">
+                  <span className="text-[11px] font-semibold text-[var(--era-muted)] tabular-nums">
                     {inviteCount} / 5 {t.profile.invitesSuffix}
                   </span>
                 )}
               </div>
 
               <div className="flex items-center gap-2">
-                <div className="flex-1 h-10 px-3 rounded-lg bg-[var(--dank-surface)] border border-[var(--dank-border)] flex items-center justify-between">
+                <div className="flex-1 h-10 px-3 rounded-lg bg-[var(--era-surface)] border border-[var(--era-border)] flex items-center justify-between">
                   <span
                     dir="ltr"
-                    className="text-sm font-bold tracking-wider text-[var(--dank-text)] tabular-nums"
+                    className="text-sm font-bold tracking-wider text-[var(--era-text)] tabular-nums"
                   >
                     {profile.inviteCode || t.profile.generating}
                   </span>
@@ -535,7 +535,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   type="button"
                   disabled={!profile.inviteCode}
                   onClick={() => void handleCopyInviteCode()}
-                  className="h-10 px-3.5 rounded-lg bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-xs font-bold flex items-center gap-1.5 shrink-0 disabled:opacity-50 cursor-pointer"
+                  className="h-10 px-3.5 rounded-lg bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] text-xs font-bold flex items-center gap-1.5 shrink-0 disabled:opacity-50 cursor-pointer"
                 >
                   {copiedCode ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                   {copiedCode ? t.common.copied : t.common.copy}
@@ -543,13 +543,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               </div>
 
               <div className="space-y-1">
-                <div className="h-1.5 w-full rounded-full bg-[var(--dank-elevated)] overflow-hidden">
+                <div className="h-1.5 w-full rounded-full bg-[var(--era-elevated)] overflow-hidden">
                   <div
                     style={{ width: `${vipProgress}%` }}
-                    className="h-full bg-gradient-to-r from-[var(--dank-accent)] to-amber-400 transition-all duration-300"
+                    className="h-full bg-gradient-to-r from-[var(--era-accent)] to-amber-400 transition-all duration-300"
                   />
                 </div>
-                <p className="text-[11px] text-[var(--dank-muted)]">
+                <p className="text-[11px] text-[var(--era-muted)]">
                   {isVip
                     ? `${t.profile.vipEarnedDescPrefix} ${inviteCount} ${t.profile.vipEarnedDescSuffix}`
                     : `${t.profile.inviteMorePrefix} ${Math.max(1, 5 - inviteCount)} ${
@@ -561,8 +561,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               </div>
 
               {!profile.invitedBy && (
-                <div className="pt-2 border-t border-[var(--dank-border)]">
-                  <label className="block text-[11px] font-medium text-[var(--dank-muted)] mb-1">
+                <div className="pt-2 border-t border-[var(--era-border)]">
+                  <label className="block text-[11px] font-medium text-[var(--era-muted)] mb-1">
                     {t.profile.haveFriendCode}
                   </label>
                   <div className="flex items-center gap-2">
@@ -571,15 +571,15 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                       dir="ltr"
                       value={friendCode}
                       onChange={(e) => setFriendCode(e.target.value.toUpperCase())}
-                      placeholder="DANK-XXXX"
+                      placeholder="ERA-XXXX"
                       maxLength={16}
-                      className="flex-1 h-10 px-3 rounded-lg bg-[var(--dank-surface)] border border-[var(--dank-border)] text-base text-[var(--dank-text)] uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)]"
+                      className="flex-1 h-10 px-3 rounded-lg bg-[var(--era-surface)] border border-[var(--era-border)] text-base text-[var(--era-text)] uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-[var(--era-accent)]"
                     />
                     <button
                       type="button"
                       disabled={redeeming || !friendCode.trim()}
                       onClick={() => void handleRedeemCode()}
-                      className="h-10 px-3 rounded-lg bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] text-xs font-semibold disabled:opacity-50 cursor-pointer"
+                      className="h-10 px-3 rounded-lg bg-[var(--era-elevated)] hover:bg-[var(--era-hover)] text-[var(--era-text)] text-xs font-semibold disabled:opacity-50 cursor-pointer"
                     >
                       {redeeming ? t.profile.applying : t.profile.apply}
                     </button>
@@ -589,7 +589,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-[var(--dank-muted)] mb-1">
+              <label className="block text-xs font-medium text-[var(--era-muted)] mb-1">
                 {t.profile.displayName}
               </label>
               <input
@@ -599,12 +599,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 maxLength={80}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full h-11 px-3.5 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] text-base text-[var(--dank-text)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)]"
+                className="w-full h-11 px-3.5 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] text-base text-[var(--era-text)] focus:outline-none focus:ring-2 focus:ring-[var(--era-accent)]"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-[var(--dank-muted)] mb-1">
+              <label className="block text-xs font-medium text-[var(--era-muted)] mb-1">
                 {t.profile.username}
               </label>
               <input
@@ -614,12 +614,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 maxLength={32}
                 value={username}
                 onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_.]/g, ''))}
-                className="w-full h-11 px-3.5 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] text-base text-[var(--dank-text)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)]"
+                className="w-full h-11 px-3.5 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] text-base text-[var(--era-text)] focus:outline-none focus:ring-2 focus:ring-[var(--era-accent)]"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-[var(--dank-muted)] mb-1">
+              <label className="block text-xs font-medium text-[var(--era-muted)] mb-1">
                 {t.profile.bio}
               </label>
               <textarea
@@ -629,7 +629,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
                 placeholder={t.profile.bioPlaceholder}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] text-base text-[var(--dank-text)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)] resize-none"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] text-base text-[var(--era-text)] focus:outline-none focus:ring-2 focus:ring-[var(--era-accent)] resize-none"
               />
             </div>
 
@@ -637,7 +637,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               <button
                 type="submit"
                 disabled={saving}
-                className="flex-1 h-11 rounded-xl bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] font-bold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-60 cursor-pointer"
+                className="flex-1 h-11 rounded-xl bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] font-bold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-60 cursor-pointer"
               >
                 <Save className="w-4 h-4" />
                 {saving ? t.common.saving : t.profile.saveChanges}
@@ -648,20 +648,20 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   onClose();
                   void logout();
                 }}
-                className="h-11 px-4 rounded-xl bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] text-sm font-medium flex items-center gap-2 transition-colors cursor-pointer"
+                className="h-11 px-4 rounded-xl bg-[var(--era-elevated)] hover:bg-[var(--era-hover)] text-[var(--era-text)] text-sm font-medium flex items-center gap-2 transition-colors cursor-pointer"
               >
-                <LogOut className="w-4 h-4 text-[var(--dank-accent)]" />
+                <LogOut className="w-4 h-4 text-[var(--era-accent)]" />
                 {t.profile.logout}
               </button>
             </div>
 
-            <p className="text-[11px] text-center text-[var(--dank-muted)] pt-1">
+            <p className="text-[11px] text-center text-[var(--era-muted)] pt-1">
               {t.brand.footerCopyright}
             </p>
           </form>
         ) : (
           <div className="flex-1 overflow-y-auto flex flex-col">
-            <div className="p-5 space-y-4 bg-[var(--dank-canvas)]/70 border-b border-[var(--dank-border)] shrink-0">
+            <div className="p-5 space-y-4 bg-[var(--era-canvas)]/70 border-b border-[var(--era-border)] shrink-0">
               <div className="flex items-center gap-4">
                 <Avatar
                   src={canSeePhoto ? displayedUser.photoURL : ''}
@@ -678,24 +678,24 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                       onClose();
                       onOpenFriendsManager();
                     }}
-                    className="flex-1 py-2.5 px-3 rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)] hover:border-[var(--dank-accent)] flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                    className="flex-1 py-2.5 px-3 rounded-xl bg-[var(--era-surface)] border border-[var(--era-border)] hover:border-[var(--era-accent)] flex items-center justify-center gap-2 transition-colors cursor-pointer"
                   >
-                    <Users className="w-4 h-4 text-[var(--dank-accent)]" />
-                    <span className="text-base font-bold text-[var(--dank-text)] tabular-nums">
+                    <Users className="w-4 h-4 text-[var(--era-accent)]" />
+                    <span className="text-base font-bold text-[var(--era-text)] tabular-nums">
                       {friendsCount}
                     </span>
-                    <span className="text-xs font-medium text-[var(--dank-muted)]">
+                    <span className="text-xs font-medium text-[var(--era-muted)]">
                       {friendsCount === 1 ? t.profile.friendSingular : t.profile.friendsPlural}
                     </span>
-                    <Lock className="w-3 h-3 text-[var(--dank-muted)]" />
+                    <Lock className="w-3 h-3 text-[var(--era-muted)]" />
                   </button>
                 ) : (
-                  <div className="flex-1 py-2.5 px-3 rounded-xl bg-[var(--dank-surface)] border border-[var(--dank-border)] flex items-center justify-center gap-2 select-none">
-                    <Users className="w-4 h-4 text-[var(--dank-accent)]" />
-                    <span className="text-base font-bold text-[var(--dank-text)] tabular-nums">
+                  <div className="flex-1 py-2.5 px-3 rounded-xl bg-[var(--era-surface)] border border-[var(--era-border)] flex items-center justify-center gap-2 select-none">
+                    <Users className="w-4 h-4 text-[var(--era-accent)]" />
+                    <span className="text-base font-bold text-[var(--era-text)] tabular-nums">
                       {friendsCount}
                     </span>
-                    <span className="text-xs font-medium text-[var(--dank-muted)]">
+                    <span className="text-xs font-medium text-[var(--era-muted)]">
                       {friendsCount === 1 ? t.profile.friendSingular : t.profile.friendsPlural}
                     </span>
                   </div>
@@ -704,7 +704,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
               <div>
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <h4 className="text-sm font-bold text-[var(--dank-text)]">
+                  <h4 className="text-sm font-bold text-[var(--era-text)]">
                     {displayedUser.name}
                   </h4>
                   <UserBadges
@@ -716,7 +716,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   />
                 </div>
                 {displayedUser.bio && (
-                  <p dir="auto" className="text-xs text-[var(--dank-muted)] mt-1 leading-relaxed">
+                  <p dir="auto" className="text-xs text-[var(--era-muted)] mt-1 leading-relaxed">
                     {displayedUser.bio}
                   </p>
                 )}
@@ -734,7 +734,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                               onStartChat(displayedUser);
                               onClose();
                             }}
-                            className="flex-1 h-9 rounded-xl bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+                            className="flex-1 h-9 rounded-xl bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
                           >
                             <MessageCircle className="w-3.5 h-3.5" />
                             {t.profile.messageBtn}
@@ -744,7 +744,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                           type="button"
                           disabled={friendBusy}
                           onClick={() => void handleUnfriend()}
-                          className="flex-1 h-9 rounded-xl bg-[var(--dank-elevated)] hover:bg-red-500/15 hover:text-red-500 text-[var(--dank-text)] text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
+                          className="flex-1 h-9 rounded-xl bg-[var(--era-elevated)] hover:bg-red-500/15 hover:text-red-500 text-[var(--era-text)] text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
                         >
                           <UserMinus className="w-3.5 h-3.5" />
                           {t.profile.unfriend}
@@ -756,7 +756,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                           type="button"
                           disabled={friendBusy}
                           onClick={() => void handleAcceptRequest()}
-                          className="flex-1 h-9 rounded-xl bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+                          className="flex-1 h-9 rounded-xl bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
                         >
                           <Check className="w-3.5 h-3.5" />
                           {t.profile.acceptRequest}
@@ -765,7 +765,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                           type="button"
                           disabled={friendBusy}
                           onClick={() => void handleRejectRequest()}
-                          className="flex-1 h-9 rounded-xl bg-[var(--dank-elevated)] hover:bg-red-500/15 hover:text-red-500 text-[var(--dank-text)] text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
+                          className="flex-1 h-9 rounded-xl bg-[var(--era-elevated)] hover:bg-red-500/15 hover:text-red-500 text-[var(--era-text)] text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
                         >
                           <X className="w-3.5 h-3.5" />
                           {t.profile.rejectRequest}
@@ -776,9 +776,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                         type="button"
                         disabled={friendBusy}
                         onClick={() => void handleCancelRequest()}
-                        className="flex-1 h-9 rounded-xl bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
+                        className="flex-1 h-9 rounded-xl bg-[var(--era-elevated)] hover:bg-[var(--era-hover)] text-[var(--era-text)] text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
                       >
-                        <Clock className="w-3.5 h-3.5 text-[var(--dank-accent)]" />
+                        <Clock className="w-3.5 h-3.5 text-[var(--era-accent)]" />
                         {t.profile.cancelRequest}
                       </button>
                     ) : (
@@ -786,7 +786,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                         type="button"
                         disabled={friendBusy}
                         onClick={() => void handleSendFriendRequest()}
-                        className="flex-1 h-9 rounded-xl bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+                        className="flex-1 h-9 rounded-xl bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
                       >
                         <UserPlus className="w-3.5 h-3.5" />
                         {t.profile.addFriend}
@@ -794,7 +794,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     )}
                   </div>
                   {!isFriend && (
-                    <p className="text-[11px] text-[var(--dank-muted)] text-center">
+                    <p className="text-[11px] text-[var(--era-muted)] text-center">
                       {t.profile.mustBeFriendsToMessage}
                     </p>
                   )}
@@ -802,16 +802,16 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               ) : (
                 <div className="space-y-3">
                   {/* Ghost Mode Toggle */}
-                  <div className="p-3 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] flex items-center justify-between gap-3">
+                  <div className="p-3 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-lg bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] flex items-center justify-center">
+                      <div className="w-8 h-8 rounded-lg bg-[var(--era-accent-soft)] text-[var(--era-accent)] flex items-center justify-center">
                         <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M9 10h.01M15 10h.01M12 2a8 8 0 0 0-8 8v12l3-2 2 2 3-2 3 2 2-2 3 2V10a8 8 0 0 0-8-8z"/>
                         </svg>
                       </div>
                       <div>
-                        <p className="text-xs font-bold text-[var(--dank-text)]">وضع الشبح (Ghost Mode)</p>
-                        <p className="text-[10px] text-[var(--dank-muted)]">إخفاء الاتصال، آخر ظهور، وعلامة القراءة</p>
+                        <p className="text-xs font-bold text-[var(--era-text)]">وضع الشبح (Ghost Mode)</p>
+                        <p className="text-[10px] text-[var(--era-muted)]">إخفاء الاتصال، آخر ظهور، وعلامة القراءة</p>
                       </div>
                     </div>
                     <button
@@ -822,7 +822,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                         onNotify(nextGhost ? 'تم تفعيل وضع الشبح 👻' : 'تم إيقاف وضع الشبح');
                       }}
                       className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        profile.ghostMode ? 'bg-[var(--dank-accent)]' : 'bg-[var(--dank-elevated)]'
+                        profile.ghostMode ? 'bg-[var(--era-accent)]' : 'bg-[var(--era-elevated)]'
                       }`}
                     >
                       <span
@@ -846,7 +846,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                         setCoverURL(profile.coverURL || '');
                         setEditMode(true);
                       }}
-                      className="flex-1 h-9 rounded-xl bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-xs font-semibold cursor-pointer"
+                      className="flex-1 h-9 rounded-xl bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] text-xs font-semibold cursor-pointer"
                     >
                       {t.profile.editProfileBtn}
                     </button>
@@ -857,7 +857,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                           onClose();
                           onOpenPrivacySettings();
                         }}
-                        className="h-9 px-3 rounded-xl bg-[var(--dank-accent-soft)] hover:bg-[var(--dank-accent-border)] text-[var(--dank-accent)] text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                        className="h-9 px-3 rounded-xl bg-[var(--era-accent-soft)] hover:bg-[var(--era-accent-border)] text-[var(--era-accent)] text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
                       >
                         <Shield className="w-3.5 h-3.5" />
                         {t.privacy.privacySecurity}
@@ -869,7 +869,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                         onClose();
                         void logout();
                       }}
-                      className="h-9 px-3 rounded-xl border border-[var(--dank-border)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                      className="h-9 px-3 rounded-xl border border-[var(--era-border)] hover:bg-[var(--era-hover)] text-[var(--era-text)] text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
                     >
                       <LogOut className="w-3.5 h-3.5" />
                       {t.profile.logout}

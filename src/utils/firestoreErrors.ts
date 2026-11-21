@@ -27,7 +27,7 @@ export interface FirestoreErrorInfo {
   };
 }
 
-const QUOTA_COOLDOWN_KEY = 'dank_firestore_quota_until';
+const QUOTA_COOLDOWN_KEY = 'era_firestore_quota_until';
 const DEFAULT_QUOTA_COOLDOWN_MS = 24 * 60 * 60_000; // 24 hours (entire day) when quota exceeded
 
 let quotaCooldownUntil = (() => {

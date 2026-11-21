@@ -33,11 +33,12 @@ import type {
   AdsBanner,
   Chat,
   ChatReminder,
+  ChatStreak,
   FriendRequest,
   TypingState,
   UserChatPref,
   UserPublic,
-} from '../types/dank';
+} from '../types/era';
 import { formatSidebarTime, isUserActuallyOnline, timestampToMs } from '../utils/timeFormat';
 import { Avatar } from './Avatar';
 import { MessageStatusTicks } from './MessageStatusTicks';
@@ -57,6 +58,7 @@ interface SidebarProps {
   chatPrefsById: Record<string, UserChatPref>;
   typingByChat: Record<string, TypingState[]>;
   remindersByChatId: Record<string, ChatReminder[]>;
+  streaksByChatId?: Record<string, ChatStreak>;
   adsBanner?: AdsBanner | null;
   activeChatId: string | null;
   searchQuery?: string;
@@ -82,6 +84,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   chatPrefsById,
   typingByChat,
   remindersByChatId,
+  streaksByChatId,
   adsBanner,
   activeChatId,
   searchQuery,
@@ -163,7 +166,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       canSeeOnline: false,
       isOnline: false,
       isAdmin: false,
-      isVerified: chat.id === 'dank_official' || chat.id === 'dank_team',
+      isVerified: chat.id === 'era_official' || chat.id === 'era_team',
       isVip: false,
       isPlus: false,
       specialType: undefined,
@@ -268,10 +271,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return (
       <div
         key={chat.id}
-        className={`dank-chat-card relative rounded-[20px] overflow-hidden border transition-colors duration-100 shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] ${
+        className={`era-chat-card relative rounded-[20px] overflow-hidden border transition-colors duration-100 shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] ${
           isActive
-            ? 'border-[var(--dank-accent)] ring-1 ring-[var(--dank-accent)] bg-[var(--dank-surface)]'
-            : 'border-[var(--dank-border)] bg-[var(--dank-surface)]'
+            ? 'border-[var(--era-accent)] ring-1 ring-[var(--era-accent)] bg-[var(--era-surface)]'
+            : 'border-[var(--era-border)] bg-[var(--era-surface)]'
         }`}
         onTouchStart={(e) => {
           const touch = e.touches[0];
@@ -336,7 +339,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 setSwipedChatId(null);
                 void setUserChatPref(currentUser.uid, chat.id, { archived: !isArchived });
               }}
-              className="px-3.5 bg-[var(--dank-accent)] text-[var(--dank-accent-fg)] text-[11px] font-bold flex flex-col items-center justify-center gap-0.5 cursor-pointer"
+              className="px-3.5 bg-[var(--era-accent)] text-[var(--era-accent-fg)] text-[11px] font-bold flex flex-col items-center justify-center gap-0.5 cursor-pointer"
             >
               {isArchived ? <ArchiveRestore className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
               <span>{isArchived ? t.telegram.unarchiveChat : t.telegram.archiveChat}</span>
@@ -378,8 +381,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             isSwiped ? '-translate-x-44 rtl:translate-x-44' : ''
           } ${
             isActive
-              ? 'bg-[var(--dank-hover)] text-[var(--dank-text)]'
-              : 'bg-[var(--dank-surface)] hover:bg-[var(--dank-hover)] active:bg-[var(--dank-elevated)] text-[var(--dank-text)]'
+              ? 'bg-[var(--era-hover)] text-[var(--era-text)]'
+              : 'bg-[var(--era-surface)] hover:bg-[var(--era-hover)] active:bg-[var(--era-elevated)] text-[var(--era-text)]'
           }`}
         >
           {disp.peer && onOpenProfile ? (
@@ -416,16 +419,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between gap-2">
               <div className="flex-1 flex items-center gap-1.5 min-w-0">
-                {chat.isSecret && <Lock className="w-3.5 h-3.5 text-[var(--dank-accent)] shrink-0" />}
+                {chat.isSecret && <Lock className="w-3.5 h-3.5 text-[var(--era-accent)] shrink-0" />}
                 {chat.type === 'group' && (
-                  <Users className="w-3.5 h-3.5 text-[var(--dank-accent)] shrink-0" />
+                  <Users className="w-3.5 h-3.5 text-[var(--era-accent)] shrink-0" />
                 )}
                 {chat.type === 'channel' && (
-                  <Megaphone className="w-3.5 h-3.5 text-[var(--dank-accent)] shrink-0" />
+                  <Megaphone className="w-3.5 h-3.5 text-[var(--era-accent)] shrink-0" />
                 )}
                 <span
                   dir="auto"
-                  className="min-w-0 text-[15px] font-semibold text-[var(--dank-text)] truncate"
+                  className="min-w-0 text-[15px] font-semibold text-[var(--era-text)] truncate"
                 >
                   {disp.title}
                 </span>
@@ -436,25 +439,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   isPlus={disp.isPlus}
                   size="xs"
                 />
-                {chat.type === 'private' && Boolean(chat.streakCount && chat.streakCount > 0) && (
-                  <span
-                    title={`سلسلة دانك: ${chat.streakCount} يوم`}
-                    className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-black shrink-0 ${
-                      chat.isGoldenTheme || (chat.streakCount ?? 0) >= 100
-                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/50 shadow-[0_0_8px_rgba(245,158,11,0.5)]'
-                        : 'bg-orange-500/15 text-orange-400 border border-orange-500/30'
-                    }`}
-                  >
-                    <span>🔥</span>
-                    <span className="tabular-nums">{chat.streakCount}</span>
-                  </span>
-                )}
+                {(() => {
+                  const st = streaksByChatId?.[chat.id];
+                  const count = st?.streakCount ?? chat.streakCount ?? 0;
+                  const golden = Boolean(
+                    st?.isGoldenTheme || chat.isGoldenTheme || count >= 100
+                  );
+                  if (chat.type !== 'private' || count <= 0) return null;
+                  return (
+                    <span
+                      title={`سلسلة إيرا: ${count} يوم`}
+                      className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-black shrink-0 ${
+                        golden
+                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/50 shadow-[0_0_8px_rgba(245,158,11,0.5)]'
+                          : 'bg-orange-500/15 text-orange-400 border border-orange-500/30'
+                      }`}
+                    >
+                      <span>🔥</span>
+                      <span className="tabular-nums">{count}</span>
+                    </span>
+                  );
+                })()}
               </div>
 
               <div className="flex items-center gap-1 shrink-0 whitespace-nowrap">
                 <span
                   className={`text-[11px] tabular-nums ${
-                    unread ? 'text-[var(--dank-accent)] font-semibold' : 'text-[var(--dank-muted)]'
+                    unread ? 'text-[var(--era-accent)] font-semibold' : 'text-[var(--era-muted)]'
                   }`}
                 >
                   {formatSidebarTime(chat.lastMessageAt || chat.updatedAt, language)}
@@ -469,13 +480,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 )}
 
                 {activeTypers.length > 0 ? (
-                  <span className="text-[13px] font-medium text-[var(--dank-accent)] truncate">
+                  <span className="text-[13px] font-medium text-[var(--era-accent)] truncate">
                     {chat.type === 'private'
                       ? t.sidebar.typing
                       : `${activeTypers[0].name.split(' ')[0]} ${t.sidebar.isTypingSuffix}`}
                   </span>
                 ) : (
-                  <span dir="auto" className="text-[13px] text-[var(--dank-muted)] truncate">
+                  <span dir="auto" className="text-[13px] text-[var(--era-muted)] truncate">
                     {disp.isOnline && chat.type === 'private' && !chat.lastMessageText ? (
                       t.time.online
                     ) : chat.lastMessageText ? (
@@ -508,15 +519,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       onOpenReminderModal(chat, disp.title);
                     }}
                     title={t.schedule.activeReminder}
-                    className="w-5 h-5 rounded-full bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] flex items-center justify-center cursor-pointer"
+                    className="w-5 h-5 rounded-full bg-[var(--era-accent-soft)] text-[var(--era-accent)] flex items-center justify-center cursor-pointer"
                   >
                     <AlarmClock className="w-3 h-3" />
                   </button>
                 )}
-                {isMuted && <BellOff className="w-3.5 h-3.5 text-[var(--dank-muted)] shrink-0" />}
-                {isPinned && <Pin className="w-3.5 h-3.5 text-[var(--dank-muted)] shrink-0" />}
+                {isMuted && <BellOff className="w-3.5 h-3.5 text-[var(--era-muted)] shrink-0" />}
+                {isPinned && <Pin className="w-3.5 h-3.5 text-[var(--era-muted)] shrink-0" />}
                 {unread && (
-                  <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-[var(--dank-accent)] text-[var(--dank-accent-fg)] text-[11px] font-bold flex items-center justify-center tabular-nums">
+                  <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-[var(--era-accent)] text-[var(--era-accent-fg)] text-[11px] font-bold flex items-center justify-center tabular-nums">
                     1
                   </span>
                 )}
@@ -529,25 +540,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   return (
-    <aside className="w-full md:w-[360px] lg:w-[390px] shrink-0 h-full min-h-0 overflow-hidden overscroll-none flex flex-col bg-[var(--dank-canvas)] md:border-e md:border-[var(--dank-border)]">
+    <aside className="w-full md:w-[360px] lg:w-[390px] shrink-0 h-full min-h-0 overflow-hidden overscroll-none flex flex-col bg-[var(--era-canvas)] md:border-e md:border-[var(--era-border)]">
       {/* Front Search Card (Independent from conversations) */}
-      <div className="px-3.5 pt-3 pb-1.5 shrink-0 dank-fixed-chrome">
-        <div className="relative rounded-[20px] bg-[var(--dank-surface)] border border-[var(--dank-border)] shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] flex items-center px-3.5 h-11 transition-[border-color,box-shadow] duration-150 focus-within:border-[var(--dank-accent)] focus-within:ring-1 focus-within:ring-[var(--dank-accent)]">
-          <Search className="w-4 h-4 text-[var(--dank-muted)] shrink-0 me-2.5" />
+      <div className="px-3.5 pt-3 pb-1.5 shrink-0 era-fixed-chrome">
+        <div className="relative rounded-[20px] bg-[var(--era-surface)] border border-[var(--era-border)] shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] flex items-center px-3.5 h-11 transition-[border-color,box-shadow] duration-150 focus-within:border-[var(--era-accent)] focus-within:ring-1 focus-within:ring-[var(--era-accent)]">
+          <Search className="w-4 h-4 text-[var(--era-muted)] shrink-0 me-2.5" />
           <input
             type="text"
             dir="auto"
             value={activeSearch}
             onChange={(e) => handleSearchChange(e.target.value)}
             placeholder={t.sidebar.searchPlaceholder}
-            className="flex-1 bg-transparent border-0 outline-none text-sm text-[var(--dank-text)] placeholder:text-[var(--dank-muted)] touch-manipulation select-text"
+            className="flex-1 bg-transparent border-0 outline-none text-sm text-[var(--era-text)] placeholder:text-[var(--era-muted)] touch-manipulation select-text"
           />
           {activeSearch && (
             <button
               type="button"
               onClick={() => handleSearchChange('')}
               aria-label={t.sidebar.clearSearch}
-              className="w-6 h-6 rounded-full hover:bg-[var(--dank-elevated)] text-[var(--dank-muted)] hover:text-[var(--dank-text)] flex items-center justify-center cursor-pointer transition-colors"
+              className="w-6 h-6 rounded-full hover:bg-[var(--era-elevated)] text-[var(--era-muted)] hover:text-[var(--era-text)] flex items-center justify-center cursor-pointer transition-colors"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -556,7 +567,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Main Chats List ONLY (GPU-Composited 60fps ScrollView) */}
-      <div className="flex-1 min-h-0 overflow-y-auto dank-scroll-list px-3.5 py-2 space-y-[12px]">
+      <div className="flex-1 min-h-0 overflow-y-auto era-scroll-list px-3.5 py-2 space-y-[12px]">
         {/* Admin Ads Banner */}
         {adsBanner?.enabled && (adsBanner.text || adsBanner.imageData) && (
           <div className="pt-0.5">
@@ -565,7 +576,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 href={safeAdHref}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="block rounded-[20px] bg-[var(--dank-surface)] text-[var(--dank-text)] border border-[var(--dank-accent-border)] shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] overflow-hidden hover:border-[var(--dank-accent)] transition-colors"
+                className="block rounded-[20px] bg-[var(--era-surface)] text-[var(--era-text)] border border-[var(--era-accent-border)] shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] overflow-hidden hover:border-[var(--era-accent)] transition-colors"
               >
                 {adsBanner.imageData?.trim() && (
                   <img
@@ -578,20 +589,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 )}
                 <div className="p-3 flex items-center justify-between gap-2">
                   <div className="min-w-0">
-                    <span className="text-[10px] font-bold text-[var(--dank-accent)]">
+                    <span className="text-[10px] font-bold text-[var(--era-accent)]">
                       {t.common.sponsored}
                     </span>
                     {adsBanner.text && (
-                      <p dir="auto" className="text-xs font-medium text-[var(--dank-text)] line-clamp-2 mt-0.5">
+                      <p dir="auto" className="text-xs font-medium text-[var(--era-text)] line-clamp-2 mt-0.5">
                         {adsBanner.text}
                       </p>
                     )}
                   </div>
-                  <ExternalLink className="w-4 h-4 text-[var(--dank-accent)] shrink-0" />
+                  <ExternalLink className="w-4 h-4 text-[var(--era-accent)] shrink-0" />
                 </div>
               </a>
             ) : (
-              <div className="rounded-[20px] bg-[var(--dank-surface)] text-[var(--dank-text)] border border-[var(--dank-accent-border)] shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] overflow-hidden">
+              <div className="rounded-[20px] bg-[var(--era-surface)] text-[var(--era-text)] border border-[var(--era-accent-border)] shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] overflow-hidden">
                 {adsBanner.imageData?.trim() && (
                   <img
                     src={adsBanner.imageData.trim()}
@@ -602,11 +613,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   />
                 )}
                 <div className="p-3">
-                  <span className="text-[10px] font-bold text-[var(--dank-accent)]">
+                  <span className="text-[10px] font-bold text-[var(--era-accent)]">
                     {t.common.sponsored}
                   </span>
                   {adsBanner.text && (
-                    <p dir="auto" className="text-xs font-medium text-[var(--dank-text)] line-clamp-2 mt-0.5">
+                    <p dir="auto" className="text-xs font-medium text-[var(--era-text)] line-clamp-2 mt-0.5">
                       {adsBanner.text}
                     </p>
                   )}
@@ -621,23 +632,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <button
             type="button"
             onClick={() => setShowArchivedFolder((prev) => !prev)}
-            className="w-full px-4 py-3.5 rounded-[20px] border border-[var(--dank-border)] shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] bg-[var(--dank-surface)] flex items-center justify-between gap-3 text-start hover:bg-[var(--dank-hover)] cursor-pointer transition-colors"
+            className="w-full px-4 py-3.5 rounded-[20px] border border-[var(--era-border)] shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] bg-[var(--era-surface)] flex items-center justify-between gap-3 text-start hover:bg-[var(--era-hover)] cursor-pointer transition-colors"
           >
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-full bg-[var(--dank-elevated)] text-[var(--dank-accent)] flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-full bg-[var(--era-elevated)] text-[var(--era-accent)] flex items-center justify-center shrink-0">
                 <Archive className="w-4.5 h-4.5" />
               </div>
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-[var(--dank-text)]">
+                <p className="text-sm font-semibold text-[var(--era-text)]">
                   {t.telegram.archivedChats}
                 </p>
-                <p className="text-xs text-[var(--dank-muted)] tabular-nums">{archivedChats.length}</p>
+                <p className="text-xs text-[var(--era-muted)] tabular-nums">{archivedChats.length}</p>
               </div>
             </div>
             {showArchivedFolder ? (
-              <ChevronUp className="w-4 h-4 text-[var(--dank-muted)]" />
+              <ChevronUp className="w-4 h-4 text-[var(--era-muted)]" />
             ) : (
-              <ChevronDown className="w-4 h-4 text-[var(--dank-muted)]" />
+              <ChevronDown className="w-4 h-4 text-[var(--era-muted)]" />
             )}
           </button>
         )}
@@ -645,9 +656,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {displayedChats.length === 0 &&
           discoverPeople.length === 0 &&
           discoverChannels.length === 0 && (
-            <div className="rounded-[20px] bg-[var(--dank-surface)] border border-[var(--dank-border)] shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] px-6 py-14 text-center my-4">
-              <p className="text-sm font-bold text-[var(--dank-text)]">{t.sidebar.noConversations}</p>
-              <p className="mt-1.5 text-xs text-[var(--dank-muted)] leading-relaxed">
+            <div className="rounded-[20px] bg-[var(--era-surface)] border border-[var(--era-border)] shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] px-6 py-14 text-center my-4">
+              <p className="text-sm font-bold text-[var(--era-text)]">{t.sidebar.noConversations}</p>
+              <p className="mt-1.5 text-xs text-[var(--era-muted)] leading-relaxed">
                 {t.sidebar.noConversationsDesc}
               </p>
             </div>
@@ -658,8 +669,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Search-Only People Discovery */}
         {discoverPeople.length > 0 && (
           <div className="pt-2 space-y-[12px]">
-            <div className="px-2 text-[11px] font-bold uppercase tracking-wider text-[var(--dank-muted)]">
-              {t.sidebar.peopleOnDank}
+            <div className="px-2 text-[11px] font-bold uppercase tracking-wider text-[var(--era-muted)]">
+              {t.sidebar.peopleOnEra}
             </div>
             {discoverPeople.map((person) => {
               const isFriend = friendIds.has(person.uid);
@@ -696,7 +707,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       }
                     }
                   }}
-                  className="w-full px-4 py-3 rounded-[20px] border border-[var(--dank-border)] shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] bg-[var(--dank-surface)] flex items-center gap-3 text-start hover:bg-[var(--dank-hover)] transition-colors cursor-pointer"
+                  className="w-full px-4 py-3 rounded-[20px] border border-[var(--era-border)] shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] bg-[var(--era-surface)] flex items-center gap-3 text-start hover:bg-[var(--era-hover)] transition-colors cursor-pointer"
                 >
                   {onOpenProfile ? (
                     <button
@@ -728,7 +739,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <div className="flex items-center gap-1.5 min-w-0">
                       <span
                         dir="auto"
-                        className="min-w-0 text-sm font-semibold text-[var(--dank-text)] truncate"
+                        className="min-w-0 text-sm font-semibold text-[var(--era-text)] truncate"
                       >
                         {person.name}
                       </span>
@@ -740,12 +751,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         size="xs"
                       />
                     </div>
-                    <div dir="ltr" className="text-xs text-[var(--dank-muted)] truncate text-start">
+                    <div dir="ltr" className="text-xs text-[var(--era-muted)] truncate text-start">
                       @{person.username}
                     </div>
                   </div>
                   {isFriend ? (
-                    <span className="text-xs font-bold text-[var(--dank-accent-fg)] bg-[var(--dank-accent)] px-3 py-1 rounded-full shrink-0 whitespace-nowrap">
+                    <span className="text-xs font-bold text-[var(--era-accent-fg)] bg-[var(--era-accent)] px-3 py-1 rounded-full shrink-0 whitespace-nowrap">
                       {t.common.chat}
                     </span>
                   ) : hasIncoming ? (
@@ -759,12 +770,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             onNotify(err instanceof Error ? err.message : t.errors.unexpected)
                           );
                       }}
-                      className="text-xs font-bold text-[var(--dank-accent-fg)] bg-[var(--dank-accent)] px-3 py-1 rounded-full shrink-0 whitespace-nowrap cursor-pointer"
+                      className="text-xs font-bold text-[var(--era-accent-fg)] bg-[var(--era-accent)] px-3 py-1 rounded-full shrink-0 whitespace-nowrap cursor-pointer"
                     >
                       {t.profile.acceptRequest}
                     </button>
                   ) : hasOutgoing ? (
-                    <span className="text-xs font-semibold text-[var(--dank-muted)] bg-[var(--dank-elevated)] px-3 py-1 rounded-full shrink-0 whitespace-nowrap">
+                    <span className="text-xs font-semibold text-[var(--era-muted)] bg-[var(--era-elevated)] px-3 py-1 rounded-full shrink-0 whitespace-nowrap">
                       {t.profile.friendRequestSent}
                     </span>
                   ) : (
@@ -784,7 +795,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             onNotify(err instanceof Error ? err.message : t.errors.unexpected)
                           );
                       }}
-                      className="text-xs font-bold text-[var(--dank-accent-fg)] bg-[var(--dank-accent)] px-3 py-1 rounded-full shrink-0 whitespace-nowrap cursor-pointer"
+                      className="text-xs font-bold text-[var(--era-accent-fg)] bg-[var(--era-accent)] px-3 py-1 rounded-full shrink-0 whitespace-nowrap cursor-pointer"
                     >
                       {t.profile.addFriend}
                     </button>
@@ -798,7 +809,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Search-Only Public Channels */}
         {discoverChannels.length > 0 && (
           <div className="pt-2 space-y-[12px]">
-            <div className="px-2 text-[11px] font-bold uppercase tracking-wider text-[var(--dank-muted)]">
+            <div className="px-2 text-[11px] font-bold uppercase tracking-wider text-[var(--era-muted)]">
               {t.sidebar.publicChannels}
             </div>
             {discoverChannels.map((ch) => (
@@ -806,7 +817,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 key={ch.id}
                 type="button"
                 onClick={() => onJoinPublicChannel(ch.id)}
-                className="w-full px-4 py-3 rounded-[20px] border border-[var(--dank-border)] shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] bg-[var(--dank-surface)] flex items-center gap-3 text-start hover:bg-[var(--dank-hover)] transition-colors cursor-pointer"
+                className="w-full px-4 py-3 rounded-[20px] border border-[var(--era-border)] shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.25)] bg-[var(--era-surface)] flex items-center gap-3 text-start hover:bg-[var(--era-hover)] transition-colors cursor-pointer"
               >
                 <Avatar
                   src={ch.photoURL}
@@ -815,14 +826,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   chatType="channel"
                 />
                 <div className="flex-1 min-w-0">
-                  <div dir="auto" className="text-sm font-semibold text-[var(--dank-text)] truncate">
+                  <div dir="auto" className="text-sm font-semibold text-[var(--era-text)] truncate">
                     {ch.name || t.common.channel}
                   </div>
-                  <div className="text-xs text-[var(--dank-muted)] truncate">
+                  <div className="text-xs text-[var(--era-muted)] truncate">
                     {ch.memberCount} {t.common.subscribers}
                   </div>
                 </div>
-                <span className="text-xs font-bold text-[var(--dank-accent-fg)] bg-[var(--dank-accent)] px-3 py-1 rounded-full shrink-0 whitespace-nowrap">
+                <span className="text-xs font-bold text-[var(--era-accent-fg)] bg-[var(--era-accent)] px-3 py-1 rounded-full shrink-0 whitespace-nowrap">
                   {t.common.join}
                 </span>
               </button>
@@ -839,16 +850,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-xs rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] shadow-2xl overflow-hidden"
+            className="w-full max-w-xs rounded-2xl bg-[var(--era-surface)] border border-[var(--era-border)] shadow-2xl overflow-hidden"
           >
-            <div className="px-4 py-3 bg-[var(--dank-surface)] text-[var(--dank-text)] border-b border-[var(--dank-border)] flex items-center justify-between">
+            <div className="px-4 py-3 bg-[var(--era-surface)] text-[var(--era-text)] border-b border-[var(--era-border)] flex items-center justify-between">
               <span dir="auto" className="text-sm font-bold truncate">
                 {contextMenuChat.title}
               </span>
               <button
                 type="button"
                 onClick={() => setContextMenuChat(null)}
-                className="p-1 hover:bg-[var(--dank-hover)] rounded-lg cursor-pointer"
+                className="p-1 hover:bg-[var(--era-hover)] rounded-lg cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -868,12 +879,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         setContextMenuChat(null);
                         void setUserChatPref(currentUser.uid, c.id, { pinned: !isPinned });
                       }}
-                      className="w-full px-3 py-2.5 rounded-xl flex items-center gap-3 text-sm font-medium text-[var(--dank-text)] hover:bg-[var(--dank-hover)] cursor-pointer"
+                      className="w-full px-3 py-2.5 rounded-xl flex items-center gap-3 text-sm font-medium text-[var(--era-text)] hover:bg-[var(--era-hover)] cursor-pointer"
                     >
                       {isPinned ? (
-                        <PinOff className="w-4 h-4 text-[var(--dank-accent)]" />
+                        <PinOff className="w-4 h-4 text-[var(--era-accent)]" />
                       ) : (
-                        <Pin className="w-4 h-4 text-[var(--dank-accent)]" />
+                        <Pin className="w-4 h-4 text-[var(--era-accent)]" />
                       )}
                       {isPinned ? t.telegram.unpinChat : t.telegram.pinChat}
                     </button>
@@ -884,10 +895,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         setContextMenuChat(null);
                         void setUserChatPref(currentUser.uid, c.id, { muted: !isMuted });
                       }}
-                      className="w-full px-3 py-2.5 rounded-xl flex items-center gap-3 text-sm font-medium text-[var(--dank-text)] hover:bg-[var(--dank-hover)] cursor-pointer"
+                      className="w-full px-3 py-2.5 rounded-xl flex items-center gap-3 text-sm font-medium text-[var(--era-text)] hover:bg-[var(--era-hover)] cursor-pointer"
                     >
                       {isMuted ? (
-                        <Bell className="w-4 h-4 text-[var(--dank-accent)]" />
+                        <Bell className="w-4 h-4 text-[var(--era-accent)]" />
                       ) : (
                         <BellOff className="w-4 h-4 text-amber-400" />
                       )}
@@ -900,12 +911,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         setContextMenuChat(null);
                         void setUserChatPref(currentUser.uid, c.id, { archived: !isArchived });
                       }}
-                      className="w-full px-3 py-2.5 rounded-xl flex items-center gap-3 text-sm font-medium text-[var(--dank-text)] hover:bg-[var(--dank-hover)] cursor-pointer"
+                      className="w-full px-3 py-2.5 rounded-xl flex items-center gap-3 text-sm font-medium text-[var(--era-text)] hover:bg-[var(--era-hover)] cursor-pointer"
                     >
                       {isArchived ? (
-                        <ArchiveRestore className="w-4 h-4 text-[var(--dank-accent)]" />
+                        <ArchiveRestore className="w-4 h-4 text-[var(--era-accent)]" />
                       ) : (
-                        <Archive className="w-4 h-4 text-[var(--dank-accent)]" />
+                        <Archive className="w-4 h-4 text-[var(--era-accent)]" />
                       )}
                       {isArchived ? t.telegram.unarchiveChat : t.telegram.archiveChat}
                     </button>
@@ -916,9 +927,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         setContextMenuChat(null);
                         onOpenReminderModal(c, contextMenuChat.title);
                       }}
-                      className="w-full px-3 py-2.5 rounded-xl flex items-center gap-3 text-sm font-medium text-[var(--dank-text)] hover:bg-[var(--dank-hover)] cursor-pointer"
+                      className="w-full px-3 py-2.5 rounded-xl flex items-center gap-3 text-sm font-medium text-[var(--era-text)] hover:bg-[var(--era-hover)] cursor-pointer"
                     >
-                      <AlarmClock className="w-4 h-4 text-[var(--dank-accent)]" />
+                      <AlarmClock className="w-4 h-4 text-[var(--era-accent)]" />
                       {t.schedule.remindMe}
                     </button>
 
@@ -928,9 +939,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         setContextMenuChat(null);
                         void setUserChatPref(currentUser.uid, c.id, { markRead: true });
                       }}
-                      className="w-full px-3 py-2.5 rounded-xl flex items-center gap-3 text-sm font-medium text-[var(--dank-text)] hover:bg-[var(--dank-hover)] cursor-pointer"
+                      className="w-full px-3 py-2.5 rounded-xl flex items-center gap-3 text-sm font-medium text-[var(--era-text)] hover:bg-[var(--era-hover)] cursor-pointer"
                     >
-                      <CheckCheck className="w-4 h-4 text-[var(--dank-accent)]" />
+                      <CheckCheck className="w-4 h-4 text-[var(--era-accent)]" />
                       {t.telegram.markAsRead}
                     </button>
 

@@ -1,16 +1,16 @@
 import type { StickerPack } from '../../utils/stickers';
 
 export const ARCADE_STICKER_PACK: StickerPack = {
-  id: 'dank_arcade_30',
-  nameEn: 'DANK Arcade 30',
-  nameAr: 'حزمة أركيد دانك (30)',
+  id: 'era_arcade_30',
+  nameEn: 'Era Arcade 30',
+  nameAr: 'حزمة أركيد إيرا (30)',
   badge: 'ARCADE',
   previewEmoji: '🎮',
   accent: '#A855F7',
   stickers: [
     {
       id: 'arc_gg',
-      packId: 'dank_arcade_30',
+      packId: 'era_arcade_30',
       labelEn: 'GG',
       labelAr: 'GG',
       emoji: '🎮',
@@ -21,7 +21,7 @@ export const ARCADE_STICKER_PACK: StickerPack = {
     },
     {
       id: 'arc_win',
-      packId: 'dank_arcade_30',
+      packId: 'era_arcade_30',
       labelEn: 'WIN',
       labelAr: 'فوز ساحق',
       emoji: '🏆',
@@ -32,7 +32,7 @@ export const ARCADE_STICKER_PACK: StickerPack = {
     },
     {
       id: 'arc_gameover',
-      packId: 'dank_arcade_30',
+      packId: 'era_arcade_30',
       labelEn: 'GAME OVER',
       labelAr: 'انتهت اللعبة',
       emoji: '💀',
@@ -43,7 +43,7 @@ export const ARCADE_STICKER_PACK: StickerPack = {
     },
     {
       id: 'arc_levelup',
-      packId: 'dank_arcade_30',
+      packId: 'era_arcade_30',
       labelEn: 'LEVEL UP',
       labelAr: 'مستوى جديد',
       emoji: '⚡',
@@ -54,7 +54,7 @@ export const ARCADE_STICKER_PACK: StickerPack = {
     },
     {
       id: 'arc_lol',
-      packId: 'dank_arcade_30',
+      packId: 'era_arcade_30',
       labelEn: 'LOL',
       labelAr: 'ضحك عالي',
       emoji: '😂',
@@ -64,19 +64,19 @@ export const ARCADE_STICKER_PACK: StickerPack = {
       taglineAr: 'ههههه',
     },
     {
-      id: 'arc_danklogo',
-      packId: 'dank_arcade_30',
-      labelEn: 'DANK',
-      labelAr: 'دانك الأسطوري',
+      id: 'arc_eralogo',
+      packId: 'era_arcade_30',
+      labelEn: 'ERA',
+      labelAr: 'إيرا الأسطوري',
       emoji: '👑',
       bg: 'from-[#120822] via-[#9333EA] to-[#22D3EE]',
       accent: '#22D3EE',
-      tagline: 'DANK CHAT',
-      taglineAr: 'دانك شات',
+      tagline: 'ERA CHAT',
+      taglineAr: 'إيرا شات',
     },
     {
       id: 'arc_fire',
-      packId: 'dank_arcade_30',
+      packId: 'era_arcade_30',
       labelEn: 'FIRE',
       labelAr: 'نار ولع',
       emoji: '🔥',
@@ -87,7 +87,7 @@ export const ARCADE_STICKER_PACK: StickerPack = {
     },
     {
       id: 'arc_neonheart',
-      packId: 'dank_arcade_30',
+      packId: 'era_arcade_30',
       labelEn: 'NEON HEART',
       labelAr: 'قلب نيون',
       emoji: '💖',
@@ -98,7 +98,7 @@ export const ARCADE_STICKER_PACK: StickerPack = {
     },
     {
       id: 'arc_laugh',
-      packId: 'dank_arcade_30',
+      packId: 'era_arcade_30',
       labelEn: 'ROFL',
       labelAr: 'موت ضحك',
       emoji: '🤣',
@@ -109,7 +109,7 @@ export const ARCADE_STICKER_PACK: StickerPack = {
     },
     {
       id: 'arc_sad',
-      packId: 'dank_arcade_30',
+      packId: 'era_arcade_30',
       labelEn: 'SAD',
       labelAr: 'زعلان حزين',
       emoji: '😢',
@@ -120,7 +120,7 @@ export const ARCADE_STICKER_PACK: StickerPack = {
     },
     {
       id: 'arc_angry',
-      packId: 'dank_arcade_30',
+      packId: 'era_arcade_30',
       labelEn: 'ANGRY',
       labelAr: 'متعصب وغاضب',
       emoji: '😡',
@@ -131,7 +131,7 @@ export const ARCADE_STICKER_PACK: StickerPack = {
     },
     {
       id: 'arc_boss',
-      packId: 'dank_arcade_30',
+      packId: 'era_arcade_30',
       labelEn: 'BOSS',
       labelAr: 'الزعيم',
       emoji: '👾',
@@ -142,7 +142,7 @@ export const ARCADE_STICKER_PACK: StickerPack = {
     },
     {
       id: 'arc_epic',
-      packId: 'dank_arcade_30',
+      packId: 'era_arcade_30',
       labelEn: 'EPIC',
       labelAr: 'أساطير',
       emoji: '🌟',
@@ -153,7 +153,7 @@ export const ARCADE_STICKER_PACK: StickerPack = {
     },
     {
       id: 'arc_rekt',
-      packId: 'dank_arcade_30',
+      packId: 'era_arcade_30',
       labelEn: 'REKT',
       labelAr: 'دُمِّر تماماً',
       emoji: '💥',
@@ -164,7 +164,7 @@ export const ARCADE_STICKER_PACK: StickerPack = {
     },
     {
       id: 'arc_afk',
-      packId: 'dank_arcade_30',
+      packId: 'era_arcade_30',
       labelEn: 'AFK',
       labelAr: 'مش موجود',
       emoji: '💤',
@@ -175,7 +175,7 @@ export const ARCADE_STICKER_PACK: StickerPack = {
     },
     {
       id: 'arc_noob',
-      packId: 'dank_arcade_30',
+      packId: 'era_arcade_30',
       labelEn: 'NOOB',
       labelAr: 'مبتدئ نوب',
       emoji: '🐣',
@@ -186,7 +186,7 @@ export const ARCADE_STICKER_PACK: StickerPack = {
     },
     {
       id: 'arc_pro',
-      packId: 'dank_arcade_30',
+      packId: 'era_arcade_30',
       labelEn: 'PRO',
       labelAr: 'محترف',
       emoji: '🎯',
@@ -197,7 +197,7 @@ export const ARCADE_STICKER_PACK: StickerPack = {
     },
     {
       id: 'arc_combo',
-      packId: 'dank_arcade_30',
+      packId: 'era_arcade_30',
       labelEn: 'COMBO X10',
       labelAr: 'كومبو 10x',
       emoji: '🔥',
@@ -208,7 +208,7 @@ export const ARCADE_STICKER_PACK: StickerPack = {
     },
     {
       id: 'arc_crit',
-      packId: 'dank_arcade_30',
+      packId: 'era_arcade_30',
       labelEn: 'CRIT!',
       labelAr: 'ضربة حاسمة',
       emoji: '⚡',
@@ -219,7 +219,7 @@ export const ARCADE_STICKER_PACK: StickerPack = {
     },
     {
       id: 'arc_hundred',
-      packId: 'dank_arcade_30',
+      packId: 'era_arcade_30',
       labelEn: '100%',
       labelAr: 'مية مية',
       emoji: '💯',
@@ -230,7 +230,7 @@ export const ARCADE_STICKER_PACK: StickerPack = {
     },
     {
       id: 'arc_ggs',
-      packId: 'dank_arcade_30',
+      packId: 'era_arcade_30',
       labelEn: 'GGS',
       labelAr: 'جيم جامد',
       emoji: '🤝',
@@ -241,7 +241,7 @@ export const ARCADE_STICKER_PACK: StickerPack = {
     },
     {
       id: 'arc_ready',
-      packId: 'dank_arcade_30',
+      packId: 'era_arcade_30',
       labelEn: 'READY?',
       labelAr: 'جاهز؟',
       emoji: '⏱️',
@@ -252,7 +252,7 @@ export const ARCADE_STICKER_PACK: StickerPack = {
     },
     {
       id: 'arc_fight',
-      packId: 'dank_arcade_30',
+      packId: 'era_arcade_30',
       labelEn: 'FIGHT!',
       labelAr: 'قاتل!',
       emoji: '🥊',
@@ -263,7 +263,7 @@ export const ARCADE_STICKER_PACK: StickerPack = {
     },
     {
       id: 'arc_victory',
-      packId: 'dank_arcade_30',
+      packId: 'era_arcade_30',
       labelEn: 'VICTORY',
       labelAr: 'فوز أسطوري',
       emoji: '👑',
@@ -274,7 +274,7 @@ export const ARCADE_STICKER_PACK: StickerPack = {
     },
     {
       id: 'arc_start',
-      packId: 'dank_arcade_30',
+      packId: 'era_arcade_30',
       labelEn: 'START',
       labelAr: 'ابدأ الآن',
       emoji: '▶️',
@@ -285,7 +285,7 @@ export const ARCADE_STICKER_PACK: StickerPack = {
     },
     {
       id: 'arc_save',
-      packId: 'dank_arcade_30',
+      packId: 'era_arcade_30',
       labelEn: 'SAVE POINT',
       labelAr: 'نقطة حفظ',
       emoji: '💾',
@@ -296,7 +296,7 @@ export const ARCADE_STICKER_PACK: StickerPack = {
     },
     {
       id: 'arc_shield',
-      packId: 'dank_arcade_30',
+      packId: 'era_arcade_30',
       labelEn: 'SHIELD UP',
       labelAr: 'درع الحماية',
       emoji: '🛡️',
@@ -307,7 +307,7 @@ export const ARCADE_STICKER_PACK: StickerPack = {
     },
     {
       id: 'arc_glitch',
-      packId: 'dank_arcade_30',
+      packId: 'era_arcade_30',
       labelEn: 'GLITCH',
       labelAr: 'خلل برمجى',
       emoji: '👾',
@@ -317,10 +317,10 @@ export const ARCADE_STICKER_PACK: StickerPack = {
       taglineAr: 'تخطّي النظام',
     },
     {
-      id: 'arc_dankplus',
-      packId: 'dank_arcade_30',
-      labelEn: 'DANK PLUS',
-      labelAr: 'دانك بلس',
+      id: 'arc_eraplus',
+      packId: 'era_arcade_30',
+      labelEn: 'ERA PLUS',
+      labelAr: 'إيرا بلس',
       emoji: '💎',
       bg: 'from-[#062A1F] via-[#0D9488] to-[#22D3EE]',
       accent: '#22D3EE',
@@ -329,13 +329,13 @@ export const ARCADE_STICKER_PACK: StickerPack = {
     },
     {
       id: 'arc_legend',
-      packId: 'dank_arcade_30',
+      packId: 'era_arcade_30',
       labelEn: 'LEGEND',
-      labelAr: 'أسطورة دانك',
+      labelAr: 'أسطورة إيرا',
       emoji: '🔥',
       bg: 'from-[#2A0845] via-[#A855F7] to-[#EC4899]',
       accent: '#F472B6',
-      tagline: 'DANK LEGEND',
+      tagline: 'ERA LEGEND',
       taglineAr: 'أسطورة حية',
     },
   ],

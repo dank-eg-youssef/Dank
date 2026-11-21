@@ -1,11 +1,11 @@
 import type { Timestamp } from 'firebase/firestore';
-import type { Message } from '../types/dank';
+import type { Message } from '../types/era';
 
 // In-memory cache retains full messages (including media) for instant switching within session
 const memoryMessageCache = new Map<string, Message[]>();
 
 const MAX_CACHED_MESSAGES = 30;
-const CACHE_PREFIX = 'dank_msg_cache_';
+const CACHE_PREFIX = 'era_msg_cache_';
 
 interface SerializedMessage extends Omit<Message, 'createdAt' | 'updatedAt' | 'expiresAt'> {
   createdAtMs: number | null;

@@ -16,7 +16,7 @@ import {
   LANG_STORAGE_KEY,
   type Translations,
 } from '../i18n';
-import type { AppLanguage } from '../types/dank';
+import type { AppLanguage } from '../types/era';
 import { useAuth } from './AuthContext';
 
 interface LanguageContextValue {

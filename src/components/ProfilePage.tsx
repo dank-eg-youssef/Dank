@@ -23,7 +23,7 @@ import {
   removeFriend,
   sendFriendRequest,
 } from '../services/socialService';
-import type { FriendRequest, UserPublic } from '../types/dank';
+import type { FriendRequest, UserPublic } from '../types/era';
 import { compressImageFile } from '../utils/imageCompress';
 import { formatLastSeen, isUserActuallyOnline } from '../utils/timeFormat';
 import { Avatar } from './Avatar';
@@ -208,14 +208,14 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   };
 
   return (
-    <div className="flex-1 h-full overflow-y-auto bg-[var(--dank-canvas)] text-[var(--dank-text)]">
+    <div className="flex-1 h-full overflow-y-auto bg-[var(--era-canvas)] text-[var(--era-text)]">
       <div className="max-w-2xl mx-auto pb-8">
         {/* Top Cover Banner */}
         <div
           className="relative h-40 sm:h-48 w-full overflow-hidden"
           style={{
             background:
-              'linear-gradient(135deg, var(--dank-surface) 0%, var(--dank-elevated) 55%, var(--dank-accent-soft) 100%)',
+              'linear-gradient(135deg, var(--era-surface) 0%, var(--era-elevated) 55%, var(--era-accent-soft) 100%)',
           }}
         >
           {user.coverURL?.trim() && (
@@ -225,7 +225,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               className="w-full h-full object-cover"
             />
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-[var(--dank-canvas)]/85 via-transparent to-black/30" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[var(--era-canvas)]/85 via-transparent to-black/30" />
 
           {/* Back / Settings top controls */}
           <div className="absolute top-3 inset-x-3 flex items-center justify-between">
@@ -258,7 +258,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                     onClick={() => coverInputRef.current?.click()}
                     className="h-9 px-3 rounded-full bg-black/55 hover:bg-black/75 text-white text-xs font-semibold flex items-center gap-1.5 backdrop-blur-xs cursor-pointer"
                   >
-                    <Camera className="w-3.5 h-3.5 text-[var(--dank-accent)]" />
+                    <Camera className="w-3.5 h-3.5 text-[var(--era-accent)]" />
                     <span>{uploadingCover ? t.common.saving : t.profile.changeCover}</span>
                   </button>
                   <button
@@ -276,10 +276,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         </div>
 
         {/* Profile Info Card */}
-        <div className="bg-[var(--dank-surface)] border-b border-[var(--dank-border)] px-4 sm:px-6 pb-5">
+        <div className="bg-[var(--era-surface)] border-b border-[var(--era-border)] px-4 sm:px-6 pb-5">
           <div className="flex items-end justify-between gap-3 -mt-10 relative z-10 flex-wrap">
             <div className="relative">
-              <div className="rounded-full p-1 bg-[var(--dank-surface)] shadow-lg">
+              <div className="rounded-full p-1 bg-[var(--era-surface)] shadow-lg">
                 <Avatar
                   src={canSeePhoto ? user.photoURL : ''}
                   name={user.name}
@@ -302,7 +302,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                     disabled={uploadingAvatar}
                     onClick={() => avatarInputRef.current?.click()}
                     aria-label={t.profile.editProfileBtn}
-                    className="absolute bottom-1 end-1 w-8 h-8 rounded-full bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] flex items-center justify-center ring-2 ring-[var(--dank-surface)] shadow-md cursor-pointer"
+                    className="absolute bottom-1 end-1 w-8 h-8 rounded-full bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] flex items-center justify-center ring-2 ring-[var(--era-surface)] shadow-md cursor-pointer"
                   >
                     <Camera className="w-3.5 h-3.5" />
                   </button>
@@ -316,7 +316,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 <button
                   type="button"
                   onClick={onOpenEditProfile}
-                  className="h-10 px-4 rounded-full bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-xs sm:text-sm font-bold transition-colors cursor-pointer"
+                  className="h-10 px-4 rounded-full bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] text-xs sm:text-sm font-bold transition-colors cursor-pointer"
                 >
                   {t.profile.editProfileBtn}
                 </button>
@@ -325,7 +325,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                   <button
                     type="button"
                     onClick={() => onStartChat(user)}
-                    className="h-10 px-4 rounded-full bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-xs sm:text-sm font-bold flex items-center gap-1.5 cursor-pointer"
+                    className="h-10 px-4 rounded-full bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] text-xs sm:text-sm font-bold flex items-center gap-1.5 cursor-pointer"
                   >
                     <MessageCircle className="w-4 h-4" />
                     {t.profile.messageBtn}
@@ -334,7 +334,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                     type="button"
                     disabled={friendBusy}
                     onClick={() => void handleUnfriend(user.uid)}
-                    className="h-10 px-3.5 rounded-full bg-[var(--dank-elevated)] hover:bg-red-500/15 hover:text-red-500 text-[var(--dank-text)] text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                    className="h-10 px-3.5 rounded-full bg-[var(--era-elevated)] hover:bg-red-500/15 hover:text-red-500 text-[var(--era-text)] text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
                   >
                     <UserMinus className="w-4 h-4" />
                     {t.profile.unfriend}
@@ -346,7 +346,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                     type="button"
                     disabled={friendBusy}
                     onClick={() => void handleAcceptRequest(user)}
-                    className="h-10 px-4 rounded-full bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-xs sm:text-sm font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    className="h-10 px-4 rounded-full bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] text-xs sm:text-sm font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                   >
                     <Check className="w-4 h-4" />
                     {t.profile.acceptRequest}
@@ -355,7 +355,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                     type="button"
                     disabled={friendBusy}
                     onClick={() => void handleRejectRequest(user.uid)}
-                    className="h-10 px-4 rounded-full bg-[var(--dank-elevated)] hover:bg-red-500/15 hover:text-red-500 text-[var(--dank-text)] text-xs sm:text-sm font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    className="h-10 px-4 rounded-full bg-[var(--era-elevated)] hover:bg-red-500/15 hover:text-red-500 text-[var(--era-text)] text-xs sm:text-sm font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                   >
                     <X className="w-4 h-4" />
                     {t.profile.rejectRequest}
@@ -366,9 +366,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                   type="button"
                   disabled={friendBusy}
                   onClick={() => void handleCancelRequest(user.uid)}
-                  className="h-10 px-4 rounded-full bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] text-xs sm:text-sm font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  className="h-10 px-4 rounded-full bg-[var(--era-elevated)] hover:bg-[var(--era-hover)] text-[var(--era-text)] text-xs sm:text-sm font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                 >
-                  <Clock className="w-4 h-4 text-[var(--dank-accent)]" />
+                  <Clock className="w-4 h-4 text-[var(--era-accent)]" />
                   {t.profile.cancelRequest}
                 </button>
               ) : (
@@ -376,7 +376,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                   type="button"
                   disabled={friendBusy}
                   onClick={() => void handleSendFriendRequest(user)}
-                  className="h-10 px-4 rounded-full bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                  className="h-10 px-4 rounded-full bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
                 >
                   <UserPlus className="w-4 h-4" />
                   {t.profile.addFriend}
@@ -388,7 +388,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           {/* Name, Username, Online Status (friends only), Bio */}
           <div className="mt-3 space-y-1">
             <div className="flex flex-wrap items-center gap-1.5">
-              <h2 dir="auto" className="text-xl font-extrabold text-[var(--dank-text)]">
+              <h2 dir="auto" className="text-xl font-extrabold text-[var(--era-text)]">
                 {user.name}
               </h2>
               <UserBadges
@@ -399,20 +399,20 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 size="sm"
               />
               {isFriend && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] text-[11px] font-bold">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[var(--era-accent-soft)] text-[var(--era-accent)] text-[11px] font-bold">
                   <UserCheck className="w-3 h-3" />
                   {t.profile.friendsBadge}
                 </span>
               )}
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <p dir="ltr" className="text-xs font-semibold text-[var(--dank-accent)] text-start">
+              <p dir="ltr" className="text-xs font-semibold text-[var(--era-accent)] text-start">
                 @{user.username}
               </p>
               {canSeeOnline && !isMe && (
                 <span
                   className={`text-xs font-medium ${
-                    isOnline ? 'text-[var(--dank-accent)]' : 'text-[var(--dank-muted)]'
+                    isOnline ? 'text-[var(--era-accent)]' : 'text-[var(--era-muted)]'
                   }`}
                 >
                   · {formatLastSeen(user.isOnline, user.lastSeen, language)}
@@ -420,7 +420,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               )}
             </div>
             {user.bio && (
-              <p dir="auto" className="text-sm text-[var(--dank-muted)] pt-1 leading-relaxed">
+              <p dir="auto" className="text-sm text-[var(--era-muted)] pt-1 leading-relaxed">
                 {user.bio}
               </p>
             )}
@@ -432,27 +432,27 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               <button
                 type="button"
                 onClick={() => setFriendsModalTab('friends')}
-                className="w-full py-3 px-4 rounded-2xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] hover:bg-[var(--dank-hover)] transition-colors flex items-center justify-between gap-3 cursor-pointer"
+                className="w-full py-3 px-4 rounded-2xl bg-[var(--era-canvas)] border border-[var(--era-border)] hover:bg-[var(--era-hover)] transition-colors flex items-center justify-between gap-3 cursor-pointer"
               >
                 <div className="flex items-center gap-2.5">
-                  <Users className="w-4 h-4 text-[var(--dank-accent)]" />
-                  <span className="text-base font-extrabold text-[var(--dank-text)] tabular-nums">
+                  <Users className="w-4 h-4 text-[var(--era-accent)]" />
+                  <span className="text-base font-extrabold text-[var(--era-text)] tabular-nums">
                     {friendsCount} {friendsCount === 1 ? t.profile.friendSingular : t.profile.friendsPlural}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
                   {incomingRequests.length > 0 && (
-                    <span className="px-2 py-0.5 rounded-full bg-[var(--dank-accent)] text-[var(--dank-accent-fg)] text-[11px] font-bold tabular-nums">
+                    <span className="px-2 py-0.5 rounded-full bg-[var(--era-accent)] text-[var(--era-accent-fg)] text-[11px] font-bold tabular-nums">
                       +{incomingRequests.length} {t.profile.incomingRequestsTitle}
                     </span>
                   )}
-                  <Lock className="w-3.5 h-3.5 text-[var(--dank-muted)]" />
+                  <Lock className="w-3.5 h-3.5 text-[var(--era-muted)]" />
                 </div>
               </button>
             ) : (
-              <div className="w-full py-3 px-4 rounded-2xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] flex items-center justify-center gap-2 select-none">
-                <Users className="w-4 h-4 text-[var(--dank-accent)]" />
-                <span className="text-base font-extrabold text-[var(--dank-text)] tabular-nums">
+              <div className="w-full py-3 px-4 rounded-2xl bg-[var(--era-canvas)] border border-[var(--era-border)] flex items-center justify-center gap-2 select-none">
+                <Users className="w-4 h-4 text-[var(--era-accent)]" />
+                <span className="text-base font-extrabold text-[var(--era-text)] tabular-nums">
                   {friendsCount} {friendsCount === 1 ? t.profile.friendSingular : t.profile.friendsPlural}
                 </span>
               </div>
@@ -460,7 +460,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           </div>
 
           {!isMe && !isFriend && (
-            <p className="mt-3 px-3 py-2 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] text-xs text-[var(--dank-muted)] text-center">
+            <p className="mt-3 px-3 py-2 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] text-xs text-[var(--era-muted)] text-center">
               {t.profile.mustBeFriendsToMessage}
             </p>
           )}
@@ -475,14 +475,14 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full sm:max-w-md max-h-[80vh] rounded-t-2xl sm:rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] shadow-2xl flex flex-col overflow-hidden"
+            className="w-full sm:max-w-md max-h-[80vh] rounded-t-2xl sm:rounded-2xl bg-[var(--era-surface)] border border-[var(--era-border)] shadow-2xl flex flex-col overflow-hidden"
           >
-            <div className="px-4 py-3.5 border-b border-[var(--dank-border)] flex items-center justify-between gap-2">
+            <div className="px-4 py-3.5 border-b border-[var(--era-border)] flex items-center justify-between gap-2">
               <div className="min-w-0">
-                <h3 className="text-sm font-bold text-[var(--dank-text)]">
+                <h3 className="text-sm font-bold text-[var(--era-text)]">
                   {t.profile.friendsModalTitle} ({friendIds.size})
                 </h3>
-                <p className="text-[11px] text-[var(--dank-muted)] truncate">
+                <p className="text-[11px] text-[var(--era-muted)] truncate">
                   {t.profile.privateFriendsNotice}
                 </p>
               </div>
@@ -490,20 +490,20 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 type="button"
                 onClick={() => setFriendsModalTab(null)}
                 aria-label={t.common.close}
-                className="w-8 h-8 rounded-lg hover:bg-[var(--dank-hover)] flex items-center justify-center text-[var(--dank-text)] cursor-pointer shrink-0"
+                className="w-8 h-8 rounded-lg hover:bg-[var(--era-hover)] flex items-center justify-center text-[var(--era-text)] cursor-pointer shrink-0"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="px-3 pt-2.5 pb-2 border-b border-[var(--dank-border)] grid grid-cols-3 gap-1.5">
+            <div className="px-3 pt-2.5 pb-2 border-b border-[var(--era-border)] grid grid-cols-3 gap-1.5">
               <button
                 type="button"
                 onClick={() => setFriendsModalTab('friends')}
                 className={`h-8 rounded-lg text-xs font-bold cursor-pointer transition-colors ${
                   friendsModalTab === 'friends'
-                    ? 'bg-[var(--dank-accent)] text-[var(--dank-accent-fg)]'
-                    : 'bg-[var(--dank-canvas)] text-[var(--dank-muted)]'
+                    ? 'bg-[var(--era-accent)] text-[var(--era-accent-fg)]'
+                    : 'bg-[var(--era-canvas)] text-[var(--era-muted)]'
                 }`}
               >
                 {t.profile.friendsCount} ({friendIds.size})
@@ -513,8 +513,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 onClick={() => setFriendsModalTab('incoming')}
                 className={`h-8 rounded-lg text-xs font-bold cursor-pointer transition-colors ${
                   friendsModalTab === 'incoming'
-                    ? 'bg-[var(--dank-accent)] text-[var(--dank-accent-fg)]'
-                    : 'bg-[var(--dank-canvas)] text-[var(--dank-muted)]'
+                    ? 'bg-[var(--era-accent)] text-[var(--era-accent-fg)]'
+                    : 'bg-[var(--era-canvas)] text-[var(--era-muted)]'
                 }`}
               >
                 {t.profile.incomingRequestsTitle} ({incomingRequests.length})
@@ -524,18 +524,18 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 onClick={() => setFriendsModalTab('sent')}
                 className={`h-8 rounded-lg text-xs font-bold cursor-pointer transition-colors ${
                   friendsModalTab === 'sent'
-                    ? 'bg-[var(--dank-accent)] text-[var(--dank-accent-fg)]'
-                    : 'bg-[var(--dank-canvas)] text-[var(--dank-muted)]'
+                    ? 'bg-[var(--era-accent)] text-[var(--era-accent-fg)]'
+                    : 'bg-[var(--era-canvas)] text-[var(--era-muted)]'
                 }`}
               >
                 {t.profile.sentRequestsTitle} ({outgoingRequests.length})
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto divide-y divide-[var(--dank-border-subtle)]">
+            <div className="flex-1 overflow-y-auto divide-y divide-[var(--era-border-subtle)]">
               {friendsModalTab === 'friends' && (
                 myFriendsList.length === 0 ? (
-                  <div className="py-12 px-4 text-center text-xs text-[var(--dank-muted)]">
+                  <div className="py-12 px-4 text-center text-xs text-[var(--era-muted)]">
                     {t.profile.noFriendsYet}
                   </div>
                 ) : (
@@ -565,7 +565,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                           />
                           <div className="min-w-0">
                             <div className="flex items-center gap-1 min-w-0">
-                              <span className="text-sm font-semibold text-[var(--dank-text)] truncate">
+                              <span className="text-sm font-semibold text-[var(--era-text)] truncate">
                                 {target.name}
                               </span>
                               <UserBadges
@@ -576,7 +576,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                                 size="xs"
                               />
                             </div>
-                            <p dir="ltr" className="text-xs text-[var(--dank-accent)] truncate text-start">
+                            <p dir="ltr" className="text-xs text-[var(--era-accent)] truncate text-start">
                               @{target.username}
                             </p>
                           </div>
@@ -590,7 +590,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                               onStartChat(target);
                             }}
                             aria-label={t.profile.messageBtn}
-                            className="h-8 px-2.5 rounded-lg bg-[var(--dank-accent)] text-[var(--dank-accent-fg)] text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                            className="h-8 px-2.5 rounded-lg bg-[var(--era-accent)] text-[var(--era-accent-fg)] text-xs font-semibold flex items-center gap-1 cursor-pointer"
                           >
                             <MessageCircle className="w-3.5 h-3.5" />
                           </button>
@@ -598,7 +598,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                             type="button"
                             disabled={friendBusy}
                             onClick={() => void handleUnfriend(target.uid)}
-                            className="h-8 px-2.5 rounded-lg bg-[var(--dank-elevated)] hover:bg-red-500/15 hover:text-red-500 text-xs font-semibold cursor-pointer"
+                            className="h-8 px-2.5 rounded-lg bg-[var(--era-elevated)] hover:bg-red-500/15 hover:text-red-500 text-xs font-semibold cursor-pointer"
                           >
                             {t.profile.unfriend}
                           </button>
@@ -611,7 +611,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
               {friendsModalTab === 'incoming' && (
                 incomingRequests.length === 0 ? (
-                  <div className="py-12 px-4 text-center text-xs text-[var(--dank-muted)]">
+                  <div className="py-12 px-4 text-center text-xs text-[var(--era-muted)]">
                     {t.profile.noRequestsYet}
                   </div>
                 ) : (
@@ -639,10 +639,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                             showOnlineDot={false}
                           />
                           <div className="min-w-0">
-                            <span className="text-sm font-semibold text-[var(--dank-text)] truncate block">
+                            <span className="text-sm font-semibold text-[var(--era-text)] truncate block">
                               {sender.name}
                             </span>
-                            <p dir="ltr" className="text-xs text-[var(--dank-accent)] truncate text-start">
+                            <p dir="ltr" className="text-xs text-[var(--era-accent)] truncate text-start">
                               @{sender.username}
                             </p>
                           </div>
@@ -652,7 +652,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                             type="button"
                             disabled={friendBusy}
                             onClick={() => void handleAcceptRequest(sender)}
-                            className="h-8 px-3 rounded-lg bg-[var(--dank-accent)] text-[var(--dank-accent-fg)] text-xs font-bold cursor-pointer"
+                            className="h-8 px-3 rounded-lg bg-[var(--era-accent)] text-[var(--era-accent-fg)] text-xs font-bold cursor-pointer"
                           >
                             {t.profile.acceptRequest}
                           </button>
@@ -660,7 +660,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                             type="button"
                             disabled={friendBusy}
                             onClick={() => void handleRejectRequest(sender.uid)}
-                            className="h-8 px-2.5 rounded-lg bg-[var(--dank-elevated)] hover:bg-red-500/15 hover:text-red-500 text-xs font-semibold cursor-pointer"
+                            className="h-8 px-2.5 rounded-lg bg-[var(--era-elevated)] hover:bg-red-500/15 hover:text-red-500 text-xs font-semibold cursor-pointer"
                           >
                             {t.profile.rejectRequest}
                           </button>
@@ -673,7 +673,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
               {friendsModalTab === 'sent' && (
                 outgoingRequests.length === 0 ? (
-                  <div className="py-12 px-4 text-center text-xs text-[var(--dank-muted)]">
+                  <div className="py-12 px-4 text-center text-xs text-[var(--era-muted)]">
                     {t.profile.noRequestsYet}
                   </div>
                 ) : (
@@ -701,10 +701,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                             showOnlineDot={false}
                           />
                           <div className="min-w-0">
-                            <span className="text-sm font-semibold text-[var(--dank-text)] truncate block">
+                            <span className="text-sm font-semibold text-[var(--era-text)] truncate block">
                               {recipient.name}
                             </span>
-                            <p dir="ltr" className="text-xs text-[var(--dank-accent)] truncate text-start">
+                            <p dir="ltr" className="text-xs text-[var(--era-accent)] truncate text-start">
                               @{recipient.username}
                             </p>
                           </div>
@@ -713,7 +713,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                           type="button"
                           disabled={friendBusy}
                           onClick={() => void handleCancelRequest(recipient.uid)}
-                          className="h-8 px-3 rounded-lg bg-[var(--dank-elevated)] text-xs font-semibold cursor-pointer shrink-0"
+                          className="h-8 px-3 rounded-lg bg-[var(--era-elevated)] text-xs font-semibold cursor-pointer shrink-0"
                         >
                           {t.profile.cancelRequest}
                         </button>

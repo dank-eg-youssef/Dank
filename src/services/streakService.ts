@@ -3,27 +3,74 @@ import {
   doc,
   getDoc,
   onSnapshot,
+  query,
   serverTimestamp,
   setDoc,
   Timestamp,
   updateDoc,
+  where,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import type { Chat, ChatStreak, UserPublic, UserStreakInventory } from '../types/dank';
+import type {
+  Chat,
+  ChatStreak,
+  StreakMilestone,
+  UserPublic,
+  UserStreakInventory,
+} from '../types/era';
 import { isFirestoreWritesPaused } from '../utils/firestoreErrors';
 import { createAppNotification } from './notificationService';
 import { saveUserSticker } from './chatService';
 
-const STREAK_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
 const STREAK_RESCUE_THRESHOLD_MS = 60 * 60 * 1000; // 1 hour
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
-const INVENTORY_STORAGE_KEY_PREFIX = 'dank_streak_inventory_';
+const INVENTORY_STORAGE_KEY_PREFIX = 'era_streak_inventory_';
+
+/**
+ * Formats a local calendar day key YYYY-MM-DD for a timestamp in ms.
+ */
+export function getLocalDayKey(ms: number): string {
+  const d = new Date(ms);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * Parses YYYY-MM-DD and adds `days` calendar days, returning YYYY-MM-DD.
+ */
+export function addDaysToDayKey(dayKey: string, days: number): string {
+  const [y, m, d] = dayKey.split('-').map(Number);
+  const dt = new Date(y, (m || 1) - 1, (d || 1) + days);
+  return getLocalDayKey(dt.getTime());
+}
+
+/**
+ * Exact integer calendar-day difference (toDayKey - fromDayKey).
+ */
+export function getDayDiff(fromDayKey: string, toDayKey: string): number {
+  const [y1, m1, d1] = fromDayKey.split('-').map(Number);
+  const [y2, m2, d2] = toDayKey.split('-').map(Number);
+  const utc1 = Date.UTC(y1, (m1 || 1) - 1, d1 || 1);
+  const utc2 = Date.UTC(y2, (m2 || 1) - 1, d2 || 1);
+  return Math.round((utc2 - utc1) / 86_400_000);
+}
+
+/**
+ * Returns local 23:59:59.999 timestamp in ms for `dayKey + addDays`.
+ */
+export function getEndOfDayMs(dayKey: string, addDays = 0): number {
+  const [y, m, d] = dayKey.split('-').map(Number);
+  const dt = new Date(y, (m || 1) - 1, (d || 1) + addDays, 23, 59, 59, 999);
+  return dt.getTime();
+}
 
 export function getLocalStreakInventory(uid: string): UserStreakInventory {
   const fallback: UserStreakInventory = {
     uid,
     freezesCount: 1, // 1 free weekly freeze by default
-    dankPoints: 100, // Initial welcome points balance
+    eraPoints: 100, // Initial welcome points balance
     lastWeeklyRefillAt: Timestamp.now(),
     updatedAt: Timestamp.now(),
   };
@@ -33,13 +80,20 @@ export function getLocalStreakInventory(uid: string): UserStreakInventory {
     const parsed = JSON.parse(raw) as {
       uid: string;
       freezesCount: number;
-      dankPoints: number;
+      eraPoints?: number;
+      dankPoints?: number;
       lastWeeklyRefillAtMs?: number | null;
     };
+    const resolvedPoints =
+      typeof parsed.eraPoints === 'number'
+        ? parsed.eraPoints
+        : typeof parsed.dankPoints === 'number'
+        ? parsed.dankPoints
+        : 100;
     return {
       uid: parsed.uid || uid,
       freezesCount: typeof parsed.freezesCount === 'number' ? parsed.freezesCount : 1,
-      dankPoints: typeof parsed.dankPoints === 'number' ? parsed.dankPoints : 100,
+      eraPoints: resolvedPoints,
       lastWeeklyRefillAt: parsed.lastWeeklyRefillAtMs
         ? Timestamp.fromMillis(parsed.lastWeeklyRefillAtMs)
         : Timestamp.now(),
@@ -57,11 +111,11 @@ export function saveLocalStreakInventory(inv: UserStreakInventory): void {
       JSON.stringify({
         uid: inv.uid,
         freezesCount: inv.freezesCount,
-        dankPoints: inv.dankPoints,
+        eraPoints: inv.eraPoints,
         lastWeeklyRefillAtMs: inv.lastWeeklyRefillAt?.toMillis?.() ?? Date.now(),
       })
     );
-    window.dispatchEvent(new CustomEvent('dank:streak-inventory-updated', { detail: inv.uid }));
+    window.dispatchEvent(new CustomEvent('era:streak-inventory-updated', { detail: inv.uid }));
   } catch {
     // ignore
   }
@@ -77,7 +131,7 @@ export async function ensureUserStreakInventory(uid: string): Promise<UserStreak
 
   let current = { ...local };
 
-  // Weekly Free Freeze refill logic
+  // Weekly Free Freeze refill logic (+1 every 7 days)
   if (!lastRefillMs || now - lastRefillMs >= WEEK_MS) {
     current.freezesCount = (current.freezesCount || 0) + 1;
     current.lastWeeklyRefillAt = Timestamp.now();
@@ -94,19 +148,37 @@ export async function ensureUserStreakInventory(uid: string): Promise<UserStreak
       await setDoc(invRef, {
         uid,
         freezesCount: current.freezesCount,
-        dankPoints: current.dankPoints,
+        eraPoints: current.eraPoints,
         lastWeeklyRefillAt: current.lastWeeklyRefillAt,
         updatedAt: serverTimestamp(),
       });
     } else {
-      const data = snap.data() as UserStreakInventory;
+      const data = snap.data() as Partial<UserStreakInventory> & { dankPoints?: number };
       const remoteLastRefillMs = data.lastWeeklyRefillAt?.toMillis?.() ?? 0;
       let nextFreezes = data.freezesCount ?? current.freezesCount;
-      let nextRefill = data.lastWeeklyRefillAt;
+      let nextRefill = data.lastWeeklyRefillAt || Timestamp.now();
+      const hasEraPoints = typeof data.eraPoints === 'number';
+      const resolvedPoints = hasEraPoints
+        ? (data.eraPoints as number)
+        : typeof data.dankPoints === 'number'
+        ? data.dankPoints
+        : current.eraPoints;
 
-      if (!remoteLastRefillMs || now - remoteLastRefillMs >= WEEK_MS) {
+      const needsRefill = !remoteLastRefillMs || now - remoteLastRefillMs >= WEEK_MS;
+      if (needsRefill) {
         nextFreezes += 1;
         nextRefill = Timestamp.now();
+      }
+
+      if (!hasEraPoints) {
+        await setDoc(invRef, {
+          uid,
+          freezesCount: nextFreezes,
+          eraPoints: resolvedPoints,
+          lastWeeklyRefillAt: nextRefill,
+          updatedAt: serverTimestamp(),
+        });
+      } else if (needsRefill) {
         await updateDoc(invRef, {
           freezesCount: nextFreezes,
           lastWeeklyRefillAt: nextRefill,
@@ -116,7 +188,7 @@ export async function ensureUserStreakInventory(uid: string): Promise<UserStreak
       current = {
         uid,
         freezesCount: nextFreezes,
-        dankPoints: data.dankPoints ?? current.dankPoints,
+        eraPoints: resolvedPoints,
         lastWeeklyRefillAt: nextRefill,
         updatedAt: Timestamp.now(),
       };
@@ -130,17 +202,17 @@ export async function ensureUserStreakInventory(uid: string): Promise<UserStreak
 }
 
 /**
- * Purchases 1 extra freeze for 50 Dank points.
+ * Purchases 1 extra freeze for 50 Era points.
  */
 export async function buyExtraFreeze(uid: string): Promise<UserStreakInventory> {
   const current = await ensureUserStreakInventory(uid);
-  if (current.dankPoints < 50) {
-    throw new Error('نقاط دانك غير كافية (تحتاج 50 نقطة لشراء تلجية إضافية)');
+  if (current.eraPoints < 50) {
+    throw new Error('نقاط إيرا غير كافية (تحتاج 50 نقطة لشراء تلجية إضافية)');
   }
 
   const updated: UserStreakInventory = {
     ...current,
-    dankPoints: current.dankPoints - 50,
+    eraPoints: current.eraPoints - 50,
     freezesCount: current.freezesCount + 1,
     updatedAt: Timestamp.now(),
   };
@@ -151,7 +223,7 @@ export async function buyExtraFreeze(uid: string): Promise<UserStreakInventory> 
     try {
       const invRef = doc(db, 'users_private', uid, 'streak_inventory', 'main');
       await updateDoc(invRef, {
-        dankPoints: updated.dankPoints,
+        eraPoints: updated.eraPoints,
         freezesCount: updated.freezesCount,
         updatedAt: serverTimestamp(),
       });
@@ -164,7 +236,7 @@ export async function buyExtraFreeze(uid: string): Promise<UserStreakInventory> 
 }
 
 /**
- * Generates an exclusive SVG Sticker data URL for 30 or 100 days streak milestone.
+ * Generates an exclusive SVG Sticker data URL for 30, 50, or 100 days streak milestone.
  */
 export function generateMilestoneStickerSvg(params: {
   days: number;
@@ -176,11 +248,8 @@ export function generateMilestoneStickerSvg(params: {
   const name1 = (user1Name || 'الصديق 1').slice(0, 16);
   const name2 = (user2Name || 'الصديق 2').slice(0, 16);
 
-  const mainColor = isGolden ? '#f59e0b' : '#ec4899';
+  const mainColor = isGolden ? '#f59e0b' : days >= 50 ? '#a855f7' : '#ec4899';
   const secondaryColor = isGolden ? '#fbbf24' : '#22d3ee';
-  const glowFilter = isGolden
-    ? 'drop-shadow(0 0 12px rgba(245, 158, 11, 0.8))'
-    : 'drop-shadow(0 0 12px rgba(236, 72, 153, 0.8))';
 
   const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400">
@@ -210,11 +279,11 @@ export function generateMilestoneStickerSvg(params: {
 
   <!-- Center Flame Badge -->
   <circle cx="200" cy="120" r="48" fill="#040409" stroke="url(#neonGrad)" stroke-width="3" filter="url(#neonGlow)" />
-  <text x="200" y="138" font-size="52" text-anchor="middle">${isGolden ? '👑' : '🔥'}</text>
+  <text x="200" y="138" font-size="52" text-anchor="middle">${isGolden ? '👑' : days >= 50 ? '⚡' : '🔥'}</text>
 
   <!-- Title -->
   <text x="200" y="215" font-family="'Cairo', sans-serif" font-weight="900" font-size="34" fill="#ffffff" text-anchor="middle" filter="url(#neonGlow)">
-    ${days} يوم دانك
+    ${days} يوم إيرا
   </text>
 
   <!-- Tagline -->
@@ -230,7 +299,7 @@ export function generateMilestoneStickerSvg(params: {
 
   <!-- Footer Brand -->
   <text x="200" y="355" font-family="'Courier New', monospace" font-size="12" font-weight="bold" fill="#a5b4fc" text-anchor="middle" letter-spacing="3">
-    DANK ARCADE STREAK
+    ERA ARCADE STREAK
   </text>
 </svg>
 `.trim();
@@ -239,7 +308,7 @@ export function generateMilestoneStickerSvg(params: {
 }
 
 /**
- * Subscribes to real-time chat streak changes.
+ * Subscribes to real-time chat streak changes for a single chat.
  */
 export function subscribeChatStreak(
   chatId: string,
@@ -264,13 +333,267 @@ export function subscribeChatStreak(
 }
 
 /**
+ * Single listener for all streaks involving a user (powers Sidebar & global rescue alerts).
+ */
+export function subscribeUserStreaks(
+  uid: string,
+  onUpdate: (streaksByChatId: Record<string, ChatStreak>) => void
+): () => void {
+  if (!uid) return () => {};
+  const q = query(collection(db, 'streaks'), where('users', 'array-contains', uid));
+  return onSnapshot(
+    q,
+    (snap) => {
+      const next: Record<string, ChatStreak> = {};
+      snap.docs.forEach((d) => {
+        const data = d.data() as ChatStreak;
+        next[data.chatId || d.id] = data;
+      });
+      onUpdate(next);
+    },
+    (err) => {
+      console.warn('Could not subscribe to user streaks:', err);
+    }
+  );
+}
+
+export interface StreakComputationResult {
+  nextCount: number;
+  currentDayKey: string;
+  daySenderIds: string[];
+  completedDayKey: string;
+  expiresAtMs: number;
+  freezeConsumed: boolean;
+  streakBroken: boolean;
+  dayCompletedNow: boolean;
+  celebrated7: boolean;
+  celebrated14: boolean;
+  celebrated30: boolean;
+  celebrated50: boolean;
+  celebrated100: boolean;
+  triggeredMilestone: StreakMilestone | null;
+  isGoldenTheme: boolean;
+  goldenThemeExpiresAtMs: number | null;
+}
+
+/**
+ * Pure state machine for Era Streak progression:
+ * - Increments ONLY when BOTH friends send messages on the same calendar day.
+ * - Auto-activates freeze if 1 day was missed and freezesCount > 0.
+ * - Resets if missed without freezes.
+ * - Triggers celebrations at 7, 14, 30, 50, and 100 days.
+ */
+export function computeNextStreakState(params: {
+  existing: ChatStreak | null;
+  senderUid: string;
+  freezesCount: number;
+  nowMs: number;
+}): StreakComputationResult {
+  const { existing, senderUid, freezesCount, nowMs } = params;
+  const todayKey = getLocalDayKey(nowMs);
+  const yesterdayKey = addDaysToDayKey(todayKey, -1);
+
+  let baseCount = existing?.streakCount ?? 0;
+  let completedDayKey = existing?.completedDayKey || '';
+  let currentDayKey = existing?.currentDayKey || todayKey;
+  let daySenderIds = Array.isArray(existing?.daySenderIds) ? [...existing.daySenderIds] : [];
+
+  let celebrated7 = Boolean(existing?.celebrated7);
+  let celebrated14 = Boolean(existing?.celebrated14);
+  let celebrated30 = Boolean(existing?.celebrated30);
+  let celebrated50 = Boolean(existing?.celebrated50);
+  let celebrated100 = Boolean(existing?.celebrated100);
+  let isGoldenTheme = Boolean(existing?.isGoldenTheme);
+  let goldenThemeExpiresAtMs = existing?.goldenThemeExpiresAt?.toMillis?.() ?? null;
+
+  let freezeConsumed = false;
+  let streakBroken = false;
+
+  if (existing && baseCount > 0) {
+    const fallbackCompleted = existing.lastMessageAt
+      ? getLocalDayKey(existing.lastMessageAt.toMillis())
+      : todayKey;
+    const refDay = completedDayKey || fallbackCompleted;
+    const diff = getDayDiff(refDay, todayKey);
+    const expiresMs = existing.expiresAt?.toMillis?.() ?? getEndOfDayMs(refDay, 1);
+
+    // Missed a day? (diff >= 2 calendar days since last completed day, OR expired past window)
+    const missedYesterday = diff >= 2 || (nowMs > expiresMs && completedDayKey !== todayKey && diff >= 1);
+
+    if (missedYesterday) {
+      if (freezesCount > 0 && diff <= 2) {
+        // Auto-freeze saves the streak!
+        freezeConsumed = true;
+        completedDayKey = yesterdayKey;
+      } else {
+        // No freeze available (or missed multiple days) -> streak resets
+        baseCount = 0;
+        completedDayKey = '';
+        daySenderIds = [];
+        currentDayKey = todayKey;
+        celebrated7 = false;
+        celebrated14 = false;
+        celebrated30 = false;
+        celebrated50 = false;
+        celebrated100 = false;
+        isGoldenTheme = false;
+        goldenThemeExpiresAtMs = null;
+        streakBroken = true;
+      }
+    }
+  }
+
+  // Track today's unique senders
+  if (currentDayKey !== todayKey) {
+    currentDayKey = todayKey;
+    daySenderIds = [senderUid];
+  } else if (!daySenderIds.includes(senderUid)) {
+    daySenderIds.push(senderUid);
+  }
+  daySenderIds = Array.from(new Set(daySenderIds)).slice(0, 2);
+
+  let nextCount = baseCount;
+  let dayCompletedNow = false;
+  let expiresAtMs = getEndOfDayMs(todayKey, baseCount > 0 ? 1 : 0);
+
+  if (completedDayKey === todayKey) {
+    // Today was already completed by both users; preserve count & tomorrow's deadline
+    expiresAtMs = getEndOfDayMs(todayKey, 1);
+  } else if (daySenderIds.length >= 2) {
+    // BOTH friends sent a message on the same calendar day -> Increment streak!
+    nextCount = baseCount + 1;
+    completedDayKey = todayKey;
+    dayCompletedNow = true;
+    expiresAtMs = getEndOfDayMs(todayKey, 1);
+  } else {
+    // Only 1 friend sent today so far; keep current count and expire at end of today if unanswered
+    expiresAtMs = getEndOfDayMs(todayKey, 0);
+  }
+
+  // Check Milestone Celebrations: 7, 14, 30, 50, 100 days
+  let triggeredMilestone: StreakMilestone | null = null;
+  if (nextCount >= 7 && !celebrated7) {
+    celebrated7 = true;
+    triggeredMilestone = 7;
+  }
+  if (nextCount >= 14 && !celebrated14) {
+    celebrated14 = true;
+    triggeredMilestone = 14;
+  }
+  if (nextCount >= 30 && !celebrated30) {
+    celebrated30 = true;
+    triggeredMilestone = 30;
+  }
+  if (nextCount >= 50 && !celebrated50) {
+    celebrated50 = true;
+    triggeredMilestone = 50;
+  }
+  if (nextCount >= 100 && !celebrated100) {
+    celebrated100 = true;
+    triggeredMilestone = 100;
+    isGoldenTheme = true;
+    goldenThemeExpiresAtMs = nowMs + 24 * 60 * 60 * 1000;
+  }
+
+  return {
+    nextCount,
+    currentDayKey,
+    daySenderIds,
+    completedDayKey,
+    expiresAtMs,
+    freezeConsumed,
+    streakBroken,
+    dayCompletedNow,
+    celebrated7,
+    celebrated14,
+    celebrated30,
+    celebrated50,
+    celebrated100,
+    triggeredMilestone,
+    isGoldenTheme,
+    goldenThemeExpiresAtMs,
+  };
+}
+
+/**
+ * Passively checks if an active streak missed yesterday and auto-activates a freeze
+ * even before the user sends today's message.
+ */
+export async function checkAndAutoFreezeChatStreak(params: {
+  chat: Chat;
+  streak: ChatStreak;
+  currentUser: UserPublic;
+  peerUser: UserPublic;
+}): Promise<boolean> {
+  const { chat, streak, currentUser, peerUser } = params;
+  if (!streak || streak.streakCount <= 0) return false;
+
+  const nowMs = Date.now();
+  const todayKey = getLocalDayKey(nowMs);
+  const yesterdayKey = addDaysToDayKey(todayKey, -1);
+  const refDay =
+    streak.completedDayKey ||
+    (streak.lastMessageAt ? getLocalDayKey(streak.lastMessageAt.toMillis()) : todayKey);
+  const diff = getDayDiff(refDay, todayKey);
+  const expiresMs = streak.expiresAt?.toMillis?.() ?? getEndOfDayMs(refDay, 1);
+
+  if (diff < 2 && nowMs <= expiresMs) return false;
+  if (streak.completedDayKey === yesterdayKey || streak.completedDayKey === todayKey) return false;
+
+  const guardKey = `era_autofreeze_${chat.id}_${todayKey}`;
+  if (localStorage.getItem(guardKey)) return false;
+
+  const inv = await ensureUserStreakInventory(currentUser.uid);
+  if (inv.freezesCount <= 0 || diff > 2) return false;
+
+  localStorage.setItem(guardKey, '1');
+
+  const updatedInv: UserStreakInventory = {
+    ...inv,
+    freezesCount: inv.freezesCount - 1,
+    updatedAt: Timestamp.now(),
+  };
+  saveLocalStreakInventory(updatedInv);
+
+  const newExpiresMs = getEndOfDayMs(todayKey, 0);
+
+  if (!isFirestoreWritesPaused()) {
+    try {
+      await updateDoc(doc(db, 'users_private', currentUser.uid, 'streak_inventory', 'main'), {
+        freezesCount: updatedInv.freezesCount,
+        updatedAt: serverTimestamp(),
+      });
+      await updateDoc(doc(db, 'streaks', chat.id), {
+        completedDayKey: yesterdayKey,
+        expiresAt: Timestamp.fromMillis(newExpiresMs),
+        frozenAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.warn('Auto-freeze sync failed:', err);
+    }
+  }
+
+  await createAppNotification({
+    recipientUid: currentUser.uid,
+    actor: peerUser,
+    type: 'message',
+    text: `❄️ التلجية اشتغلت لوحدها وحفظت سلسلتك (${streak.streakCount} يوم) مع ${peerUser.name}!`,
+    targetId: chat.id,
+    localOnly: true,
+  });
+
+  return true;
+}
+
+/**
  * Updates or advances streak progression whenever a qualifying message is sent in private chat.
  */
 export async function recordMessageStreak(params: {
   chat: Chat;
   sender: UserPublic;
   peerUser: UserPublic;
-  onMilestoneCelebration?: (milestone: 7 | 30 | 100, customStickerUrl?: string) => void;
+  onMilestoneCelebration?: (milestone: StreakMilestone, customStickerUrl?: string) => void;
 }): Promise<ChatStreak> {
   const { chat, sender, peerUser, onMilestoneCelebration } = params;
   const nowMs = Date.now();
@@ -287,138 +610,100 @@ export async function recordMessageStreak(params: {
   }
 
   const senderInv = await ensureUserStreakInventory(sender.uid);
-  let nextCount = 1;
-  let isFrozenActive = false;
-  let celebrated7 = existing?.celebrated7 || false;
-  let celebrated30 = existing?.celebrated30 || false;
-  let celebrated100 = existing?.celebrated100 || false;
-  let isGoldenTheme = existing?.isGoldenTheme || false;
-  let goldenThemeExpiresAt = existing?.goldenThemeExpiresAt || null;
+  const comp = computeNextStreakState({
+    existing,
+    senderUid: sender.uid,
+    freezesCount: senderInv.freezesCount,
+    nowMs,
+  });
 
-  if (existing && existing.streakCount > 0) {
-    const expiresMs = existing.expiresAt?.toMillis?.() ?? 0;
-    const lastMsgMs = existing.lastMessageAt?.toMillis?.() ?? 0;
+  // Update freezes / Era points in inventory
+  let updatedFreezes = senderInv.freezesCount;
+  if (comp.freezeConsumed && updatedFreezes > 0) {
+    updatedFreezes -= 1;
+    await createAppNotification({
+      recipientUid: sender.uid,
+      actor: peerUser,
+      type: 'message',
+      text: `❄️ التلجية اشتغلت تلقائياً وحافظت على سلسلتك مع ${peerUser.name}!`,
+      targetId: chat.id,
+      localOnly: true,
+    });
+  }
 
-    if (nowMs > expiresMs) {
-      // Streak expiration check — Has a freeze been used or available?
-      if (senderInv.freezesCount > 0) {
-        // Auto-consume 1 freeze to preserve streak!
-        const updatedInv: UserStreakInventory = {
-          ...senderInv,
-          freezesCount: senderInv.freezesCount - 1,
-          updatedAt: Timestamp.now(),
-        };
-        saveLocalStreakInventory(updatedInv);
-        if (!isFirestoreWritesPaused()) {
-          void updateDoc(doc(db, 'users_private', sender.uid, 'streak_inventory', 'main'), {
-            freezesCount: updatedInv.freezesCount,
-            updatedAt: serverTimestamp(),
-          }).catch(() => {});
-        }
-        nextCount = existing.streakCount + 1;
-        isFrozenActive = true;
-      } else {
-        // No freeze available — streak breaks and restarts
-        nextCount = 1;
-        celebrated7 = false;
-        celebrated30 = false;
-        celebrated100 = false;
-      }
-    } else {
-      // Within the 24h window
-      const hoursSinceLast = (nowMs - lastMsgMs) / (1000 * 60 * 60);
-      if (existing.lastSenderId !== sender.uid || hoursSinceLast >= 3) {
-        // Advanced day or peer responded: increment streak!
-        nextCount = existing.streakCount + 1;
-      } else {
-        nextCount = existing.streakCount;
-      }
+  const pointsBonus = comp.dayCompletedNow ? 10 : 0;
+  if (comp.freezeConsumed || pointsBonus > 0) {
+    const updatedInv: UserStreakInventory = {
+      ...senderInv,
+      freezesCount: updatedFreezes,
+      eraPoints: senderInv.eraPoints + pointsBonus,
+      updatedAt: Timestamp.now(),
+    };
+    saveLocalStreakInventory(updatedInv);
+    if (!isFirestoreWritesPaused()) {
+      void updateDoc(doc(db, 'users_private', sender.uid, 'streak_inventory', 'main'), {
+        freezesCount: updatedInv.freezesCount,
+        eraPoints: updatedInv.eraPoints,
+        updatedAt: serverTimestamp(),
+      }).catch(() => {});
     }
   }
 
-  // Check Milestone Celebrations
-  let triggeredMilestone: 7 | 30 | 100 | null = null;
+  // Generate exclusive milestone stickers at 30, 50, and 100 days
   let milestoneStickerUrl: string | undefined;
-
-  if (nextCount >= 7 && !celebrated7) {
-    celebrated7 = true;
-    triggeredMilestone = 7;
-  }
-  if (nextCount >= 30 && !celebrated30) {
-    celebrated30 = true;
-    triggeredMilestone = 30;
+  if (
+    comp.triggeredMilestone === 30 ||
+    comp.triggeredMilestone === 50 ||
+    comp.triggeredMilestone === 100
+  ) {
+    const isGolden = comp.triggeredMilestone === 100;
     milestoneStickerUrl = generateMilestoneStickerSvg({
-      days: 30,
+      days: comp.triggeredMilestone,
       user1Name: sender.name,
       user2Name: peerUser.name,
-      isGolden: false,
+      isGolden,
     });
-    // Save to both users' stickers collection
+    const label = isGolden
+      ? `100 يوم إيرا الذهبي - ${sender.name} & ${peerUser.name}`
+      : `${comp.triggeredMilestone} يوم إيرا - ${sender.name} & ${peerUser.name}`;
+
     void saveUserSticker(sender.uid, {
       source: 'custom',
       imageUrl: milestoneStickerUrl,
-      label: `30 يوم دانك - ${sender.name} & ${peerUser.name}`,
+      label,
     }).catch(() => {});
     void saveUserSticker(peerUser.uid, {
       source: 'custom',
       imageUrl: milestoneStickerUrl,
-      label: `30 يوم دانك - ${sender.name} & ${peerUser.name}`,
-    }).catch(() => {});
-  }
-  if (nextCount >= 100 && !celebrated100) {
-    celebrated100 = true;
-    triggeredMilestone = 100;
-    isGoldenTheme = true;
-    goldenThemeExpiresAt = Timestamp.fromMillis(nowMs + 24 * 60 * 60 * 1000); // 24 hours golden chat
-    milestoneStickerUrl = generateMilestoneStickerSvg({
-      days: 100,
-      user1Name: sender.name,
-      user2Name: peerUser.name,
-      isGolden: true,
-    });
-    void saveUserSticker(sender.uid, {
-      source: 'custom',
-      imageUrl: milestoneStickerUrl,
-      label: `100 يوم دانك الذهبي - ${sender.name} & ${peerUser.name}`,
-    }).catch(() => {});
-    void saveUserSticker(peerUser.uid, {
-      source: 'custom',
-      imageUrl: milestoneStickerUrl,
-      label: `100 يوم دانك الذهبي - ${sender.name} & ${peerUser.name}`,
+      label,
     }).catch(() => {});
   }
 
-  const newExpiresAt = Timestamp.fromMillis(nowMs + STREAK_WINDOW_MS);
+  const newExpiresAt = Timestamp.fromMillis(comp.expiresAtMs);
+  const goldenThemeExpiresAt = comp.goldenThemeExpiresAtMs
+    ? Timestamp.fromMillis(comp.goldenThemeExpiresAtMs)
+    : null;
 
   const streakData: ChatStreak = {
     chatId: chat.id,
     users: [sender.uid, peerUser.uid].sort(),
-    streakCount: nextCount,
+    streakCount: comp.nextCount,
     lastMessageAt: Timestamp.now(),
     lastSenderId: sender.uid,
+    currentDayKey: comp.currentDayKey,
+    daySenderIds: comp.daySenderIds,
+    completedDayKey: comp.completedDayKey,
     expiresAt: newExpiresAt,
-    frozenAt: isFrozenActive ? Timestamp.now() : existing?.frozenAt || null,
-    celebrated7,
-    celebrated30,
-    celebrated100,
-    isGoldenTheme,
+    frozenAt: comp.freezeConsumed ? Timestamp.now() : existing?.frozenAt || null,
+    celebrated7: comp.celebrated7,
+    celebrated14: comp.celebrated14,
+    celebrated30: comp.celebrated30,
+    celebrated50: comp.celebrated50,
+    celebrated100: comp.celebrated100,
+    isGoldenTheme: comp.isGoldenTheme,
     goldenThemeExpiresAt,
     updatedAt: Timestamp.now(),
   };
-
-  // Award +10 points to sender for continuing streak
-  const updatedPointsInv: UserStreakInventory = {
-    ...senderInv,
-    dankPoints: senderInv.dankPoints + 10,
-    updatedAt: Timestamp.now(),
-  };
-  saveLocalStreakInventory(updatedPointsInv);
-  if (!isFirestoreWritesPaused()) {
-    void updateDoc(doc(db, 'users_private', sender.uid, 'streak_inventory', 'main'), {
-      dankPoints: updatedPointsInv.dankPoints,
-      updatedAt: serverTimestamp(),
-    }).catch(() => {});
-  }
 
   if (!isFirestoreWritesPaused()) {
     try {
@@ -428,28 +713,27 @@ export async function recordMessageStreak(params: {
         streakCount: streakData.streakCount,
         lastMessageAt: serverTimestamp(),
         lastSenderId: streakData.lastSenderId,
+        currentDayKey: streakData.currentDayKey,
+        daySenderIds: streakData.daySenderIds,
+        completedDayKey: streakData.completedDayKey,
         expiresAt: newExpiresAt,
-        frozenAt: streakData.frozenAt ? serverTimestamp() : null,
-        celebrated7,
-        celebrated30,
-        celebrated100,
-        isGoldenTheme,
+        frozenAt: comp.freezeConsumed ? serverTimestamp() : existing?.frozenAt || null,
+        celebrated7: comp.celebrated7,
+        celebrated14: comp.celebrated14,
+        celebrated30: comp.celebrated30,
+        celebrated50: comp.celebrated50,
+        celebrated100: comp.celebrated100,
+        isGoldenTheme: comp.isGoldenTheme,
         goldenThemeExpiresAt,
         updatedAt: serverTimestamp(),
       });
-      // Also sync streak info onto chat doc for instant display in sidebar
-      void updateDoc(doc(db, 'chats', chat.id), {
-        streakCount: streakData.streakCount,
-        streakExpiresAt: newExpiresAt,
-        isGoldenTheme,
-      }).catch(() => {});
     } catch (err) {
       console.warn('Could not save streak document to Firestore:', err);
     }
   }
 
-  if (triggeredMilestone && onMilestoneCelebration) {
-    onMilestoneCelebration(triggeredMilestone, milestoneStickerUrl);
+  if (comp.triggeredMilestone && onMilestoneCelebration) {
+    onMilestoneCelebration(comp.triggeredMilestone, milestoneStickerUrl);
   }
 
   return streakData;
@@ -457,25 +741,28 @@ export async function recordMessageStreak(params: {
 
 /**
  * Checks if any active chat streak is expiring within 1 hour (Rescue feature)
- * and sends an emergency notification with direct navigation.
+ * and sends an emergency notification with direct navigation ("ابعت دلوقتي").
  */
 export async function triggerRescueNotificationIfNeeded(params: {
   chat: Chat;
   streak: ChatStreak;
   currentUser: UserPublic;
   peerUser: UserPublic;
+  nowMs?: number;
 }): Promise<boolean> {
-  const { chat, streak, currentUser, peerUser } = params;
+  const { chat, streak, currentUser, peerUser, nowMs = Date.now() } = params;
   if (!streak || streak.streakCount <= 0 || !streak.expiresAt) return false;
 
-  const nowMs = Date.now();
+  const todayKey = getLocalDayKey(nowMs);
+  // If today's two-way exchange is already completed, no rescue needed
+  if (streak.completedDayKey === todayKey) return false;
+
   const expiresMs = streak.expiresAt.toMillis();
   const remainingMs = expiresMs - nowMs;
 
   // Between 0 and 1 hour remaining
   if (remainingMs > 0 && remainingMs <= STREAK_RESCUE_THRESHOLD_MS) {
-    // Check if user already sent the message or if notification already sent in this window
-    const alreadyAlertedKey = `dank_streak_rescue_alerted_${chat.id}_${Math.floor(expiresMs / 1000)}`;
+    const alreadyAlertedKey = `era_streak_rescue_alerted_${chat.id}_${Math.floor(expiresMs / 1000)}`;
     if (localStorage.getItem(alreadyAlertedKey)) {
       return false;
     }
@@ -489,6 +776,7 @@ export async function triggerRescueNotificationIfNeeded(params: {
       type: 'message',
       text: rescueText,
       targetId: chat.id,
+      localOnly: true,
     });
 
     return true;

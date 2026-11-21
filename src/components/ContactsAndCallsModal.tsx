@@ -24,7 +24,7 @@ import {
   removeFriend,
   sendFriendRequest,
 } from '../services/socialService';
-import type { CallRecord, FriendRequest, UserPublic } from '../types/dank';
+import type { CallRecord, FriendRequest, UserPublic } from '../types/era';
 import { formatChatTime, isUserActuallyOnline } from '../utils/timeFormat';
 import { Avatar } from './Avatar';
 import { UserBadges } from './UserBadges';
@@ -195,7 +195,7 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
             <div className="flex items-center gap-1.5 min-w-0">
               <span
                 dir="auto"
-                className="min-w-0 text-sm font-semibold text-[var(--dank-text)] truncate"
+                className="min-w-0 text-sm font-semibold text-[var(--era-text)] truncate"
               >
                 {peer.name}
               </span>
@@ -207,7 +207,7 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
                 size="xs"
               />
             </div>
-            <p dir="ltr" className="text-xs text-[var(--dank-accent)] truncate text-start">
+            <p dir="ltr" className="text-xs text-[var(--era-accent)] truncate text-start">
               @{peer.username}
             </p>
           </div>
@@ -223,7 +223,7 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
                   onMessageUser(peer);
                 }}
                 title={t.common.message}
-                className="w-8 h-8 rounded-lg hover:bg-[var(--dank-hover)] text-[var(--dank-accent)] flex items-center justify-center cursor-pointer"
+                className="w-8 h-8 rounded-lg hover:bg-[var(--era-hover)] text-[var(--era-accent)] flex items-center justify-center cursor-pointer"
               >
                 <MessageSquare className="w-4 h-4" />
               </button>
@@ -234,7 +234,7 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
                   onCallUser(peer);
                 }}
                 title={t.calls.voiceCall}
-                className="w-8 h-8 rounded-lg hover:bg-[var(--dank-hover)] text-[var(--dank-accent)] flex items-center justify-center cursor-pointer"
+                className="w-8 h-8 rounded-lg hover:bg-[var(--era-hover)] text-[var(--era-accent)] flex items-center justify-center cursor-pointer"
               >
                 <Phone className="w-4 h-4" />
               </button>
@@ -246,7 +246,7 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
                   )
                 }
                 title={t.privacy.blockUser}
-                className="w-8 h-8 rounded-lg hover:bg-red-500/15 text-[var(--dank-muted)] hover:text-red-500 flex items-center justify-center cursor-pointer"
+                className="w-8 h-8 rounded-lg hover:bg-red-500/15 text-[var(--era-muted)] hover:text-red-500 flex items-center justify-center cursor-pointer"
               >
                 <Ban className="w-3.5 h-3.5" />
               </button>
@@ -255,7 +255,7 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
                 disabled={isBusy}
                 onClick={() => void handleUnfriend(peer.uid)}
                 title={t.profile.unfriend}
-                className="w-8 h-8 rounded-lg hover:bg-red-500/15 text-[var(--dank-muted)] hover:text-red-500 flex items-center justify-center cursor-pointer"
+                className="w-8 h-8 rounded-lg hover:bg-red-500/15 text-[var(--era-muted)] hover:text-red-500 flex items-center justify-center cursor-pointer"
               >
                 <UserMinus className="w-3.5 h-3.5" />
               </button>
@@ -266,7 +266,7 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
                 type="button"
                 disabled={isBusy}
                 onClick={() => void handleAccept(peer)}
-                className="h-8 px-2.5 rounded-lg bg-[var(--dank-accent)] text-[var(--dank-accent-fg)] text-xs font-bold flex items-center gap-1 cursor-pointer"
+                className="h-8 px-2.5 rounded-lg bg-[var(--era-accent)] text-[var(--era-accent-fg)] text-xs font-bold flex items-center gap-1 cursor-pointer"
               >
                 <Check className="w-3.5 h-3.5" />
                 {t.profile.acceptRequest}
@@ -275,7 +275,7 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
                 type="button"
                 disabled={isBusy}
                 onClick={() => void handleReject(peer.uid)}
-                className="h-8 px-2.5 rounded-lg bg-[var(--dank-elevated)] hover:bg-red-500/15 hover:text-red-500 text-xs font-semibold cursor-pointer"
+                className="h-8 px-2.5 rounded-lg bg-[var(--era-elevated)] hover:bg-red-500/15 hover:text-red-500 text-xs font-semibold cursor-pointer"
               >
                 {t.profile.rejectRequest}
               </button>
@@ -285,9 +285,9 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
               type="button"
               disabled={isBusy}
               onClick={() => void handleCancelRequest(peer.uid)}
-              className="h-8 px-2.5 rounded-lg bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] text-xs font-semibold flex items-center gap-1 cursor-pointer"
+              className="h-8 px-2.5 rounded-lg bg-[var(--era-elevated)] hover:bg-[var(--era-hover)] text-xs font-semibold flex items-center gap-1 cursor-pointer"
             >
-              <Clock className="w-3.5 h-3.5 text-[var(--dank-accent)]" />
+              <Clock className="w-3.5 h-3.5 text-[var(--era-accent)]" />
               {t.profile.cancelRequest}
             </button>
           ) : (
@@ -295,7 +295,7 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
               type="button"
               disabled={isBusy}
               onClick={() => void handleSendRequest(peer)}
-              className="h-8 px-3 rounded-lg bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-xs font-bold flex items-center gap-1 cursor-pointer"
+              className="h-8 px-3 rounded-lg bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] text-xs font-bold flex items-center gap-1 cursor-pointer"
             >
               <UserPlus className="w-3.5 h-3.5" />
               {t.profile.addFriend}
@@ -308,17 +308,17 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-[2px] flex items-center justify-center p-4">
-      <div className="w-full max-w-lg max-h-[88vh] rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] shadow-2xl flex flex-col overflow-hidden text-[var(--dank-text)]">
+      <div className="w-full max-w-lg max-h-[88vh] rounded-2xl bg-[var(--era-surface)] border border-[var(--era-border)] shadow-2xl flex flex-col overflow-hidden text-[var(--era-text)]">
         {/* Header */}
-        <div className="px-4 py-3 bg-[var(--dank-canvas)] flex items-center justify-between border-b border-[var(--dank-border)]">
+        <div className="px-4 py-3 bg-[var(--era-canvas)] flex items-center justify-between border-b border-[var(--era-border)]">
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setTab('friends')}
               className={`px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors ${
                 tab === 'friends'
-                  ? 'bg-[var(--dank-accent)] text-[var(--dank-accent-fg)]'
-                  : 'text-[var(--dank-muted)] hover:bg-[var(--dank-hover)] hover:text-[var(--dank-text)]'
+                  ? 'bg-[var(--era-accent)] text-[var(--era-accent-fg)]'
+                  : 'text-[var(--era-muted)] hover:bg-[var(--era-hover)] hover:text-[var(--era-text)]'
               }`}
             >
               <UserCheck className="w-3.5 h-3.5" />
@@ -329,8 +329,8 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
               onClick={() => setTab('calls')}
               className={`px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors ${
                 tab === 'calls'
-                  ? 'bg-[var(--dank-accent)] text-[var(--dank-accent-fg)]'
-                  : 'text-[var(--dank-muted)] hover:bg-[var(--dank-hover)] hover:text-[var(--dank-text)]'
+                  ? 'bg-[var(--era-accent)] text-[var(--era-accent-fg)]'
+                  : 'text-[var(--era-muted)] hover:bg-[var(--era-hover)] hover:text-[var(--era-text)]'
               }`}
             >
               <Phone className="w-3.5 h-3.5" />
@@ -341,7 +341,7 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
             type="button"
             onClick={onClose}
             aria-label={t.common.close}
-            className="w-8 h-8 rounded-full hover:bg-[var(--dank-hover)] text-[var(--dank-muted)] hover:text-[var(--dank-text)] flex items-center justify-center cursor-pointer"
+            className="w-8 h-8 rounded-full hover:bg-[var(--era-hover)] text-[var(--era-muted)] hover:text-[var(--era-text)] flex items-center justify-center cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -350,21 +350,21 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
         {tab === 'friends' ? (
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             <div className="relative">
-              <Search className="w-4 h-4 text-[var(--dank-muted)] absolute start-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <Search className="w-4 h-4 text-[var(--era-muted)] absolute start-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 type="text"
                 dir="auto"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={t.privacy.searchFriendsPlaceholder}
-                className="w-full h-10 ps-10 pe-9 rounded-xl bg-[var(--dank-elevated)] border border-[var(--dank-border)] text-base text-[var(--dank-text)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)]"
+                className="w-full h-10 ps-10 pe-9 rounded-xl bg-[var(--era-elevated)] border border-[var(--era-border)] text-base text-[var(--era-text)] focus:outline-none focus:ring-2 focus:ring-[var(--era-accent)]"
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
                   aria-label={t.sidebar.clearSearch}
-                  className="absolute end-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full hover:bg-[var(--dank-hover)] text-[var(--dank-muted)] flex items-center justify-center cursor-pointer"
+                  className="absolute end-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full hover:bg-[var(--era-hover)] text-[var(--era-muted)] flex items-center justify-center cursor-pointer"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -373,11 +373,11 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
 
             {searchQuery.trim() ? (
               searchResults.length === 0 ? (
-                <div className="py-12 text-center text-xs text-[var(--dank-muted)]">
+                <div className="py-12 text-center text-xs text-[var(--era-muted)]">
                   {t.createChat.noMatchingUsers}
                 </div>
               ) : (
-                <div className="divide-y divide-[var(--dank-border-subtle)]">
+                <div className="divide-y divide-[var(--era-border-subtle)]">
                   {searchResults.map((peer) => renderUserRow(peer))}
                 </div>
               )
@@ -385,10 +385,10 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
               <div className="space-y-4">
                 {incomingRequests.length > 0 && (
                   <div className="space-y-1.5">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--dank-accent)]">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--era-accent)]">
                       {t.profile.incomingRequestsTitle} ({incomingRequests.length})
                     </h4>
-                    <div className="divide-y divide-[var(--dank-border-subtle)] rounded-xl bg-[var(--dank-canvas)] px-3 border border-[var(--dank-border)]">
+                    <div className="divide-y divide-[var(--era-border-subtle)] rounded-xl bg-[var(--era-canvas)] px-3 border border-[var(--era-border)]">
                       {incomingRequests.map((req) => {
                         const sender = usersMap[req.fromUid];
                         return sender ? renderUserRow(sender) : null;
@@ -399,10 +399,10 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
 
                 {outgoingRequests.length > 0 && (
                   <div className="space-y-1.5">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--dank-muted)]">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--era-muted)]">
                       {t.profile.sentRequestsTitle} ({outgoingRequests.length})
                     </h4>
-                    <div className="divide-y divide-[var(--dank-border-subtle)] rounded-xl bg-[var(--dank-canvas)] px-3 border border-[var(--dank-border)]">
+                    <div className="divide-y divide-[var(--era-border-subtle)] rounded-xl bg-[var(--era-canvas)] px-3 border border-[var(--era-border)]">
                       {outgoingRequests.map((req) => {
                         const recipient = usersMap[req.toUid];
                         return recipient ? renderUserRow(recipient) : null;
@@ -412,15 +412,15 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
                 )}
 
                 <div className="space-y-1.5">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--dank-muted)]">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--era-muted)]">
                     {t.profile.friendsModalTitle} ({friendsList.length})
                   </h4>
                   {friendsList.length === 0 ? (
-                    <div className="py-10 text-center text-xs text-[var(--dank-muted)]">
+                    <div className="py-10 text-center text-xs text-[var(--era-muted)]">
                       {t.privacy.noFriendsYet}
                     </div>
                   ) : (
-                    <div className="divide-y divide-[var(--dank-border-subtle)]">
+                    <div className="divide-y divide-[var(--era-border-subtle)]">
                       {friendsList.map((peer) => renderUserRow(peer))}
                     </div>
                   )}
@@ -431,11 +431,11 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
         ) : (
           <div className="flex-1 overflow-y-auto p-4">
             {calls.length === 0 ? (
-              <div className="py-12 text-center text-xs text-[var(--dank-muted)]">
+              <div className="py-12 text-center text-xs text-[var(--era-muted)]">
                 {t.calls.noCallsYet}
               </div>
             ) : (
-              <div className="divide-y divide-[var(--dank-border-subtle)]">
+              <div className="divide-y divide-[var(--era-border-subtle)]">
                 {calls.map((c) => {
                   const outgoing = c.callerId === currentUser.uid;
                   const peerUid = outgoing ? c.calleeId : c.callerId;
@@ -467,22 +467,22 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
                         <p
                           dir="auto"
                           className={`text-sm font-semibold truncate ${
-                            isMissed ? 'text-red-500' : 'text-[var(--dank-text)]'
+                            isMissed ? 'text-red-500' : 'text-[var(--era-text)]'
                           }`}
                         >
                           {peerName}
                         </p>
                         <p
                           className={`text-xs flex items-center gap-1 ${
-                            isMissed ? 'text-red-500' : 'text-[var(--dank-muted)]'
+                            isMissed ? 'text-red-500' : 'text-[var(--era-muted)]'
                           }`}
                         >
                           {isMissed ? (
                             <PhoneMissed className="w-3 h-3 shrink-0" />
                           ) : outgoing ? (
-                            <PhoneOutgoing className="w-3 h-3 text-[var(--dank-accent)] shrink-0" />
+                            <PhoneOutgoing className="w-3 h-3 text-[var(--era-accent)] shrink-0" />
                           ) : (
-                            <PhoneIncoming className="w-3 h-3 text-[var(--dank-accent)] shrink-0" />
+                            <PhoneIncoming className="w-3 h-3 text-[var(--era-accent)] shrink-0" />
                           )}
                           <span className="truncate">
                             {isMissed
@@ -505,7 +505,7 @@ export const ContactsAndCallsModal: React.FC<ContactsAndCallsModalProps> = ({
                             onCallUser(peerUser);
                           }}
                           aria-label={t.calls.voiceCall}
-                          className="w-9 h-9 rounded-full hover:bg-[var(--dank-hover)] text-[var(--dank-accent)] flex items-center justify-center shrink-0 cursor-pointer"
+                          className="w-9 h-9 rounded-full hover:bg-[var(--era-hover)] text-[var(--era-accent)] flex items-center justify-center shrink-0 cursor-pointer"
                         >
                           <Phone className="w-4 h-4" />
                         </button>

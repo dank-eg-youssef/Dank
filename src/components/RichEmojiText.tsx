@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { findDankEmoji, parseEmojiText, type DankEmojiDef } from '../utils/dankEmojis';
+import { findEraEmoji, parseEmojiText, type EraEmojiDef } from '../utils/eraEmojis';
 
 interface InlineEmojiImgProps {
-  emoji: DankEmojiDef;
+  emoji: EraEmojiDef;
   raw?: string;
   className?: string;
 }
@@ -39,7 +39,7 @@ interface RichEmojiTextProps {
 
 /**
  * Renders message/caption/preview text with system emojis automatically
- * replaced INLINE by DANK's 3D glossy Cloudinary PNGs at text height.
+ * replaced INLINE by ERA's 3D glossy Cloudinary PNGs at text height.
  */
 export const RichEmojiText: React.FC<RichEmojiTextProps> = ({ text, className }) => {
   const segments = useMemo(() => parseEmojiText(text), [text]);
@@ -59,20 +59,20 @@ export const RichEmojiText: React.FC<RichEmojiTextProps> = ({ text, className })
   );
 };
 
-interface DankEmojiIconProps {
+interface EraEmojiIconProps {
   char: string;
   className?: string;
 }
 
 /**
  * Renders a single emoji character (e.g. reaction pill or quick-react bar)
- * as its DANK 3D glossy PNG if mapped, falling back to native char otherwise.
+ * as its ERA 3D glossy PNG if mapped, falling back to native char otherwise.
  */
-export const DankEmojiIcon: React.FC<DankEmojiIconProps> = ({
+export const EraEmojiIcon: React.FC<EraEmojiIconProps> = ({
   char,
   className = 'w-5 h-5 object-contain inline-block select-none pointer-events-none',
 }) => {
-  const def = useMemo(() => findDankEmoji(char), [char]);
+  const def = useMemo(() => findEraEmoji(char), [char]);
   if (!def) {
     return <span>{char}</span>;
   }

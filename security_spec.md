@@ -1,4 +1,4 @@
-# DANK Security Specification
+# ERA Security Specification
 
 ## 1. Data Invariants
 1. **PII Isolation**: User emails are stored strictly in `/users_private/{userId}` and are readable only by the document owner or verified admin (`youssefdankapp@gmail.com`). `/users_public/{userId}` contains zero PII.

@@ -1,6 +1,6 @@
 import type { Timestamp } from 'firebase/firestore';
 import { getTranslations } from '../i18n';
-import type { AppLanguage } from '../types/dank';
+import type { AppLanguage } from '../types/era';
 
 function getIntlLocale(lang: AppLanguage): string {
   return lang === 'ar' ? 'ar-EG' : 'en-US';

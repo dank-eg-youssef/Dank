@@ -4,7 +4,7 @@ import { Users, X } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { db } from '../lib/firebase';
 import { joinChatById } from '../services/chatService';
-import type { Chat } from '../types/dank';
+import type { Chat } from '../types/era';
 import { Avatar } from './Avatar';
 
 interface JoinInviteModalProps {
@@ -73,14 +73,14 @@ export const JoinInviteModal: React.FC<JoinInviteModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="w-full max-w-sm rounded-2xl bg-[var(--dank-surface)] border border-[var(--dank-border)] shadow-2xl overflow-hidden">
-        <div className="bg-[var(--dank-canvas)] text-[var(--dank-text)] px-5 py-4 flex items-center justify-between border-b border-[var(--dank-border)]">
+      <div className="w-full max-w-sm rounded-2xl bg-[var(--era-surface)] border border-[var(--era-border)] shadow-2xl overflow-hidden">
+        <div className="bg-[var(--era-canvas)] text-[var(--era-text)] px-5 py-4 flex items-center justify-between border-b border-[var(--era-border)]">
           <h3 className="text-base font-semibold">{t.joinInvite.title}</h3>
           <button
             type="button"
             onClick={onClose}
             aria-label={t.common.close}
-            className="w-9 h-9 rounded-xl hover:bg-[var(--dank-hover)] flex items-center justify-center cursor-pointer"
+            className="w-9 h-9 rounded-xl hover:bg-[var(--era-hover)] flex items-center justify-center cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -88,7 +88,7 @@ export const JoinInviteModal: React.FC<JoinInviteModalProps> = ({
 
         <div className="p-6 text-center space-y-4">
           {loading ? (
-            <p className="text-sm text-[var(--dank-muted)] py-4">
+            <p className="text-sm text-[var(--era-muted)] py-4">
               {t.joinInvite.loadingPreview}
             </p>
           ) : error ? (
@@ -97,7 +97,7 @@ export const JoinInviteModal: React.FC<JoinInviteModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="w-full h-11 rounded-xl bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] border border-[var(--dank-border)] text-[var(--dank-text)] text-sm font-semibold cursor-pointer"
+                className="w-full h-11 rounded-xl bg-[var(--era-elevated)] hover:bg-[var(--era-hover)] border border-[var(--era-border)] text-[var(--era-text)] text-sm font-semibold cursor-pointer"
               >
                 {t.common.close}
               </button>
@@ -113,16 +113,16 @@ export const JoinInviteModal: React.FC<JoinInviteModalProps> = ({
                 />
               </div>
               <div>
-                <h4 dir="auto" className="text-lg font-bold text-[var(--dank-text)]">
+                <h4 dir="auto" className="text-lg font-bold text-[var(--era-text)]">
                   {chat.name}
                 </h4>
-                <p className="text-xs text-[var(--dank-muted)] mt-1 flex items-center justify-center gap-1.5">
-                  <Users className="w-3.5 h-3.5 text-[var(--dank-accent)]" />
+                <p className="text-xs text-[var(--era-muted)] mt-1 flex items-center justify-center gap-1.5">
+                  <Users className="w-3.5 h-3.5 text-[var(--era-accent)]" />
                   <span className="tabular-nums">{chat.memberCount}</span>{' '}
                   {chat.type === 'channel' ? t.common.subscribers : t.common.members}
                 </p>
                 {chat.description && (
-                  <p dir="auto" className="text-xs text-[var(--dank-muted)] mt-2">
+                  <p dir="auto" className="text-xs text-[var(--era-muted)] mt-2">
                     {chat.description}
                   </p>
                 )}
@@ -131,7 +131,7 @@ export const JoinInviteModal: React.FC<JoinInviteModalProps> = ({
                 type="button"
                 disabled={joining}
                 onClick={handleJoin}
-                className="w-full h-11 rounded-xl bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] font-bold text-sm transition-colors disabled:opacity-60 cursor-pointer"
+                className="w-full h-11 rounded-xl bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] font-bold text-sm transition-colors disabled:opacity-60 cursor-pointer"
               >
                 {joining
                   ? t.joinInvite.joining

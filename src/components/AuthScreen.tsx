@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Eye, EyeOff, Globe, MailCheck, RefreshCw, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { DankLogo } from './DankLogo';
+import { EraLogo } from './EraLogo';
 
 interface AuthScreenProps {
   allowSignups?: boolean;
@@ -142,7 +142,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ allowSignups = true }) =
   };
 
   return (
-    <div className="dank-auth-scroll w-full bg-[var(--dank-canvas)] text-[var(--dank-text)]">
+    <div className="era-auth-scroll w-full bg-[var(--era-canvas)] text-[var(--era-text)]">
       <div className="min-h-full w-full flex flex-col items-center justify-between px-4 py-5 sm:py-8">
         {/* Top Bar Controls */}
         <div
@@ -150,21 +150,21 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ allowSignups = true }) =
           className="w-full max-w-md flex items-center justify-between gap-3 mb-5 shrink-0"
         >
           <div className="flex items-center gap-2.5">
-            <DankLogo size="sm" />
-            <h1 className="font-extrabold text-lg tracking-wider text-[var(--dank-accent)]">
-              Dank Chat
+            <EraLogo size="sm" />
+            <h1 className="font-extrabold text-lg tracking-wider text-[var(--era-accent)]">
+              Era Chat
             </h1>
           </div>
 
-          <div className="inline-flex items-center gap-1 p-1 rounded-full bg-[var(--dank-surface)] text-[var(--dank-text)] border border-[var(--dank-border)]">
-            <Globe className="w-3.5 h-3.5 text-[var(--dank-accent)] mx-1.5" />
+          <div className="inline-flex items-center gap-1 p-1 rounded-full bg-[var(--era-surface)] text-[var(--era-text)] border border-[var(--era-border)]">
+            <Globe className="w-3.5 h-3.5 text-[var(--era-accent)] mx-1.5" />
             <button
               type="button"
               onClick={() => void setLanguage('en')}
               className={`px-3 py-1 rounded-full text-xs font-bold transition-colors cursor-pointer ${
                 language === 'en'
-                  ? 'bg-[var(--dank-accent)] text-[var(--dank-accent-fg)]'
-                  : 'text-[var(--dank-muted)] hover:text-[var(--dank-text)]'
+                  ? 'bg-[var(--era-accent)] text-[var(--era-accent-fg)]'
+                  : 'text-[var(--era-muted)] hover:text-[var(--era-text)]'
               }`}
             >
               {t.common.englishShort}
@@ -174,8 +174,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ allowSignups = true }) =
               onClick={() => void setLanguage('ar')}
               className={`px-3 py-1 rounded-full text-xs font-bold transition-colors cursor-pointer ${
                 language === 'ar'
-                  ? 'bg-[var(--dank-accent)] text-[var(--dank-accent-fg)]'
-                  : 'text-[var(--dank-muted)] hover:text-[var(--dank-text)]'
+                  ? 'bg-[var(--era-accent)] text-[var(--era-accent-fg)]'
+                  : 'text-[var(--era-muted)] hover:text-[var(--era-text)]'
               }`}
             >
               {t.common.arabicShort}
@@ -184,16 +184,16 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ allowSignups = true }) =
         </div>
 
         {/* Centered Auth Card */}
-        <div className="w-full max-w-md bg-[var(--dank-surface)] border border-[var(--dank-border)] rounded-3xl p-6 sm:p-8 shadow-2xl my-auto">
+        <div className="w-full max-w-md bg-[var(--era-surface)] border border-[var(--era-border)] rounded-3xl p-6 sm:p-8 shadow-2xl my-auto">
           {firebaseUser && !isVerified ? (
             <div className="text-center py-4 space-y-4">
-              <div className="w-16 h-16 rounded-full bg-[var(--dank-accent-soft)] text-[var(--dank-accent)] flex items-center justify-center mx-auto mb-2">
+              <div className="w-16 h-16 rounded-full bg-[var(--era-accent-soft)] text-[var(--era-accent)] flex items-center justify-center mx-auto mb-2">
                 <MailCheck className="w-8 h-8" />
               </div>
-              <h2 className="text-xl font-bold text-[var(--dank-text)]">{t.auth.verifyTitle}</h2>
-              <p className="text-sm text-[var(--dank-muted)] leading-relaxed max-w-xs mx-auto">
+              <h2 className="text-xl font-bold text-[var(--era-text)]">{t.auth.verifyTitle}</h2>
+              <p className="text-sm text-[var(--era-muted)] leading-relaxed max-w-xs mx-auto">
                 {t.auth.verifyDescPrefix}{' '}
-                <strong className="text-[var(--dank-text)]">{firebaseUser.email}</strong>{' '}
+                <strong className="text-[var(--era-text)]">{firebaseUser.email}</strong>{' '}
                 {t.auth.verifyDescSuffix}
               </p>
 
@@ -203,7 +203,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ allowSignups = true }) =
                 </div>
               )}
               {info && (
-                <div className="p-3 rounded-xl bg-[var(--dank-accent-soft)] border border-[var(--dank-accent-border)] text-[var(--dank-accent)] text-xs font-medium">
+                <div className="p-3 rounded-xl bg-[var(--era-accent-soft)] border border-[var(--era-accent-border)] text-[var(--era-accent)] text-xs font-medium">
                   {info}
                 </div>
               )}
@@ -213,7 +213,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ allowSignups = true }) =
                   type="button"
                   disabled={busy}
                   onClick={handleCheckVerification}
-                  className="w-full h-12 rounded-full bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] font-extrabold text-sm flex items-center justify-center gap-2 transition-transform active:scale-95 disabled:opacity-50 cursor-pointer"
+                  className="w-full h-12 rounded-full bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] font-extrabold text-sm flex items-center justify-center gap-2 transition-transform active:scale-95 disabled:opacity-50 cursor-pointer"
                 >
                   {busy && <RefreshCw className="w-4 h-4 animate-spin" />}
                   {t.auth.iveVerified}
@@ -223,7 +223,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ allowSignups = true }) =
                   type="button"
                   disabled={busy}
                   onClick={handleResend}
-                  className="w-full h-11 rounded-full bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] font-semibold text-sm transition-colors disabled:opacity-50 cursor-pointer"
+                  className="w-full h-11 rounded-full bg-[var(--era-elevated)] hover:bg-[var(--era-hover)] text-[var(--era-text)] font-semibold text-sm transition-colors disabled:opacity-50 cursor-pointer"
                 >
                   {t.auth.resendEmail}
                 </button>
@@ -231,7 +231,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ allowSignups = true }) =
                 <button
                   type="button"
                   onClick={() => void logout()}
-                  className="w-full h-10 rounded-full text-[var(--dank-muted)] hover:text-[var(--dank-text)] text-xs font-medium cursor-pointer transition-colors"
+                  className="w-full h-10 rounded-full text-[var(--era-muted)] hover:text-[var(--era-text)] text-xs font-medium cursor-pointer transition-colors"
                 >
                   {t.auth.signOutOrSwitch}
                 </button>
@@ -240,11 +240,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ allowSignups = true }) =
           ) : sessionRevoked ? (
             <div className="text-center py-6 space-y-4">
               <h2 className="text-xl font-bold text-red-500">{t.privacy.twoStepChallengeTitle}</h2>
-              <p className="text-xs text-[var(--dank-muted)]">{t.privacy.sessionRevokedNotice}</p>
+              <p className="text-xs text-[var(--era-muted)]">{t.privacy.sessionRevokedNotice}</p>
               <button
                 type="button"
                 onClick={() => void logout()}
-                className="w-full h-12 rounded-full bg-[var(--dank-accent)] text-[var(--dank-accent-fg)] font-extrabold text-sm cursor-pointer"
+                className="w-full h-12 rounded-full bg-[var(--era-accent)] text-[var(--era-accent-fg)] font-extrabold text-sm cursor-pointer"
               >
                 {t.auth.signIn}
               </button>
@@ -253,17 +253,17 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ allowSignups = true }) =
             <div>
               <div className="text-center mb-6">
                 <div className="flex justify-center mb-3">
-                  <DankLogo size="lg" />
+                  <EraLogo size="lg" />
                 </div>
-                <h2 className="text-2xl font-extrabold text-[var(--dank-text)] tracking-tight">
-                  {mode === 'signin' ? t.auth.welcomeBack : t.auth.joinDank}
+                <h2 className="text-2xl font-extrabold text-[var(--era-text)] tracking-tight">
+                  {mode === 'signin' ? t.auth.welcomeBack : t.auth.joinEra}
                 </h2>
-                <p className="text-xs text-[var(--dank-muted)] mt-1">
+                <p className="text-xs text-[var(--era-muted)] mt-1">
                   {mode === 'signin' ? t.auth.signInDesc : t.auth.signUpDesc}
                 </p>
 
                 {/* Mode switch tabs */}
-                <div className="flex items-center justify-center gap-1.5 mt-4 bg-[var(--dank-canvas)] p-1 rounded-full border border-[var(--dank-border)] w-fit mx-auto">
+                <div className="flex items-center justify-center gap-1.5 mt-4 bg-[var(--era-canvas)] p-1 rounded-full border border-[var(--era-border)] w-fit mx-auto">
                   <button
                     type="button"
                     onClick={() => {
@@ -273,8 +273,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ allowSignups = true }) =
                     }}
                     className={`px-5 py-2 rounded-full text-xs font-bold transition-all cursor-pointer ${
                       mode === 'signin'
-                        ? 'bg-[var(--dank-accent)] text-[var(--dank-accent-fg)] shadow-md'
-                        : 'text-[var(--dank-muted)] hover:text-[var(--dank-text)]'
+                        ? 'bg-[var(--era-accent)] text-[var(--era-accent-fg)] shadow-md'
+                        : 'text-[var(--era-muted)] hover:text-[var(--era-text)]'
                     }`}
                   >
                     {t.auth.signIn}
@@ -288,8 +288,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ allowSignups = true }) =
                     }}
                     className={`px-5 py-2 rounded-full text-xs font-bold transition-all cursor-pointer ${
                       mode === 'signup'
-                        ? 'bg-[var(--dank-accent)] text-[var(--dank-accent-fg)] shadow-md'
-                        : 'text-[var(--dank-muted)] hover:text-[var(--dank-text)]'
+                        ? 'bg-[var(--era-accent)] text-[var(--era-accent-fg)] shadow-md'
+                        : 'text-[var(--era-muted)] hover:text-[var(--era-text)]'
                     }`}
                   >
                     {t.auth.createAccount}
@@ -309,7 +309,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ allowSignups = true }) =
                 </div>
               )}
               {info && (
-                <div className="mb-4 p-3 rounded-2xl bg-[var(--dank-accent-soft)] border border-[var(--dank-accent-border)] text-[var(--dank-accent)] text-xs font-medium">
+                <div className="mb-4 p-3 rounded-2xl bg-[var(--era-accent-soft)] border border-[var(--era-accent-border)] text-[var(--era-accent)] text-xs font-medium">
                   {info}
                 </div>
               )}
@@ -317,7 +317,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ allowSignups = true }) =
               <form onSubmit={handleSubmit} className="space-y-3.5">
                 {mode === 'signup' && (
                   <div>
-                    <label className="block text-xs font-medium text-[var(--dank-muted)] mb-1">
+                    <label className="block text-xs font-medium text-[var(--era-muted)] mb-1">
                       {t.auth.fullName}
                     </label>
                     <input
@@ -328,13 +328,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ allowSignups = true }) =
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       placeholder={t.auth.fullNamePlaceholder}
-                      className="w-full h-11 px-4 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] text-base text-[var(--dank-text)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)]"
+                      className="w-full h-11 px-4 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] text-base text-[var(--era-text)] focus:outline-none focus:ring-2 focus:ring-[var(--era-accent)]"
                     />
                   </div>
                 )}
 
                 <div>
-                  <label className="block text-xs font-medium text-[var(--dank-muted)] mb-1">
+                  <label className="block text-xs font-medium text-[var(--era-muted)] mb-1">
                     {t.auth.emailAddress}
                   </label>
                   <input
@@ -344,12 +344,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ allowSignups = true }) =
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder={t.auth.emailPlaceholder}
-                    className="w-full h-11 px-4 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] text-base text-[var(--dank-text)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)]"
+                    className="w-full h-11 px-4 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] text-base text-[var(--era-text)] focus:outline-none focus:ring-2 focus:ring-[var(--era-accent)]"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-[var(--dank-muted)] mb-1">
+                  <label className="block text-xs font-medium text-[var(--era-muted)] mb-1">
                     {t.auth.password}
                   </label>
                   <div className="relative">
@@ -360,13 +360,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ allowSignups = true }) =
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder={t.auth.passwordPlaceholder}
-                      className="w-full h-11 ps-4 pe-11 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] text-base text-[var(--dank-text)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)]"
+                      className="w-full h-11 ps-4 pe-11 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] text-base text-[var(--era-text)] focus:outline-none focus:ring-2 focus:ring-[var(--era-accent)]"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword((prev) => !prev)}
                       aria-label={showPassword ? t.auth.hidePassword : t.auth.showPassword}
-                      className="absolute end-1.5 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center text-[var(--dank-muted)] hover:text-[var(--dank-text)] cursor-pointer"
+                      className="absolute end-1.5 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center text-[var(--era-muted)] hover:text-[var(--era-text)] cursor-pointer"
                     >
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
@@ -376,7 +376,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ allowSignups = true }) =
                 <button
                   type="submit"
                   disabled={busy || (mode === 'signup' && !allowSignups)}
-                  className="w-full h-12 rounded-full bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] font-extrabold text-sm flex items-center justify-center gap-2 transition-transform active:scale-95 disabled:opacity-50 cursor-pointer shadow-lg mt-2"
+                  className="w-full h-12 rounded-full bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] font-extrabold text-sm flex items-center justify-center gap-2 transition-transform active:scale-95 disabled:opacity-50 cursor-pointer shadow-lg mt-2"
                 >
                   {busy && <RefreshCw className="w-4 h-4 animate-spin" />}
                   {busy
@@ -388,25 +388,25 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ allowSignups = true }) =
               </form>
 
               <div className="my-4 flex items-center gap-3">
-                <div className="h-px flex-1 bg-[var(--dank-border)]" />
-                <span className="text-xs text-[var(--dank-muted)]">{t.common.or}</span>
-                <div className="h-px flex-1 bg-[var(--dank-border)]" />
+                <div className="h-px flex-1 bg-[var(--era-border)]" />
+                <span className="text-xs text-[var(--era-muted)]">{t.common.or}</span>
+                <div className="h-px flex-1 bg-[var(--era-border)]" />
               </div>
 
               <button
                 type="button"
                 disabled={busy}
                 onClick={handleGoogle}
-                className="w-full h-12 rounded-full bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] font-semibold text-sm flex items-center justify-center gap-2.5 transition-colors disabled:opacity-50 cursor-pointer border border-[var(--dank-border)]"
+                className="w-full h-12 rounded-full bg-[var(--era-elevated)] hover:bg-[var(--era-hover)] text-[var(--era-text)] font-semibold text-sm flex items-center justify-center gap-2.5 transition-colors disabled:opacity-50 cursor-pointer border border-[var(--era-border)]"
               >
-                <ShieldCheck className="w-4 h-4 text-[var(--dank-accent)]" />
+                <ShieldCheck className="w-4 h-4 text-[var(--era-accent)]" />
                 {t.auth.continueWithGoogle}
               </button>
             </div>
           )}
         </div>
 
-        <p className="mt-5 text-[11px] text-[var(--dank-muted)] text-center shrink-0">
+        <p className="mt-5 text-[11px] text-[var(--era-muted)] text-center shrink-0">
           {t.brand.footerCopyright}
         </p>
       </div>

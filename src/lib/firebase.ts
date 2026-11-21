@@ -33,7 +33,7 @@ function initDb() {
   }
 
   try {
-    const raw = sessionStorage.getItem('dank_firestore_quota_until');
+    const raw = sessionStorage.getItem('era_firestore_quota_until');
     const until = raw ? Number(raw) : 0;
     if (Number.isFinite(until) && until > Date.now()) {
       void disableNetwork(database).catch(() => {});
@@ -50,7 +50,7 @@ googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 if (typeof window !== 'undefined') {
   try {
-    const raw = sessionStorage.getItem('dank_firestore_quota_until');
+    const raw = sessionStorage.getItem('era_firestore_quota_until');
     const until = raw ? Number(raw) : 0;
     if (Number.isFinite(until) && until > Date.now()) {
       void disableNetwork(db).catch(() => {});
@@ -79,20 +79,20 @@ export async function validateFirestoreConnection(): Promise<void> {
   }
 
   try {
-    const raw = sessionStorage.getItem('dank_firestore_quota_until');
+    const raw = sessionStorage.getItem('era_firestore_quota_until');
     const until = raw ? Number(raw) : 0;
     if (Number.isFinite(until) && until > Date.now()) {
       return;
     }
     // If quota was previously hit, don't ping server
-    const quotaHit = sessionStorage.getItem('dank_firestore_quota_until');
+    const quotaHit = sessionStorage.getItem('era_firestore_quota_until');
     if (quotaHit && Number(quotaHit) > Date.now()) return;
 
     await getDocFromServer(doc(db, 'test', 'connection'));
   } catch (error) {
     if (isOfflineConnectionError(error)) {
       try {
-        sessionStorage.setItem('dank_firestore_quota_until', String(Date.now() + 24 * 3600_000));
+        sessionStorage.setItem('era_firestore_quota_until', String(Date.now() + 24 * 3600_000));
         void disableNetwork(db).catch(() => {});
       } catch {}
     }

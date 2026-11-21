@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Plus } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
-import type { Story, UserPublic } from '../types/dank';
+import type { Story, UserPublic } from '../types/era';
 import { Avatar } from './Avatar';
 
 export interface StoryAuthorGroup {
@@ -75,15 +75,15 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({
   }, [stories, currentUser.uid, usersMap, viewedStoryIds]);
 
   return (
-    <div className="px-4 py-3 shrink-0 border-b border-[var(--dank-border)] bg-[var(--dank-canvas)]">
+    <div className="px-4 py-3 shrink-0 border-b border-[var(--era-border)] bg-[var(--era-canvas)]">
       <div className="flex items-center justify-between mb-2.5">
-        <span className="text-xs font-bold uppercase tracking-wider text-[var(--dank-muted)]">
+        <span className="text-xs font-bold uppercase tracking-wider text-[var(--era-muted)]">
           {t.stories.title}
         </span>
         <button
           type="button"
           onClick={onOpenCreateStory}
-          className="text-xs font-bold text-[var(--dank-accent)] hover:underline cursor-pointer"
+          className="text-xs font-bold text-[var(--era-accent)] hover:underline cursor-pointer"
         >
           {t.stories.addStoryShort}
         </button>
@@ -102,11 +102,11 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({
               title={myGroup ? t.stories.viewYourStory : t.stories.add24hStory}
               className={`rounded-full p-[2.5px] transition-transform hover:scale-105 cursor-pointer ${
                 myGroup
-                  ? 'bg-[var(--dank-accent)]'
-                  : 'border-2 border-dashed border-[var(--dank-muted)]'
+                  ? 'bg-[var(--era-accent)]'
+                  : 'border-2 border-dashed border-[var(--era-muted)]'
               }`}
             >
-              <div className="rounded-full bg-[var(--dank-canvas)] p-[2px]">
+              <div className="rounded-full bg-[var(--era-canvas)] p-[2px]">
                 <Avatar src={currentUser.photoURL} name={currentUser.name} size="md" />
               </div>
             </button>
@@ -115,12 +115,12 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({
               onClick={onOpenCreateStory}
               title={t.stories.postNewStory}
               aria-label={t.stories.postNewStory}
-              className="absolute -bottom-0.5 -end-0.5 w-5 h-5 rounded-full bg-[var(--dank-accent)] text-[var(--dank-accent-fg)] border-2 border-[var(--dank-canvas)] flex items-center justify-center shadow-xs hover:bg-[var(--dank-accent-hover)] cursor-pointer"
+              className="absolute -bottom-0.5 -end-0.5 w-5 h-5 rounded-full bg-[var(--era-accent)] text-[var(--era-accent-fg)] border-2 border-[var(--era-canvas)] flex items-center justify-center shadow-xs hover:bg-[var(--era-accent-hover)] cursor-pointer"
             >
               <Plus className="w-3 h-3 stroke-[3]" />
             </button>
           </div>
-          <span className="text-[11px] text-[var(--dank-text)] font-medium truncate w-full text-center">
+          <span className="text-[11px] text-[var(--era-text)] font-medium truncate w-full text-center">
             {t.whatsapp.myStatus}
           </span>
         </div>
@@ -136,14 +136,14 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({
           >
             <div
               className={`rounded-full p-[2.5px] transition-transform group-hover:scale-105 ${
-                group.hasUnviewed ? 'bg-[var(--dank-accent)]' : 'bg-[var(--dank-elevated)]'
+                group.hasUnviewed ? 'bg-[var(--era-accent)]' : 'bg-[var(--era-elevated)]'
               }`}
             >
-              <div className="rounded-full bg-[var(--dank-canvas)] p-[2px]">
+              <div className="rounded-full bg-[var(--era-canvas)] p-[2px]">
                 <Avatar src={group.authorPhoto} name={group.authorName} size="md" />
               </div>
             </div>
-            <span className="text-[11px] text-[var(--dank-text)] font-medium truncate w-full text-center">
+            <span className="text-[11px] text-[var(--era-text)] font-medium truncate w-full text-center">
               {group.authorName.split(' ')[0]}
             </span>
           </button>

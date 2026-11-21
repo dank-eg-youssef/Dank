@@ -21,15 +21,15 @@ const SIZE_CLASSES: Record<NonNullable<AvatarProps['size']>, string> = {
 };
 
 const BG_PALETTES = [
-  'bg-[var(--dank-surface)] text-[var(--dank-accent)]',
-  'bg-[var(--dank-elevated)] text-[var(--dank-text)]',
-  'bg-[var(--dank-accent-soft)] text-[var(--dank-accent)]',
-  'bg-[var(--dank-hover)] text-[var(--dank-text)]',
+  'bg-[var(--era-surface)] text-[var(--era-accent)]',
+  'bg-[var(--era-elevated)] text-[var(--era-text)]',
+  'bg-[var(--era-accent-soft)] text-[var(--era-accent)]',
+  'bg-[var(--era-hover)] text-[var(--era-text)]',
 ];
 
 function getInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return 'D';
+  if (parts.length === 0) return 'E';
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
 }
@@ -61,7 +61,7 @@ export const Avatar: React.FC<AvatarProps> = ({
     <div className={`relative inline-flex shrink-0 ${className}`}>
       {specialType === 'saved' ? (
         <div
-          className={`${sizeCls} rounded-full bg-[var(--dank-accent)] text-[var(--dank-accent-fg)] flex items-center justify-center ring-1 ring-[var(--dank-border)]`}
+          className={`${sizeCls} rounded-full bg-[var(--era-accent)] text-[var(--era-accent-fg)] flex items-center justify-center ring-1 ring-[var(--era-border)]`}
         >
           <Bookmark className="w-5 h-5" />
         </div>
@@ -74,13 +74,13 @@ export const Avatar: React.FC<AvatarProps> = ({
           draggable={false}
           referrerPolicy="no-referrer"
           onError={() => setFailedSrc(cleanSrc)}
-          className={`${sizeCls} rounded-full object-cover ring-1 ring-[var(--dank-border)]`}
+          className={`${sizeCls} rounded-full object-cover ring-1 ring-[var(--era-border)]`}
         />
       ) : (
         <div
           className={`${sizeCls} ${getPaletteClass(
             name
-          )} rounded-full flex items-center justify-center font-semibold tracking-wide select-none ring-1 ring-[var(--dank-border)]`}
+          )} rounded-full flex items-center justify-center font-semibold tracking-wide select-none ring-1 ring-[var(--era-border)]`}
         >
           {chatType === 'channel' ? (
             <Megaphone className="w-4 h-4" />
@@ -93,7 +93,7 @@ export const Avatar: React.FC<AvatarProps> = ({
       )}
 
       {specialType === 'secret' && (
-        <span className="absolute -bottom-0.5 -end-0.5 w-4 h-4 rounded-full bg-[var(--dank-accent)] text-[var(--dank-accent-fg)] flex items-center justify-center ring-2 ring-[var(--dank-canvas)]">
+        <span className="absolute -bottom-0.5 -end-0.5 w-4 h-4 rounded-full bg-[var(--era-accent)] text-[var(--era-accent-fg)] flex items-center justify-center ring-2 ring-[var(--era-canvas)]">
           <Lock className="w-2.5 h-2.5 stroke-[2.6]" />
         </span>
       )}
@@ -101,7 +101,7 @@ export const Avatar: React.FC<AvatarProps> = ({
       {showOnlineDot && isOnline && !specialType && (
         <span
           aria-label="Online"
-          className="absolute bottom-0 end-0 w-3 h-3 rounded-full bg-[var(--dank-accent)] ring-2 ring-[var(--dank-canvas)]"
+          className="absolute bottom-0 end-0 w-3 h-3 rounded-full bg-[var(--era-accent)] ring-2 ring-[var(--era-canvas)]"
         />
       )}
     </div>

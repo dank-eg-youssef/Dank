@@ -41,7 +41,7 @@ export interface UserPublic {
   isBanned?: boolean;
   mutedUntil?: Timestamp | null;
   freezesCount?: number;
-  dankPoints?: number;
+  eraPoints?: number;
   // Privacy Settings (visibility flags stored cleanly on public profile)
   hasPhone?: boolean;
   privacyPhone?: PrivacyVisibility;
@@ -450,17 +450,24 @@ export interface ChatReminder {
   updatedAt: Timestamp | null;
 }
 
+export type StreakMilestone = 7 | 14 | 30 | 50 | 100;
+
 export interface ChatStreak {
   chatId: string;
   users: string[]; // [uid1, uid2]
   streakCount: number;
   lastMessageAt: Timestamp | null;
   lastSenderId: string;
+  currentDayKey?: string;
+  daySenderIds?: string[];
+  completedDayKey?: string;
   expiresAt: Timestamp | null;
   frozenAt?: Timestamp | null;
   frozenUntil?: Timestamp | null;
   celebrated7?: boolean;
+  celebrated14?: boolean;
   celebrated30?: boolean;
+  celebrated50?: boolean;
   celebrated100?: boolean;
   isGoldenTheme?: boolean;
   goldenThemeExpiresAt?: Timestamp | null;
@@ -470,7 +477,7 @@ export interface ChatStreak {
 export interface UserStreakInventory {
   uid: string;
   freezesCount: number;
-  dankPoints: number;
+  eraPoints: number;
   lastWeeklyRefillAt: Timestamp | null;
   updatedAt: Timestamp | null;
 }

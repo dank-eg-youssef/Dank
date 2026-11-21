@@ -112,7 +112,7 @@ service cloud.firestore {
     function isPrivateChatFriendsAllowed(data, chatId) {
       return data.type != 'private'
         || chatId == ('saved_' + request.auth.uid)
-        || chatId == ('dank_bot_' + request.auth.uid)
+        || chatId == ('era_bot_' + request.auth.uid)
         || (
           'dmPeerIds' in data
           && data.dmPeerIds is list
@@ -126,8 +126,8 @@ service cloud.firestore {
     function isValidUserPublic(data, userId) {
       return data.keys().hasAll(['uid', 'name', 'username', 'isOnline', 'lastSeen', 'createdAt', 'updatedAt'])
         && data.keys().hasOnly([
-          'uid', 'name', 'username', 'photoURL', 'coverURL', 'bio', 'language', 'theme', 'isOnline', 'lastSeen',
-          'activeChatId', 'isAdmin', 'isVerified', 'isBot', 'isPlus', 'friendsCount',
+          'uid', 'name', 'username', 'photoURL', 'coverURL', 'bio', 'language', 'theme', 'neonTheme', 'ghostMode',
+          'isOnline', 'lastSeen', 'activeChatId', 'isAdmin', 'isVerified', 'isBot', 'isPlus', 'friendsCount',
           'inviteCode', 'invitedBy', 'inviteCount', 'isVip', 'isBanned', 'mutedUntil',
           'hasPhone', 'privacyPhone', 'privacyLastSeen', 'privacyLastSeenExceptions',
           'privacyProfilePhoto', 'privacyGroupAdd', 'privacyCall', 'privacyMessages',
@@ -141,7 +141,9 @@ service cloud.firestore {
         && isValidOptString(data, 'coverURL', 350000)
         && isValidOptString(data, 'bio', 240)
         && (!('language' in data) || data.language in ['ar', 'en'])
-        && (!('theme' in data) || data.theme in ['arcade', 'dank-dark', 'midnight-blue', 'purple-neon', 'light'])
+        && (!('theme' in data) || data.theme in ['arcade', 'era-dark', 'midnight-blue', 'purple-neon', 'light'])
+        && (!('neonTheme' in data) || data.neonTheme in ['purple', 'cyan', 'pink', 'green', 'red'])
+        && isValidOptBool(data, 'ghostMode')
         && isValidOptString(data, 'activeChatId', 128)
         && isValidOptString(data, 'inviteCode', 16)
         && isValidOptString(data, 'invitedBy', 128)
@@ -163,7 +165,7 @@ service cloud.firestore {
         && isValidPrivacyVisibility(data, 'privacyCall')
         && (!('privacyMessages' in data) || data.privacyMessages in ['everyone', 'contacts'])
         && data.isOnline is bool
-        && data.lastSeen is timestamp
+        && (data.lastSeen is timestamp || (data.lastSeen == null && 'ghostMode' in data && data.ghostMode == true))
         && data.createdAt is timestamp
         && data.updatedAt is timestamp;
     }
@@ -236,7 +238,7 @@ service cloud.firestore {
         && data.keys().hasOnly(['code', 'uid', 'createdAt'])
         && data.code is string
         && data.code == code
-        && data.code.matches('^DANK-[A-Z0-9]{4,10}$')
+        && data.code.matches('^ERA-[A-Z0-9]{4,10}$')
         && isValidId(data.uid)
         && data.createdAt is timestamp;
     }
@@ -729,12 +731,12 @@ service cloud.firestore {
     }
 
     function isValidStreakInventory(data, userId, invId) {
-      return data.keys().hasAll(['uid', 'freezesCount', 'dankPoints', 'updatedAt'])
-        && data.keys().hasOnly(['uid', 'freezesCount', 'dankPoints', 'lastWeeklyRefillAt', 'updatedAt'])
+      return data.keys().hasAll(['uid', 'freezesCount', 'eraPoints', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'freezesCount', 'eraPoints', 'lastWeeklyRefillAt', 'updatedAt'])
         && isValidId(data.uid) && data.uid == userId
         && invId == 'main'
         && (data.freezesCount is int && data.freezesCount >= 0 && data.freezesCount <= 1000)
-        && (data.dankPoints is int && data.dankPoints >= 0 && data.dankPoints <= 1000000)
+        && (data.eraPoints is int && data.eraPoints >= 0 && data.eraPoints <= 1000000)
         && (!('lastWeeklyRefillAt' in data) || data.lastWeeklyRefillAt == null || data.lastWeeklyRefillAt is timestamp)
         && data.updatedAt is timestamp;
     }
@@ -743,7 +745,9 @@ service cloud.firestore {
       return data.keys().hasAll(['chatId', 'users', 'streakCount', 'updatedAt'])
         && data.keys().hasOnly([
           'chatId', 'users', 'streakCount', 'lastMessageAt', 'lastSenderId',
-          'expiresAt', 'frozenAt', 'frozenUntil', 'celebrated7', 'celebrated30', 'celebrated100',
+          'currentDayKey', 'daySenderIds', 'completedDayKey',
+          'expiresAt', 'frozenAt', 'frozenUntil',
+          'celebrated7', 'celebrated14', 'celebrated30', 'celebrated50', 'celebrated100',
           'isGoldenTheme', 'goldenThemeExpiresAt', 'updatedAt'
         ])
         && isValidId(data.chatId) && data.chatId == chatId
@@ -751,12 +755,22 @@ service cloud.firestore {
         && (data.users.size() == 2 && isValidId(data.users[0]) && isValidId(data.users[1]))
         && (data.streakCount is int && data.streakCount >= 0 && data.streakCount <= 100000)
         && isValidOptString(data, 'lastSenderId', 128)
+        && isValidOptString(data, 'currentDayKey', 16)
+        && (!('daySenderIds' in data) || (
+          data.daySenderIds is list
+          && data.daySenderIds.size() <= 2
+          && (data.daySenderIds.size() == 0 || isValidId(data.daySenderIds[0]))
+          && (data.daySenderIds.size() < 2 || isValidId(data.daySenderIds[1]))
+        ))
+        && isValidOptString(data, 'completedDayKey', 16)
         && (!('lastMessageAt' in data) || data.lastMessageAt == null || data.lastMessageAt is timestamp)
         && (!('expiresAt' in data) || data.expiresAt == null || data.expiresAt is timestamp)
         && (!('frozenAt' in data) || data.frozenAt == null || data.frozenAt is timestamp)
         && (!('frozenUntil' in data) || data.frozenUntil == null || data.frozenUntil is timestamp)
         && isValidOptBool(data, 'celebrated7')
+        && isValidOptBool(data, 'celebrated14')
         && isValidOptBool(data, 'celebrated30')
+        && isValidOptBool(data, 'celebrated50')
         && isValidOptBool(data, 'celebrated100')
         && isValidOptBool(data, 'isGoldenTheme')
         && (!('goldenThemeExpiresAt' in data) || data.goldenThemeExpiresAt == null || data.goldenThemeExpiresAt is timestamp)
@@ -801,19 +815,23 @@ service cloud.firestore {
             isAdmin()
             && incoming().diff(existing()).affectedKeys().hasOnly([
               'isAdmin', 'isVerified', 'isVip', 'isPlus', 'isBanned', 'mutedUntil',
-              'name', 'username', 'photoURL', 'coverURL', 'bio', 'language', 'theme',
+              'name', 'username', 'photoURL', 'coverURL', 'bio', 'language', 'theme', 'neonTheme', 'ghostMode',
               'isOnline', 'lastSeen', 'activeChatId', 'inviteCode', 'updatedAt'
             ])
             && (
               !incoming().diff(existing()).affectedKeys().hasAny(['isOnline', 'lastSeen'])
               || incoming().lastSeen == request.time
+              || (incoming().lastSeen == null && 'ghostMode' in incoming() && incoming().ghostMode == true)
             )
           )
           || (
             isOwner(userId)
-            && incoming().lastSeen == request.time
+            && (
+              incoming().lastSeen == request.time
+              || (incoming().lastSeen == null && 'ghostMode' in incoming() && incoming().ghostMode == true)
+            )
             && incoming().diff(existing()).affectedKeys().hasOnly([
-              'name', 'username', 'photoURL', 'coverURL', 'bio', 'language', 'theme', 'isOnline', 'lastSeen',
+              'name', 'username', 'photoURL', 'coverURL', 'bio', 'language', 'theme', 'neonTheme', 'ghostMode', 'isOnline', 'lastSeen',
               'activeChatId', 'inviteCode', 'invitedBy', 'isPlus', 'hasPhone',
               'privacyPhone', 'privacyLastSeen', 'privacyLastSeenExceptions',
               'privacyProfilePhoto', 'privacyGroupAdd', 'privacyCall', 'privacyMessages',
@@ -1238,7 +1256,7 @@ service cloud.firestore {
         );
     }
 
-    // 4. Chats (Private DMs, Secret Chats, Groups, Channels, Saved Messages, DANK Bot, DANK Team)
+    // 4. Chats (Private DMs, Secret Chats, Groups, Channels, Saved Messages, ERA Bot, ERA Team)
     match /chats/{chatId} {
       allow get: if isVerified()
         && isValidId(chatId)
@@ -1296,7 +1314,7 @@ service cloud.firestore {
                 (existing().type != 'channel' || isChatAdmin(chatId))
                 && isPrivateChatFriendsAllowed(existing(), chatId)
                 && isNotBannedOrMuted()
-                && (incoming().lastMessageSenderId == request.auth.uid || incoming().lastMessageSenderId == 'dank_bot')
+                && (incoming().lastMessageSenderId == request.auth.uid || incoming().lastMessageSenderId == 'era_bot')
                 && incoming().diff(existing()).affectedKeys().hasOnly([
                   'lastMessageText', 'lastMessageType', 'lastMessageSenderId',
                   'lastMessageSenderName', 'lastMessageStatus', 'lastMessageAt',
@@ -1438,7 +1456,7 @@ service cloud.firestore {
           && (chatDoc(chatId).type != 'channel' || isChatAdmin(chatId))
           && isPrivateChatFriendsAllowed(chatDoc(chatId), chatId)
           && isValidMessage(incoming(), chatId, messageId)
-          && (incoming().senderId == request.auth.uid || (incoming().senderId == 'dank_bot' && chatId == ('dank_bot_' + request.auth.uid)))
+          && (incoming().senderId == request.auth.uid || (incoming().senderId == 'era_bot' && chatId == ('era_bot_' + request.auth.uid)))
           && incoming().createdAt == request.time
           && incoming().updatedAt == request.time
           && isNotBannedOrMuted();

@@ -1,6 +1,6 @@
 {
-  "name": "DANK",
-  "description": "DANK is a real-time messaging platform for private chats, groups, broadcast channels, 24h stories, voice notes, and VIP invites.",
+  "name": "Era",
+  "description": "Era is a real-time messaging platform for private chats, groups, broadcast channels, 24h stories, arcade stickers, and VIP invites.",
   "requestFramePermissions": ["microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

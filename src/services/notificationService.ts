@@ -9,10 +9,10 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import type { AppNotification, NotificationType, UserPublic } from '../types/dank';
+import type { AppNotification, NotificationType, UserPublic } from '../types/era';
 
-const NOTIF_STORAGE_PREFIX = 'dank_notifs_';
-const NOTIF_CLEARED_PREFIX = 'dank_notifs_cleared_';
+const NOTIF_STORAGE_PREFIX = 'era_notifs_';
+const NOTIF_CLEARED_PREFIX = 'era_notifs_cleared_';
 
 function isValidFirestoreId(val: string): boolean {
   return typeof val === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(val);
@@ -67,7 +67,7 @@ export function saveLocalNotifications(uid: string, list: AppNotification[]): vo
       createdAtMs: item.createdAt?.toMillis?.() ?? Date.now(),
     }));
     localStorage.setItem(`${NOTIF_STORAGE_PREFIX}${uid}`, JSON.stringify(serialized));
-    window.dispatchEvent(new CustomEvent('dank:notifications-updated', { detail: uid }));
+    window.dispatchEvent(new CustomEvent('era:notifications-updated', { detail: uid }));
   } catch {
     // ignore storage errors
   }
@@ -106,8 +106,9 @@ export async function createAppNotification(params: {
   type: NotificationType;
   text: string;
   targetId?: string;
+  localOnly?: boolean;
 }): Promise<void> {
-  const { recipientUid, actor, type, text, targetId } = params;
+  const { recipientUid, actor, type, text, targetId, localOnly } = params;
   if (!recipientUid || !actor.uid || recipientUid === actor.uid) return;
   if (!isValidFirestoreId(recipientUid) || !isValidFirestoreId(actor.uid)) return;
 
@@ -118,7 +119,7 @@ export async function createAppNotification(params: {
     id,
     recipientUid,
     actorUid: actor.uid,
-    actorName: (actor.name || 'DANK User').slice(0, 78),
+    actorName: (actor.name || 'ERA User').slice(0, 78),
     actorPhoto: actor.photoURL || '',
     type,
     text: cleanText,
@@ -129,6 +130,7 @@ export async function createAppNotification(params: {
 
   // Persist locally on recipient cache as fallback when running single-device/offline
   appendLocalNotification(recipientUid, localCopy);
+  if (localOnly) return;
 
   try {
     const ref = doc(collection(db, 'notifications'), id);

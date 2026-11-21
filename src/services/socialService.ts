@@ -12,7 +12,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { getTranslations } from '../i18n';
-import type { Post, UserPublic } from '../types/dank';
+import type { Post, UserPublic } from '../types/era';
 import {
   handleFirestoreError,
   isFirestoreWritesPaused,

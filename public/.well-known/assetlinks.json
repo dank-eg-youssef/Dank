@@ -2,7 +2,7 @@
       "relation": ["delegate_permission/common.handle_all_urls"],
       "target": {
         "namespace": "android_app",
-        "package_name": "app.vercel.dank_virid.twa",
+        "package_name": "app.vercel.era_virid.twa",
         "sha256_cert_fingerprints": ["0E:2F:99:2A:EF:62:FD:F7:E1:5E:1B:C5:60:2D:A0:6C:47:86:73:6C:6E:78:24:2E:A7:13:86:CF:C9:14:89:B2"]
       }
     }]

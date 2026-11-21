@@ -44,7 +44,7 @@ import {
 } from 'firebase/firestore';
 import { useLanguage } from '../contexts/LanguageContext';
 import { db } from '../lib/firebase';
-import { dankAudio } from '../utils/dankAudio';
+import { eraAudio } from '../utils/eraAudio';
 import {
   canSeeOnlineStatus,
   canSeePrivacyField,
@@ -73,7 +73,9 @@ import {
   sendFriendRequest,
 } from '../services/socialService';
 import {
+  checkAndAutoFreezeChatStreak,
   ensureUserStreakInventory,
+  getLocalDayKey,
   recordMessageStreak,
   subscribeChatStreak,
   triggerRescueNotificationIfNeeded,
@@ -86,11 +88,12 @@ import type {
   Message,
   Reaction,
   ScheduledMessage,
+  StreakMilestone,
   TypingState,
   UserPublic,
   UserSticker,
   UserStreakInventory,
-} from '../types/dank';
+} from '../types/era';
 import { getCachedChatMessages, setCachedChatMessages } from '../utils/chatCache';
 import {
   handleFirestoreError,
@@ -100,7 +103,7 @@ import {
 } from '../utils/firestoreErrors';
 import { uploadChatImage, uploadToCloudinary } from '../utils/mediaStorage';
 import { decryptSecretText } from '../utils/secretCrypto';
-import type { DankGifItem, DankSticker } from '../utils/stickers';
+import type { EraGifItem, EraSticker } from '../utils/stickers';
 import {
   formatDateDivider,
   formatLastSeen,
@@ -114,7 +117,7 @@ import { ChannelCommentsDrawer } from './ChannelCommentsDrawer';
 import { ChatMediaPicker } from './ChatMediaPicker';
 import { ForwardModal } from './ForwardModal';
 import { MessageStatusTicks } from './MessageStatusTicks';
-import { DankEmojiIcon, RichEmojiText } from './RichEmojiText';
+import { EraEmojiIcon, RichEmojiText } from './RichEmojiText';
 import { formatScheduledTarget, ScheduleMessageModal } from './ScheduleModals';
 import { StickerMakerModal } from './StickerMakerModal';
 import { StickerVisual } from './StickerVisual';
@@ -215,7 +218,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
   const [messages, setMessages] = useState<Message[]>(() => getCachedChatMessages(chat.id));
   const [optimisticMsgs, setOptimisticMsgs] = useState<Message[]>([]);
-  const [limitCount, setLimitCount] = useState(30);
+  const [limitCount, setLimitCount] = useState(50);
   const [hasMoreOlder, setHasMoreOlder] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
 
@@ -274,7 +277,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       const cached = getCachedChatMessages(chat.id);
       setMessages(cached);
       setOptimisticMsgs([]);
-      setLimitCount(30);
+      setLimitCount(50);
       setHasMoreOlder(false);
       setLoadingMessages(cached.length === 0);
       setReplyTo(null);
@@ -481,7 +484,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     if (!hasMoreOlder || loadingOlder) return;
     shouldScrollToBottomRef.current = false;
     setLoadingOlder(true);
-    setLimitCount((c) => c + 30);
+    setLimitCount((c) => c + 50);
   }, [hasMoreOlder, loadingOlder]);
 
   const handleStreamScroll = () => {
@@ -495,7 +498,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   };
 
   const isSavedMessages = chat.id === `saved_${currentUser.uid}`;
-  const isBotChat = chat.id.startsWith('dank_bot_');
+  const isBotChat = chat.id.startsWith('era_bot_');
 
   const peerUser = useMemo(() => {
     if (isSavedMessages) return null;
@@ -585,7 +588,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const [streakInventory, setStreakInventory] = useState<UserStreakInventory | null>(null);
   const [showStreakModal, setShowStreakModal] = useState(false);
   const [streakCelebration, setStreakCelebration] = useState<{
-    milestone: 7 | 30 | 100;
+    milestone: StreakMilestone;
     stickerUrl?: string;
   } | null>(null);
 
@@ -598,12 +601,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     const handleInventoryUpdate = () => {
       void ensureUserStreakInventory(currentUser.uid).then(setStreakInventory);
     };
-    window.addEventListener('dank:streak-inventory-updated', handleInventoryUpdate);
+    window.addEventListener('era:streak-inventory-updated', handleInventoryUpdate);
 
     if (chat.type !== 'private' || isSavedMessages) {
       setChatStreak(null);
       return () => {
-        window.removeEventListener('dank:streak-inventory-updated', handleInventoryUpdate);
+        window.removeEventListener('era:streak-inventory-updated', handleInventoryUpdate);
       };
     }
 
@@ -613,13 +616,20 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
     return () => {
       unsub();
-      window.removeEventListener('dank:streak-inventory-updated', handleInventoryUpdate);
+      window.removeEventListener('era:streak-inventory-updated', handleInventoryUpdate);
     };
   }, [chat.id, chat.type, currentUser.uid, isSavedMessages]);
 
-  // Periodic rescue alert check
+  // Passive auto-freeze & periodic rescue alert check
   useEffect(() => {
     if (!chatStreak || !peerUser || isSavedMessages || !isFriendWithPeer) return;
+
+    void checkAndAutoFreezeChatStreak({
+      chat,
+      streak: chatStreak,
+      currentUser,
+      peerUser,
+    });
 
     void triggerRescueNotificationIfNeeded({
       chat,
@@ -642,6 +652,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
   const isRescueActive = useMemo(() => {
     if (!chatStreak || chatStreak.streakCount <= 0 || !chatStreak.expiresAt) return false;
+    if (chatStreak.completedDayKey === getLocalDayKey(Date.now())) return false;
     const diff = chatStreak.expiresAt.toMillis() - Date.now();
     return diff > 0 && diff <= 60 * 60 * 1000;
   }, [chatStreak]);
@@ -687,9 +698,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     const el = msgRefs.current[messageId];
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      el.classList.add('ring-2', 'ring-[var(--dank-accent)]');
+      el.classList.add('ring-2', 'ring-[var(--era-accent)]');
       window.setTimeout(() => {
-        el.classList.remove('ring-2', 'ring-[var(--dank-accent)]');
+        el.classList.remove('ring-2', 'ring-[var(--era-accent)]');
       }, 1400);
     }
   };
@@ -767,9 +778,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         usersMap,
       });
       if (params.type === 'sticker') {
-        dankAudio.playArcadeStickerBleep();
+        eraAudio.playArcadeStickerBleep();
       } else {
-        dankAudio.playSendTick();
+        eraAudio.playSendTick();
       }
       if (chat.type === 'private' && peerUser && !isSavedMessages) {
         void recordMessageStreak({
@@ -811,7 +822,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     }
   };
 
-  const handleSendGif = async (gif: DankGifItem) => {
+  const handleSendGif = async (gif: EraGifItem) => {
     if (!canPost || sending) return;
     setShowMediaPicker(false);
     setShowAttachMenu(false);
@@ -1095,8 +1106,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
   return (
     <section
-      className={`flex-1 h-full w-full flex flex-col min-w-0 overflow-hidden overscroll-none bg-[var(--dank-canvas)] text-[var(--dank-text)] relative ${
-        isGoldenThemeActive ? 'dank-golden-chat-theme' : ''
+      className={`flex-1 h-full w-full flex flex-col min-w-0 overflow-hidden overscroll-none bg-[var(--era-canvas)] text-[var(--era-text)] relative ${
+        isGoldenThemeActive ? 'era-golden-chat-theme' : ''
       }`}
       onTouchStart={(e) => {
         const touch = e.touches[0];
@@ -1115,13 +1126,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       }}
     >
       {/* iPhone WhatsApp Header */}
-      <header className="bg-[var(--dank-surface)] text-[var(--dank-text)] border-b border-[var(--dank-border)] px-2 sm:px-4 py-2 flex items-center justify-between gap-2 shrink-0 z-10">
+      <header className="bg-[var(--era-surface)] text-[var(--era-text)] border-b border-[var(--era-border)] px-2 sm:px-4 py-2 flex items-center justify-between gap-2 shrink-0 z-10">
         <div className="flex-1 flex items-center gap-1.5 sm:gap-2.5 min-w-0">
           <button
             type="button"
             onClick={onBackMobile}
             aria-label={t.chat.backToChats}
-            className="md:hidden min-w-[40px] min-h-[44px] rounded-xl hover:bg-[var(--dank-hover)] text-[var(--dank-accent)] flex items-center justify-center shrink-0 cursor-pointer"
+            className="md:hidden min-w-[40px] min-h-[44px] rounded-xl hover:bg-[var(--era-hover)] text-[var(--era-accent)] flex items-center justify-center shrink-0 cursor-pointer"
           >
             <ChevronLeft className="w-6 h-6 rtl:rotate-180" />
           </button>
@@ -1163,7 +1174,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               className="flex-1 min-w-0 text-start hover:opacity-90 transition-opacity cursor-pointer"
             >
               <div className="flex items-center gap-1.5 min-w-0">
-                {chat.isSecret && <Lock className="w-3.5 h-3.5 text-[var(--dank-accent)] shrink-0" />}
+                {chat.isSecret && <Lock className="w-3.5 h-3.5 text-[var(--era-accent)] shrink-0" />}
                 <h2 dir="auto" className="min-w-0 text-[15px] sm:text-base font-bold truncate">
                   {chatTitle}
                 </h2>
@@ -1180,8 +1191,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               <p
                 className={`text-xs truncate ${
                   activeTypers.length > 0 || peerOnline
-                    ? 'text-[var(--dank-accent)] font-semibold'
-                    : 'text-[var(--dank-muted)]'
+                    ? 'text-[var(--era-accent)] font-semibold'
+                    : 'text-[var(--era-muted)]'
                 }`}
               >
                 {headerSubtitle}
@@ -1195,16 +1206,16 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             <button
               type="button"
               onClick={() => setShowStreakModal(true)}
-              title="سلسلة دانك والتجميد"
-              aria-label="سلسلة دانك والتجميد"
+              title="سلسلة إيرا والتجميد"
+              aria-label="سلسلة إيرا والتجميد"
               className={`h-8 px-2.5 rounded-full border flex items-center gap-1.5 text-xs font-black transition-all cursor-pointer me-0.5 ${
                 isGoldenThemeActive
                   ? 'bg-amber-500/20 border-amber-400 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.55)]'
                   : isRescueActive
                   ? 'bg-orange-500/20 border-orange-500 text-orange-300 animate-pulse shadow-[0_0_12px_rgba(249,115,22,0.5)]'
                   : (chatStreak?.streakCount ?? 0) > 0
-                  ? 'bg-[var(--dank-elevated)] border-orange-500/40 text-orange-400 hover:bg-[var(--dank-hover)]'
-                  : 'bg-[var(--dank-elevated)] border-[var(--dank-border)] text-[var(--dank-muted)] hover:text-[var(--dank-text)] hover:bg-[var(--dank-hover)]'
+                  ? 'bg-[var(--era-elevated)] border-orange-500/40 text-orange-400 hover:bg-[var(--era-hover)]'
+                  : 'bg-[var(--era-elevated)] border-[var(--era-border)] text-[var(--era-muted)] hover:text-[var(--era-text)] hover:bg-[var(--era-hover)]'
               }`}
             >
               <Flame
@@ -1236,7 +1247,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               }}
               title={t.calls.voiceCall}
               aria-label={t.calls.voiceCall}
-              className="w-10 h-10 rounded-full hover:bg-[var(--dank-hover)] text-[var(--dank-accent)] flex items-center justify-center transition-colors cursor-pointer"
+              className="w-10 h-10 rounded-full hover:bg-[var(--era-hover)] text-[var(--era-accent)] flex items-center justify-center transition-colors cursor-pointer"
             >
               <Phone className="w-4.5 h-4.5" />
             </button>
@@ -1253,8 +1264,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             aria-label={t.chat.searchInsideChat}
             className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
               showSearchBar
-                ? 'bg-[var(--dank-accent)] text-[var(--dank-accent-fg)]'
-                : 'hover:bg-[var(--dank-hover)] text-[var(--dank-muted)] hover:text-[var(--dank-text)]'
+                ? 'bg-[var(--era-accent)] text-[var(--era-accent-fg)]'
+                : 'hover:bg-[var(--era-hover)] text-[var(--era-muted)] hover:text-[var(--era-text)]'
             }`}
           >
             <Search className="w-4.5 h-4.5" />
@@ -1265,10 +1276,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             onClick={handleToggleMute}
             title={isMuted ? t.chat.unmuteChat : t.chat.muteChat}
             aria-label={isMuted ? t.chat.unmuteChat : t.chat.muteChat}
-            className="hidden sm:flex w-10 h-10 rounded-full hover:bg-[var(--dank-hover)] text-[var(--dank-muted)] hover:text-[var(--dank-text)] items-center justify-center transition-colors cursor-pointer"
+            className="hidden sm:flex w-10 h-10 rounded-full hover:bg-[var(--era-hover)] text-[var(--era-muted)] hover:text-[var(--era-text)] items-center justify-center transition-colors cursor-pointer"
           >
             {isMuted ? (
-              <BellOff className="w-4.5 h-4.5 text-[var(--dank-accent)]" />
+              <BellOff className="w-4.5 h-4.5 text-[var(--era-accent)]" />
             ) : (
               <Bell className="w-4.5 h-4.5" />
             )}
@@ -1280,7 +1291,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               onClick={handleCopyInvite}
               title={t.chat.copyInviteLink}
               aria-label={t.chat.copyInviteLink}
-              className="hidden sm:flex w-10 h-10 rounded-full hover:bg-[var(--dank-hover)] text-[var(--dank-accent)] items-center justify-center transition-colors cursor-pointer"
+              className="hidden sm:flex w-10 h-10 rounded-full hover:bg-[var(--era-hover)] text-[var(--era-accent)] items-center justify-center transition-colors cursor-pointer"
             >
               <Link2 className="w-4.5 h-4.5" />
             </button>
@@ -1291,7 +1302,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             onClick={onOpenChatInfo}
             title={t.chat.chatDetails}
             aria-label={t.chat.chatDetails}
-            className="w-10 h-10 rounded-full hover:bg-[var(--dank-hover)] text-[var(--dank-muted)] hover:text-[var(--dank-text)] flex items-center justify-center transition-colors cursor-pointer"
+            className="w-10 h-10 rounded-full hover:bg-[var(--era-hover)] text-[var(--era-muted)] hover:text-[var(--era-text)] flex items-center justify-center transition-colors cursor-pointer"
           >
             <Info className="w-4.5 h-4.5" />
           </button>
@@ -1321,18 +1332,18 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
       {/* Secret Chat Banner + Self-Destruct Timer */}
       {chat.isSecret && (
-        <div className="bg-[var(--dank-surface)] text-[var(--dank-text)] border-b border-[var(--dank-accent-border)] px-3 sm:px-4 py-1.5 flex items-center justify-between gap-2 text-[11px] shrink-0">
+        <div className="bg-[var(--era-surface)] text-[var(--era-text)] border-b border-[var(--era-accent-border)] px-3 sm:px-4 py-1.5 flex items-center justify-between gap-2 text-[11px] shrink-0">
           <div className="flex items-center gap-1.5 min-w-0">
-            <Lock className="w-3.5 h-3.5 text-[var(--dank-accent)] shrink-0" />
+            <Lock className="w-3.5 h-3.5 text-[var(--era-accent)] shrink-0" />
             <span className="truncate">{t.telegram.secretBanner}</span>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
-            <Timer className="w-3.5 h-3.5 text-[var(--dank-accent)]" />
+            <Timer className="w-3.5 h-3.5 text-[var(--era-accent)]" />
             <select
               value={chat.selfDestructSeconds || 0}
               onChange={(e) => void updateChatSelfDestruct(chat.id, Number(e.target.value))}
               aria-label={t.telegram.selfDestructTimer}
-              className="h-7 px-2 rounded-lg bg-[var(--dank-elevated)] border border-[var(--dank-accent-border)] text-xs text-[var(--dank-text)]"
+              className="h-7 px-2 rounded-lg bg-[var(--era-elevated)] border border-[var(--era-accent-border)] text-xs text-[var(--era-text)]"
             >
               {SELF_DESTRUCT_OPTIONS.map((opt) => (
                 <option key={opt.seconds} value={opt.seconds}>
@@ -1346,8 +1357,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
       {/* Search Inside Chat Bar */}
       {showSearchBar && (
-        <div className="bg-[var(--dank-surface)] border-b border-[var(--dank-border)] px-4 py-2 flex items-center gap-2 shrink-0">
-          <Search className="w-4 h-4 text-[var(--dank-muted)] shrink-0" />
+        <div className="bg-[var(--era-surface)] border-b border-[var(--era-border)] px-4 py-2 flex items-center gap-2 shrink-0">
+          <Search className="w-4 h-4 text-[var(--era-muted)] shrink-0" />
           <input
             type="text"
             dir="auto"
@@ -1358,10 +1369,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               setSearchMatchIdx(0);
             }}
             placeholder={t.chat.searchMessagesPlaceholder}
-            className="flex-1 h-9 bg-transparent text-base text-[var(--dank-text)] placeholder:text-[var(--dank-muted)] focus:outline-none"
+            className="flex-1 h-9 bg-transparent text-base text-[var(--era-text)] placeholder:text-[var(--era-muted)] focus:outline-none"
           />
           {searchQuery && (
-            <span className="text-xs font-medium text-[var(--dank-muted)] tabular-nums shrink-0">
+            <span className="text-xs font-medium text-[var(--era-muted)] tabular-nums shrink-0">
               {searchMatches.length > 0
                 ? `${searchMatchIdx + 1} / ${searchMatches.length}`
                 : t.chat.resultsZero}
@@ -1373,7 +1384,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             onClick={() =>
               setSearchMatchIdx((i) => (i - 1 + searchMatches.length) % searchMatches.length)
             }
-            className="w-8 h-8 rounded-lg hover:bg-[var(--dank-hover)] flex items-center justify-center text-[var(--dank-text)] disabled:opacity-40 cursor-pointer"
+            className="w-8 h-8 rounded-lg hover:bg-[var(--era-hover)] flex items-center justify-center text-[var(--era-text)] disabled:opacity-40 cursor-pointer"
           >
             <ChevronUp className="w-4 h-4" />
           </button>
@@ -1381,7 +1392,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             type="button"
             disabled={searchMatches.length === 0}
             onClick={() => setSearchMatchIdx((i) => (i + 1) % searchMatches.length)}
-            className="w-8 h-8 rounded-lg hover:bg-[var(--dank-hover)] flex items-center justify-center text-[var(--dank-text)] disabled:opacity-40 cursor-pointer"
+            className="w-8 h-8 rounded-lg hover:bg-[var(--era-hover)] flex items-center justify-center text-[var(--era-text)] disabled:opacity-40 cursor-pointer"
           >
             <ChevronDown className="w-4 h-4" />
           </button>
@@ -1391,7 +1402,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               setShowSearchBar(false);
               setSearchQuery('');
             }}
-            className="w-8 h-8 rounded-lg hover:bg-[var(--dank-hover)] flex items-center justify-center text-[var(--dank-text)] cursor-pointer"
+            className="w-8 h-8 rounded-lg hover:bg-[var(--era-hover)] flex items-center justify-center text-[var(--era-text)] cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -1400,18 +1411,18 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
       {/* Pinned Message Banner */}
       {chat.pinnedMessageId && (
-        <div className="bg-[var(--dank-surface)]/95 backdrop-blur-sm border-b border-[var(--dank-border)] px-4 py-2 flex items-center justify-between gap-3 shrink-0">
+        <div className="bg-[var(--era-surface)]/95 backdrop-blur-sm border-b border-[var(--era-border)] px-4 py-2 flex items-center justify-between gap-3 shrink-0">
           <button
             type="button"
             onClick={() => scrollToMessage(chat.pinnedMessageId!)}
             className="flex items-center gap-2.5 min-w-0 text-start flex-1 cursor-pointer"
           >
-            <Pin className="w-4 h-4 text-[var(--dank-accent)] shrink-0" />
+            <Pin className="w-4 h-4 text-[var(--era-accent)] shrink-0" />
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold text-[var(--dank-accent)]">
+              <p className="text-[11px] font-semibold text-[var(--era-accent)]">
                 {t.chat.pinned} · {chat.pinnedMessageSenderName || t.common.message}
               </p>
-              <p dir="auto" className="text-xs text-[var(--dank-muted)] truncate">
+              <p dir="auto" className="text-xs text-[var(--era-muted)] truncate">
                 <RichEmojiText text={chat.pinnedMessageText || ''} />
               </p>
             </div>
@@ -1421,7 +1432,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               type="button"
               onClick={() => void pinMessage(chat.id, null)}
               title={t.chat.unpinMessage}
-              className="w-8 h-8 rounded-lg hover:bg-[var(--dank-hover)] flex items-center justify-center text-[var(--dank-muted)] hover:text-[var(--dank-text)] shrink-0 cursor-pointer"
+              className="w-8 h-8 rounded-lg hover:bg-[var(--era-hover)] flex items-center justify-center text-[var(--era-muted)] hover:text-[var(--era-text)] shrink-0 cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -1433,7 +1444,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       <div
         ref={streamContainerRef}
         onScroll={handleStreamScroll}
-        className="flex-1 min-h-0 overflow-y-auto overscroll-contain dank-chat-bg px-4 sm:px-6 py-3 space-y-2"
+        className="flex-1 min-h-0 overflow-y-auto overscroll-contain era-chat-bg px-4 sm:px-6 py-3 space-y-2"
         onClick={() => {
           setActiveActionMsgId(null);
           setShowAttachMenu(false);
@@ -1446,7 +1457,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               type="button"
               disabled={loadingOlder}
               onClick={handleLoadOlder}
-              className="px-3.5 py-1.5 rounded-full bg-[var(--dank-surface)] border border-[var(--dank-border)] text-xs font-semibold text-[var(--dank-accent)] cursor-pointer"
+              className="px-3.5 py-1.5 rounded-full bg-[var(--era-surface)] border border-[var(--era-border)] text-xs font-semibold text-[var(--era-accent)] cursor-pointer"
             >
               {loadingOlder ? t.telegram.loadingOlder : t.telegram.loadOlder}
             </button>
@@ -1459,7 +1470,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               <div key={i} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
                 <div
                   className={`h-12 w-48 sm:w-64 rounded-[20px] animate-pulse ${
-                    mine ? 'bg-[var(--dank-accent-soft)]' : 'bg-[var(--dank-bubble-in)]'
+                    mine ? 'bg-[var(--era-accent-soft)]' : 'bg-[var(--era-bubble-in)]'
                   }`}
                 />
               </div>
@@ -1469,9 +1480,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
         {!loadingMessages && visibleMessages.length === 0 && (
           <div className="flex justify-center py-14">
-            <div className="max-w-xs text-center bg-[var(--dank-surface)] border border-[var(--dank-border)] rounded-2xl p-5 shadow-sm">
-              <p className="text-sm font-bold text-[var(--dank-text)]">{t.chat.noMessagesYet}</p>
-              <p className="mt-1 text-xs text-[var(--dank-muted)]">
+            <div className="max-w-xs text-center bg-[var(--era-surface)] border border-[var(--era-border)] rounded-2xl p-5 shadow-sm">
+              <p className="text-sm font-bold text-[var(--era-text)]">{t.chat.noMessagesYet}</p>
+              <p className="mt-1 text-xs text-[var(--era-muted)]">
                 {canPost ? t.chat.startConversationHint : t.chat.channelReadOnlyHint}
               </p>
             </div>
@@ -1510,7 +1521,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             <React.Fragment key={msg.id}>
               {showDayDivider && (
                 <div className="flex justify-center my-2.5">
-                  <span className="px-3 py-1 rounded-full bg-[var(--dank-surface)]/95 border border-[var(--dank-border)] text-[11px] font-semibold text-[var(--dank-muted)]">
+                  <span className="px-3 py-1 rounded-full bg-[var(--era-surface)]/95 border border-[var(--era-border)] text-[11px] font-semibold text-[var(--era-muted)]">
                     {curDay}
                   </span>
                 </div>
@@ -1569,9 +1580,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                       msg.type === 'sticker'
                         ? 'bg-transparent !p-0 shadow-none'
                         : isMine
-                        ? 'min-w-[120px] rounded-[12px] rounded-ee-[2px] py-[12px] px-[16px] bg-[var(--dank-bubble-out)] text-[var(--dank-bubble-out-fg)] dark:shadow-[0_0_12px_rgba(168,85,247,0.28)]'
-                        : 'min-w-[120px] rounded-[12px] rounded-es-[2px] py-[12px] px-[16px] bg-[var(--dank-bubble-in)] text-[var(--dank-bubble-in-fg)] dark:shadow-[0_0_10px_rgba(34,211,238,0.18)]'
-                    } ${isSearchMatch ? 'ring-2 ring-[var(--dank-accent)] rounded-[12px]' : ''}`}
+                        ? 'min-w-[120px] rounded-[12px] rounded-ee-[2px] py-[12px] px-[16px] bg-[var(--era-bubble-out)] text-[var(--era-bubble-out-fg)] dark:shadow-[0_0_12px_rgba(168,85,247,0.28)]'
+                        : 'min-w-[120px] rounded-[12px] rounded-es-[2px] py-[12px] px-[16px] bg-[var(--era-bubble-in)] text-[var(--era-bubble-in-fg)] dark:shadow-[0_0_10px_rgba(34,211,238,0.18)]'
+                    } ${isSearchMatch ? 'ring-2 ring-[var(--era-accent)] rounded-[12px]' : ''}`}
                   >
                     {/* Small Triangle Tail at Bottom Corner of Bubble */}
                     {msg.type !== 'sticker' && (
@@ -1581,8 +1592,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         aria-hidden="true"
                         className={`pointer-events-none absolute bottom-0 w-[9px] h-[11px] ${
                           isMine
-                            ? '-end-[7px] text-[var(--dank-bubble-out)] rtl:-scale-x-100'
-                            : '-start-[7px] text-[var(--dank-bubble-in)] -scale-x-100 rtl:scale-x-100'
+                            ? '-end-[7px] text-[var(--era-bubble-out)] rtl:-scale-x-100'
+                            : '-start-[7px] text-[var(--era-bubble-in)] -scale-x-100 rtl:scale-x-100'
                         }`}
                       >
                         <path d="M0 1 L9 11 L0 11 Z" fill="currentColor" />
@@ -1604,7 +1615,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                               onOpenProfile(senderObj);
                             }
                           }}
-                          className="max-w-full min-w-0 flex items-center gap-1 text-[11px] font-bold text-[var(--dank-accent)] mb-1 hover:underline cursor-pointer"
+                          className="max-w-full min-w-0 flex items-center gap-1 text-[11px] font-bold text-[var(--era-accent)] mb-1 hover:underline cursor-pointer"
                         >
                           <span dir="auto" className="min-w-0 truncate">{msg.senderName}</span>
                           <UserBadges
@@ -1621,7 +1632,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     {msg.forwardedFromName && (
                       <div
                         className={`mb-1 flex items-center gap-1 text-[11px] font-semibold ${
-                          isMine ? 'opacity-75' : 'text-[var(--dank-accent)]'
+                          isMine ? 'opacity-75' : 'text-[var(--era-accent)]'
                         }`}
                       >
                         <Forward className="w-3 h-3" />
@@ -1642,12 +1653,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         className={`w-full text-start mb-1.5 px-2.5 py-1.5 rounded-xl text-xs cursor-pointer border-s-2 ${
                           isMine
                             ? 'bg-black/15 border-current text-current'
-                            : 'bg-[var(--dank-elevated)] border-[var(--dank-accent)] text-[var(--dank-text)]'
+                            : 'bg-[var(--era-elevated)] border-[var(--era-accent)] text-[var(--era-text)]'
                         }`}
                       >
                         <div
                           className={`font-bold text-[11px] truncate ${
-                            isMine ? 'opacity-95' : 'text-[var(--dank-accent)]'
+                            isMine ? 'opacity-95' : 'text-[var(--era-accent)]'
                           }`}
                         >
                           {msg.replyToSenderName || t.chat.replyFallback}
@@ -1704,14 +1715,14 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                           className={`mb-1 flex items-center gap-2.5 p-2.5 rounded-2xl border ${
                             isMine
                               ? 'bg-black/15 border-black/15 text-current'
-                              : 'bg-[var(--dank-surface)] border-[var(--dank-border)] text-[var(--dank-text)]'
+                              : 'bg-[var(--era-surface)] border-[var(--era-border)] text-[var(--era-text)]'
                           }`}
                         >
                           <div
                             className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
                               isMine
-                                ? 'bg-[var(--dank-accent-fg)] text-[var(--dank-accent)]'
-                                : 'bg-[var(--dank-accent)] text-[var(--dank-accent-fg)]'
+                                ? 'bg-[var(--era-accent-fg)] text-[var(--era-accent)]'
+                                : 'bg-[var(--era-accent)] text-[var(--era-accent-fg)]'
                             }`}
                           >
                             <MapPin className="w-4 h-4" />
@@ -1803,7 +1814,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         {msg.expiresAt && (
                           <Timer
                             className={`w-3 h-3 ${
-                              msg.type === 'sticker' ? 'text-[var(--dank-accent)]' : ''
+                              msg.type === 'sticker' ? 'text-[var(--era-accent)]' : ''
                             }`}
                             aria-label="Self-destruct"
                           />
@@ -1839,7 +1850,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         onClick={(e) => e.stopPropagation()}
                         className={`absolute -top-12 ${
                           isMine ? 'end-0' : 'start-0'
-                        } z-20 flex flex-wrap items-center gap-0.5 bg-[var(--dank-surface)] text-[var(--dank-text)] px-2 py-1 rounded-2xl shadow-2xl border border-[var(--dank-border)] max-w-[90vw]`}
+                        } z-20 flex flex-wrap items-center gap-0.5 bg-[var(--era-surface)] text-[var(--era-text)] px-2 py-1 rounded-2xl shadow-2xl border border-[var(--era-border)] max-w-[90vw]`}
                       >
                         {QUICK_EMOJIS.map((emoji) => (
                           <button
@@ -1855,14 +1866,14 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                                 currentUserEmoji: myReaction,
                               });
                             }}
-                            className={`w-7 h-7 rounded-lg flex items-center justify-center text-sm hover:bg-[var(--dank-hover)] cursor-pointer ${
-                              myReaction === emoji ? 'bg-[var(--dank-accent-soft)]' : ''
+                            className={`w-7 h-7 rounded-lg flex items-center justify-center text-sm hover:bg-[var(--era-hover)] cursor-pointer ${
+                              myReaction === emoji ? 'bg-[var(--era-accent-soft)]' : ''
                             }`}
                           >
-                            <DankEmojiIcon char={emoji} className="w-5 h-5 object-contain" />
+                            <EraEmojiIcon char={emoji} className="w-5 h-5 object-contain" />
                           </button>
                         ))}
-                        <div className="w-px h-5 bg-[var(--dank-border)] mx-1" />
+                        <div className="w-px h-5 bg-[var(--era-border)] mx-1" />
                         {canPost && (
                           <button
                             type="button"
@@ -1872,7 +1883,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                               setEditingMsg(null);
                               setActiveActionMsgId(null);
                             }}
-                            className="w-7 h-7 rounded-lg hover:bg-[var(--dank-hover)] flex items-center justify-center cursor-pointer"
+                            className="w-7 h-7 rounded-lg hover:bg-[var(--era-hover)] flex items-center justify-center cursor-pointer"
                           >
                             <Reply className="w-3.5 h-3.5" />
                           </button>
@@ -1885,7 +1896,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                               setForwardTargetMsg(msg);
                               setActiveActionMsgId(null);
                             }}
-                            className="w-7 h-7 rounded-lg hover:bg-[var(--dank-hover)] flex items-center justify-center cursor-pointer"
+                            className="w-7 h-7 rounded-lg hover:bg-[var(--era-hover)] flex items-center justify-center cursor-pointer"
                           >
                             <Forward className="w-3.5 h-3.5" />
                           </button>
@@ -1900,7 +1911,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                               setText(displayText);
                               setActiveActionMsgId(null);
                             }}
-                            className="w-7 h-7 rounded-lg hover:bg-[var(--dank-hover)] flex items-center justify-center cursor-pointer"
+                            className="w-7 h-7 rounded-lg hover:bg-[var(--era-hover)] flex items-center justify-center cursor-pointer"
                           >
                             <Edit3 className="w-3.5 h-3.5" />
                           </button>
@@ -1913,7 +1924,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                               setActiveActionMsgId(null);
                               void pinMessage(chat.id, msg);
                             }}
-                            className="w-7 h-7 rounded-lg hover:bg-[var(--dank-hover)] flex items-center justify-center cursor-pointer"
+                            className="w-7 h-7 rounded-lg hover:bg-[var(--era-hover)] flex items-center justify-center cursor-pointer"
                           >
                             <Pin className="w-3.5 h-3.5" />
                           </button>
@@ -1925,7 +1936,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                             setActiveActionMsgId(null);
                             void deleteMessageForMe(chat.id, msg.id, currentUser.uid);
                           }}
-                          className="w-7 h-7 rounded-lg hover:bg-[var(--dank-hover)] text-amber-400 flex items-center justify-center cursor-pointer"
+                          className="w-7 h-7 rounded-lg hover:bg-[var(--era-hover)] text-amber-400 flex items-center justify-center cursor-pointer"
                         >
                           <UserMinus className="w-3.5 h-3.5" />
                         </button>
@@ -1966,11 +1977,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         }
                         className={`px-2 py-0.5 rounded-full text-xs font-medium flex items-center gap-1 border transition-colors cursor-pointer ${
                           rg.mine
-                            ? 'bg-[var(--dank-accent-soft)] border-[var(--dank-accent)] text-[var(--dank-accent)]'
-                            : 'bg-[var(--dank-surface)] border-[var(--dank-border)] text-[var(--dank-text)]'
+                            ? 'bg-[var(--era-accent-soft)] border-[var(--era-accent)] text-[var(--era-accent)]'
+                            : 'bg-[var(--era-surface)] border-[var(--era-border)] text-[var(--era-text)]'
                         }`}
                       >
-                        <DankEmojiIcon char={rg.emoji} className="w-4 h-4 object-contain" />
+                        <EraEmojiIcon char={rg.emoji} className="w-4 h-4 object-contain" />
                         <span className="tabular-nums text-[11px]">{rg.count}</span>
                       </button>
                     ))}
@@ -1979,7 +1990,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                       <button
                         type="button"
                         onClick={() => setCommentsDrawerMsg(msg)}
-                        className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[var(--dank-surface)] border border-[var(--dank-border)] text-[var(--dank-accent)] inline-flex items-center gap-1 cursor-pointer hover:border-[var(--dank-accent-border)]"
+                        className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[var(--era-surface)] border border-[var(--era-border)] text-[var(--era-accent)] inline-flex items-center gap-1 cursor-pointer hover:border-[var(--era-accent-border)]"
                       >
                         <MessageCircle className="w-3 h-3" />
                         {t.telegram.channelComments}
@@ -1994,8 +2005,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         {/* Pending Scheduled Messages in this chat */}
         {chatScheduledMessages.map((sched) => (
           <div key={sched.id} className="flex flex-col items-end">
-            <div className="w-fit max-w-[75%] rounded-[12px] rounded-ee-[2px] py-[12px] px-[16px] bg-[var(--dank-surface)] border border-dashed border-[var(--dank-accent)] shadow-sm space-y-1.5">
-              <div className="flex items-center gap-1.5 text-[11px] font-bold text-[var(--dank-accent)]">
+            <div className="w-fit max-w-[75%] rounded-[12px] rounded-ee-[2px] py-[12px] px-[16px] bg-[var(--era-surface)] border border-dashed border-[var(--era-accent)] shadow-sm space-y-1.5">
+              <div className="flex items-center gap-1.5 text-[11px] font-bold text-[var(--era-accent)]">
                 <Clock className="w-3.5 h-3.5 shrink-0" />
                 <span>
                   {t.schedule.scheduledFor}{' '}
@@ -2005,7 +2016,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   })}
                 </span>
               </div>
-              <p dir="auto" className="text-sm text-[var(--dank-text)] whitespace-pre-wrap break-words">
+              <p dir="auto" className="text-sm text-[var(--era-text)] whitespace-pre-wrap break-words">
                 <RichEmojiText text={sched.text} />
               </p>
               <div className="pt-1 flex items-center justify-end gap-1.5">
@@ -2026,7 +2037,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                       onNotify(err instanceof Error ? err.message : t.errors.unexpected);
                     }
                   }}
-                  className="h-7 px-2.5 rounded-full bg-[var(--dank-accent)] text-[var(--dank-accent-fg)] text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+                  className="h-7 px-2.5 rounded-full bg-[var(--era-accent)] text-[var(--era-accent-fg)] text-[11px] font-bold flex items-center gap-1 cursor-pointer"
                 >
                   <Send className="w-3 h-3" />
                   <span>{t.schedule.sendNow}</span>
@@ -2037,7 +2048,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     setEditingScheduledMsg(sched);
                     setShowScheduleModal(true);
                   }}
-                  className="h-7 px-2.5 rounded-full bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] text-[var(--dank-text)] text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
+                  className="h-7 px-2.5 rounded-full bg-[var(--era-elevated)] hover:bg-[var(--era-hover)] text-[var(--era-text)] text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
                 >
                   <Edit3 className="w-3 h-3" />
                   <span>{t.schedule.editScheduled}</span>
@@ -2064,7 +2075,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       </div>
 
       {/* Bottom Composer — ONLY Text, Photo, Video, Location */}
-      <div className="bg-[var(--dank-surface)] border-t border-[var(--dank-border)] px-3 py-2 pb-safe shrink-0 relative">
+      <div className="bg-[var(--era-surface)] border-t border-[var(--era-border)] px-3 py-2 pb-safe shrink-0 relative">
         {isAdminBanned ? (
           <div className="h-11 flex items-center justify-center text-xs font-semibold text-red-500 text-center">
             {t.chat.accountSuspendedNotice}
@@ -2088,7 +2099,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           </div>
         ) : !isFriendWithPeer && peerUser ? (
           <div className="py-1.5 flex flex-col sm:flex-row items-center justify-between gap-2.5">
-            <p className="text-xs font-semibold text-[var(--dank-muted)] text-center sm:text-start">
+            <p className="text-xs font-semibold text-[var(--era-muted)] text-center sm:text-start">
               {t.profile.mustBeFriendsToMessage}
             </p>
             <div className="flex items-center gap-2 shrink-0">
@@ -2104,7 +2115,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         .catch((err) => onNotify(err instanceof Error ? err.message : t.errors.unexpected))
                         .finally(() => setFriendActionBusy(false));
                     }}
-                    className="h-9 px-3.5 rounded-full bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    className="h-9 px-3.5 rounded-full bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                   >
                     <UserPlus className="w-3.5 h-3.5" />
                     {t.profile.acceptRequest}
@@ -2119,7 +2130,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         .catch((err) => onNotify(err instanceof Error ? err.message : t.errors.unexpected))
                         .finally(() => setFriendActionBusy(false));
                     }}
-                    className="h-9 px-3.5 rounded-full bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] border border-[var(--dank-border)] text-[var(--dank-text)] text-xs font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    className="h-9 px-3.5 rounded-full bg-[var(--era-elevated)] hover:bg-[var(--era-hover)] border border-[var(--era-border)] text-[var(--era-text)] text-xs font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                   >
                     <X className="w-3.5 h-3.5" />
                     {t.profile.rejectRequest}
@@ -2136,9 +2147,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                       .catch((err) => onNotify(err instanceof Error ? err.message : t.errors.unexpected))
                       .finally(() => setFriendActionBusy(false));
                   }}
-                  className="h-9 px-3.5 rounded-full bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] border border-[var(--dank-border)] text-[var(--dank-text)] text-xs font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  className="h-9 px-3.5 rounded-full bg-[var(--era-elevated)] hover:bg-[var(--era-hover)] border border-[var(--era-border)] text-[var(--era-text)] text-xs font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                 >
-                  <Clock className="w-3.5 h-3.5 text-[var(--dank-accent)]" />
+                  <Clock className="w-3.5 h-3.5 text-[var(--era-accent)]" />
                   {t.profile.cancelRequest}
                 </button>
               ) : (
@@ -2152,7 +2163,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                       .catch((err) => onNotify(err instanceof Error ? err.message : t.errors.unexpected))
                       .finally(() => setFriendActionBusy(false));
                   }}
-                  className="h-9 px-3.5 rounded-full bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  className="h-9 px-3.5 rounded-full bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                 >
                   <UserPlus className="w-3.5 h-3.5" />
                   {t.profile.addFriend}
@@ -2161,20 +2172,20 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             </div>
           </div>
         ) : !canPost ? (
-          <div className="h-11 flex items-center justify-center text-xs font-medium text-[var(--dank-muted)] text-center">
+          <div className="h-11 flex items-center justify-center text-xs font-medium text-[var(--era-muted)] text-center">
             {t.chat.channelPostNotice}
           </div>
         ) : (
           <div className="space-y-2">
             {/* Editing Banner */}
             {editingMsg && (
-              <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-2xl bg-[var(--dank-elevated)] border border-[var(--dank-accent-border)]">
+              <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-2xl bg-[var(--era-elevated)] border border-[var(--era-accent-border)]">
                 <div className="min-w-0">
-                  <div className="text-[11px] font-bold text-[var(--dank-accent)] flex items-center gap-1">
+                  <div className="text-[11px] font-bold text-[var(--era-accent)] flex items-center gap-1">
                     <Edit3 className="w-3 h-3" />
                     {t.telegram.editingMessage}
                   </div>
-                  <p dir="auto" className="text-xs text-[var(--dank-muted)] truncate">
+                  <p dir="auto" className="text-xs text-[var(--era-muted)] truncate">
                     <RichEmojiText text={getDisplayText(editingMsg)} />
                   </p>
                 </div>
@@ -2184,7 +2195,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     setEditingMsg(null);
                     setText('');
                   }}
-                  className="w-7 h-7 rounded-full hover:bg-[var(--dank-hover)] flex items-center justify-center text-[var(--dank-text)] cursor-pointer"
+                  className="w-7 h-7 rounded-full hover:bg-[var(--era-hover)] flex items-center justify-center text-[var(--era-text)] cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -2193,13 +2204,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
             {/* Reply Preview */}
             {replyTo && !editingMsg && (
-              <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-2xl bg-[var(--dank-elevated)] border-s-2 border-[var(--dank-accent)]">
+              <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-2xl bg-[var(--era-elevated)] border-s-2 border-[var(--era-accent)]">
                 <div className="min-w-0">
-                  <div className="text-[11px] font-bold text-[var(--dank-accent)] flex items-center gap-1">
+                  <div className="text-[11px] font-bold text-[var(--era-accent)] flex items-center gap-1">
                     <Reply className="w-3 h-3" />
                     {t.chat.replyingTo} {replyTo.senderName}
                   </div>
-                  <p dir="auto" className="text-xs text-[var(--dank-muted)] truncate">
+                  <p dir="auto" className="text-xs text-[var(--era-muted)] truncate">
                     {replyTo.type === 'image' ? (
                       t.chat.photoLabel
                     ) : replyTo.type === 'video' ? (
@@ -2214,7 +2225,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 <button
                   type="button"
                   onClick={() => setReplyTo(null)}
-                  className="w-7 h-7 rounded-full hover:bg-[var(--dank-hover)] flex items-center justify-center text-[var(--dank-text)] cursor-pointer"
+                  className="w-7 h-7 rounded-full hover:bg-[var(--era-hover)] flex items-center justify-center text-[var(--era-text)] cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -2223,16 +2234,16 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
             {/* Pending Image Preview */}
             {pendingImage?.previewUrl && (
-              <div className="flex items-center gap-3 px-3 py-2 rounded-2xl bg-[var(--dank-elevated)] border border-[var(--dank-border)]">
+              <div className="flex items-center gap-3 px-3 py-2 rounded-2xl bg-[var(--era-elevated)] border border-[var(--era-border)]">
                 <img
                   src={pendingImage.previewUrl}
                   alt={t.chat.photoLabel}
                   className="w-12 h-12 rounded-xl object-cover"
                 />
-                <div className="flex-1 text-xs font-medium text-[var(--dank-text)] flex items-center gap-2">
+                <div className="flex-1 text-xs font-medium text-[var(--era-text)] flex items-center gap-2">
                   {uploadingType === 'image' ? (
                     <>
-                      <Loader2 className="w-4 h-4 text-[var(--dank-accent)] animate-spin shrink-0" />
+                      <Loader2 className="w-4 h-4 text-[var(--era-accent)] animate-spin shrink-0" />
                       <span>{t.chat.uploading}</span>
                     </>
                   ) : (
@@ -2246,7 +2257,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     if (pendingImage.previewUrl) URL.revokeObjectURL(pendingImage.previewUrl);
                     setPendingImage(null);
                   }}
-                  className="w-8 h-8 rounded-full hover:bg-[var(--dank-hover)] flex items-center justify-center text-[var(--dank-text)] disabled:opacity-40 cursor-pointer"
+                  className="w-8 h-8 rounded-full hover:bg-[var(--era-hover)] flex items-center justify-center text-[var(--era-text)] disabled:opacity-40 cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -2255,8 +2266,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
             {/* Uploading Video Indicator */}
             {uploadingType === 'video' && (
-              <div className="flex items-center gap-2.5 px-3.5 py-2 rounded-2xl bg-[var(--dank-elevated)] text-[var(--dank-text)] border border-[var(--dank-accent-border)]">
-                <Loader2 className="w-4 h-4 text-[var(--dank-accent)] animate-spin shrink-0" />
+              <div className="flex items-center gap-2.5 px-3.5 py-2 rounded-2xl bg-[var(--era-elevated)] text-[var(--era-text)] border border-[var(--era-accent-border)]">
+                <Loader2 className="w-4 h-4 text-[var(--era-accent)] animate-spin shrink-0" />
                 <span className="text-xs font-semibold">{t.chat.uploading}</span>
               </div>
             )}
@@ -2265,30 +2276,30 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             {showAttachMenu && (
               <div
                 onClick={(e) => e.stopPropagation()}
-                className="grid grid-cols-3 gap-2 p-2.5 rounded-2xl bg-[var(--dank-elevated)] border border-[var(--dank-border)] shadow-2xl"
+                className="grid grid-cols-3 gap-2 p-2.5 rounded-2xl bg-[var(--era-elevated)] border border-[var(--era-border)] shadow-2xl"
               >
                 <button
                   type="button"
                   onClick={() => imageInputRef.current?.click()}
-                  className="p-2.5 rounded-xl hover:bg-[var(--dank-hover)] flex flex-col items-center gap-1.5 text-xs font-semibold text-[var(--dank-text)] cursor-pointer"
+                  className="p-2.5 rounded-xl hover:bg-[var(--era-hover)] flex flex-col items-center gap-1.5 text-xs font-semibold text-[var(--era-text)] cursor-pointer"
                 >
-                  <ImagePlus className="w-5 h-5 text-[var(--dank-accent)]" />
+                  <ImagePlus className="w-5 h-5 text-[var(--era-accent)]" />
                   <span>{t.chat.photoLabel}</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => videoInputRef.current?.click()}
-                  className="p-2.5 rounded-xl hover:bg-[var(--dank-hover)] flex flex-col items-center gap-1.5 text-xs font-semibold text-[var(--dank-text)] cursor-pointer"
+                  className="p-2.5 rounded-xl hover:bg-[var(--era-hover)] flex flex-col items-center gap-1.5 text-xs font-semibold text-[var(--era-text)] cursor-pointer"
                 >
-                  <Film className="w-5 h-5 text-[var(--dank-accent)]" />
+                  <Film className="w-5 h-5 text-[var(--era-accent)]" />
                   <span>{t.telegram.videoLabel}</span>
                 </button>
                 <button
                   type="button"
                   onClick={handleSendLocation}
-                  className="p-2.5 rounded-xl hover:bg-[var(--dank-hover)] flex flex-col items-center gap-1.5 text-xs font-semibold text-[var(--dank-text)] cursor-pointer"
+                  className="p-2.5 rounded-xl hover:bg-[var(--era-hover)] flex flex-col items-center gap-1.5 text-xs font-semibold text-[var(--era-text)] cursor-pointer"
                 >
-                  <MapPin className="w-5 h-5 text-[var(--dank-accent)]" />
+                  <MapPin className="w-5 h-5 text-[var(--era-accent)]" />
                   <span>{t.telegram.locationLabel}</span>
                 </button>
               </div>
@@ -2299,7 +2310,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               <ChatMediaPicker
                 userStickers={userStickers}
                 onPickEmoji={(emoji) => handleTextChange(`${text}${emoji}`)}
-                onSendPackSticker={(st: DankSticker) =>
+                onSendPackSticker={(st: EraSticker) =>
                   void handleSendSticker({
                     stickerId: st.id,
                     label: language === 'ar' ? st.labelAr : st.labelEn,
@@ -2363,7 +2374,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 }}
                 title={t.chat.sendImage}
                 aria-label={t.chat.sendImage}
-                className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] text-[var(--dank-accent)] flex items-center justify-center shrink-0 transition-colors cursor-pointer"
+                className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-[var(--era-elevated)] hover:bg-[var(--era-hover)] text-[var(--era-accent)] flex items-center justify-center shrink-0 transition-colors cursor-pointer"
               >
                 <Plus className={`w-5 h-5 transition-transform ${showAttachMenu ? 'rotate-45' : ''}`} />
               </button>
@@ -2379,8 +2390,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 aria-label={t.telegram.stickersAndEmoji}
                 className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center shrink-0 transition-colors cursor-pointer ${
                   showMediaPicker
-                    ? 'bg-[var(--dank-accent)] text-[var(--dank-accent-fg)]'
-                    : 'bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] text-[var(--dank-accent)]'
+                    ? 'bg-[var(--era-accent)] text-[var(--era-accent-fg)]'
+                    : 'bg-[var(--era-elevated)] hover:bg-[var(--era-hover)] text-[var(--era-accent)]'
                 }`}
               >
                 <Smile className="w-5 h-5" />
@@ -2399,7 +2410,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   }
                 }}
                 placeholder={t.chat.writeMessagePlaceholder}
-                className="flex-1 min-h-[44px] max-h-28 px-4 py-2.5 rounded-full bg-[var(--dank-elevated)] border border-[var(--dank-border)] text-base text-[var(--dank-text)] placeholder:text-[var(--dank-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)] resize-none"
+                className="flex-1 min-h-[44px] max-h-28 px-4 py-2.5 rounded-full bg-[var(--era-elevated)] border border-[var(--era-border)] text-base text-[var(--era-text)] placeholder:text-[var(--era-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--era-accent)] resize-none"
               />
 
               {editingMsg ? (
@@ -2407,7 +2418,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   type="submit"
                   disabled={!text.trim() || sending}
                   aria-label={t.telegram.saveEdit}
-                  className="w-11 h-11 rounded-full bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] flex items-center justify-center shrink-0 transition-colors disabled:opacity-40 cursor-pointer"
+                  className="w-11 h-11 rounded-full bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] flex items-center justify-center shrink-0 transition-colors disabled:opacity-40 cursor-pointer"
                 >
                   <Check className="w-5 h-5 stroke-[2.5]" />
                 </button>
@@ -2446,7 +2457,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     setEditingScheduledMsg(null);
                     setShowScheduleModal(true);
                   }}
-                  className="w-11 h-11 rounded-full bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] flex items-center justify-center shrink-0 transition-colors disabled:opacity-40 cursor-pointer"
+                  className="w-11 h-11 rounded-full bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] flex items-center justify-center shrink-0 transition-colors disabled:opacity-40 cursor-pointer"
                 >
                   <Send className="w-5 h-5 rtl:-scale-x-100" />
                 </button>
@@ -2464,7 +2475,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-xs rounded-3xl bg-[var(--dank-surface)] border border-[var(--dank-border)] p-5 text-center space-y-4 shadow-2xl"
+            className="w-full max-w-xs rounded-3xl bg-[var(--era-surface)] border border-[var(--era-border)] p-5 text-center space-y-4 shadow-2xl"
           >
             <div className="flex justify-center">
               <StickerVisual
@@ -2476,7 +2487,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             </div>
 
             {tappedStickerMsg.text && (
-              <p dir="auto" className="text-sm font-bold text-[var(--dank-text)]">
+              <p dir="auto" className="text-sm font-bold text-[var(--era-text)]">
                 {tappedStickerMsg.text}
               </p>
             )}
@@ -2489,7 +2500,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   setTappedStickerMsg(null);
                   void handleSaveStickerMessage(target);
                 }}
-                className="w-full h-11 rounded-full bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-sm font-bold flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full h-11 rounded-full bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] text-sm font-bold flex items-center justify-center gap-2 cursor-pointer"
               >
                 <BookmarkPlus className="w-4 h-4" />
                 <span>{t.stickers.saveToMyStickers}</span>
@@ -2503,7 +2514,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                       setReplyTo(tappedStickerMsg);
                       setTappedStickerMsg(null);
                     }}
-                    className="h-10 rounded-full bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
+                    className="h-10 rounded-full bg-[var(--era-elevated)] hover:bg-[var(--era-hover)] text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
                   >
                     <Reply className="w-3.5 h-3.5" />
                     <span>{t.common.reply}</span>
@@ -2529,7 +2540,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               <button
                 type="button"
                 onClick={() => setTappedStickerMsg(null)}
-                className="w-full h-9 rounded-full text-xs font-semibold text-[var(--dank-muted)] hover:text-[var(--dank-text)] cursor-pointer"
+                className="w-full h-9 rounded-full text-xs font-semibold text-[var(--era-muted)] hover:text-[var(--era-text)] cursor-pointer"
               >
                 {t.common.close}
               </button>
@@ -2640,7 +2651,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         />
       )}
 
-      {/* Dank Streak & Freeze Modal */}
+      {/* Era Streak & Freeze Modal */}
       {showStreakModal && peerUser && (
         <StreakModal
           streak={chatStreak}
@@ -2664,7 +2675,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             setStreakCelebration(null);
             void handleSendSticker({
               imageUrl: stickerUrl,
-              label: `${streakCelebration.milestone} يوم دانك`,
+              label: `${streakCelebration.milestone} يوم إيرا`,
             });
           }}
         />

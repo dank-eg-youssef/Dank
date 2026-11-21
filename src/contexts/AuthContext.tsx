@@ -20,18 +20,18 @@ import {
 } from 'firebase/firestore';
 import { auth, db, googleProvider } from '../lib/firebase';
 import {
-  ensureDankTeamChannelForAdmin,
+  ensureEraTeamChannelForAdmin,
   ensureOfficialChannelForAdmin,
   ensureSavedMessagesChat,
   ensureUserInviteCode,
-  ensureUserJoinedDankTeam,
+  ensureUserJoinedEraTeam,
   ensureUserJoinedOfficialChannel,
   getOrCreateLocalSessionId,
   redeemInviteCode,
   verifyTwoStepInput,
 } from '../services/chatService';
 import { getStoredLanguage, getTranslations } from '../i18n';
-import type { AppLanguage, AppThemeId, UserPrivate, UserPublic } from '../types/dank';
+import type { AppLanguage, AppThemeId, UserPrivate, UserPublic } from '../types/era';
 import type { NeonThemeColor } from './ThemeContext';
 import {
   handleFirestoreError,
@@ -45,7 +45,7 @@ import { sanitizeUsername, timestampToMs } from '../utils/timeFormat';
 
 const ADMIN_EMAIL = 'youssefdankapp@gmail.com';
 const EMAIL_VERIFICATION_BYPASS_EMAIL = 'dankapp@gmail.com';
-const PENDING_PROFILE_KEY = 'dank_pending_signup_profile';
+const PENDING_PROFILE_KEY = 'era_pending_signup_profile';
 
 function isUserAuthVerified(user: User | null): user is User {
   if (!user) return false;
@@ -125,7 +125,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     (uid: string) => {
       if (twoStepUnlockedMap[uid]) return true;
       try {
-        return sessionStorage.getItem(`dank_2fa_ok_${uid}`) === '1';
+        return sessionStorage.getItem(`era_2fa_ok_${uid}`) === '1';
       } catch {
         return false;
       }
@@ -151,7 +151,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (ok) {
         setTwoStepUnlockedMap((prev) => ({ ...prev, [firebaseUser.uid]: true }));
         try {
-          sessionStorage.setItem(`dank_2fa_ok_${firebaseUser.uid}`, '1');
+          sessionStorage.setItem(`era_2fa_ok_${firebaseUser.uid}`, '1');
         } catch {
           // ignore
         }
@@ -189,7 +189,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       pendingName ||
       user.displayName?.trim() ||
       user.email?.split('@')[0] ||
-      'DANK Member'
+      'ERA Member'
     ).slice(0, 80);
     const fallbackUsername = sanitizeUsername(
       pendingUsername || user.displayName || user.email?.split('@')[0] || user.uid.slice(0, 8)
@@ -197,7 +197,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     let cachedPub: UserPublic | null = null;
     try {
-      const raw = localStorage.getItem(`dank_local_profile_${user.uid}`);
+      const raw = localStorage.getItem(`era_local_profile_${user.uid}`);
       if (raw) cachedPub = JSON.parse(raw) as UserPublic;
     } catch {}
 
@@ -234,7 +234,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const pubData = pubSnap.data() as UserPublic;
         setProfile(pubData);
         try {
-          localStorage.setItem(`dank_local_profile_${user.uid}`, JSON.stringify(pubData));
+          localStorage.setItem(`era_local_profile_${user.uid}`, JSON.stringify(pubData));
         } catch {}
       }
 
@@ -308,11 +308,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (user.email?.toLowerCase() === ADMIN_EMAIL) {
           await ensureOfficialChannelForAdmin(user.uid).catch(() => {});
-          await ensureDankTeamChannelForAdmin(user.uid).catch(() => {});
+          await ensureEraTeamChannelForAdmin(user.uid).catch(() => {});
         }
         await Promise.all([
           ensureUserJoinedOfficialChannel(user.uid),
-          ensureUserJoinedDankTeam(user.uid),
+          ensureUserJoinedEraTeam(user.uid),
           ensureSavedMessagesChat(fallbackProfile),
         ]).catch(() => {});
       }
@@ -409,7 +409,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const data = snap.data() as UserPublic;
           setProfile(data);
           try {
-            localStorage.setItem(`dank_local_profile_${uid}`, JSON.stringify(data));
+            localStorage.setItem(`era_local_profile_${uid}`, JSON.stringify(data));
           } catch {}
         } else if (
           !isFirestoreWritesPaused() &&
@@ -537,7 +537,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updatedAt: serverTimestamp(),
       };
       if (updates.name !== undefined) {
-        payload.name = updates.name.trim().slice(0, 80) || 'DANK User';
+        payload.name = updates.name.trim().slice(0, 80) || 'ERA User';
       }
       if (updates.username !== undefined) {
         payload.username = sanitizeUsername(updates.username);
@@ -579,7 +579,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             ...(payload.ghostMode !== undefined ? { ghostMode: Boolean(payload.ghostMode) } : {}),
           };
           setProfile(updatedLocal);
-          localStorage.setItem(`dank_local_profile_${firebaseUser.uid}`, JSON.stringify(updatedLocal));
+          localStorage.setItem(`era_local_profile_${firebaseUser.uid}`, JSON.stringify(updatedLocal));
         }
 
         if (!isFirestoreWritesPaused()) {
@@ -615,7 +615,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       activeChatRef.current = chatId;
       if (!isUserAuthVerified(firebaseUser) || isFirestoreWritesPaused()) return;
       const now = Date.now();
-      if (now - lastPresenceWriteRef.current < 180_000) return;
+      if (now - lastPresenceWriteRef.current < 60_000) return;
       lastPresenceWriteRef.current = now;
       try {
         const isGhost = profile?.ghostMode;
@@ -633,6 +633,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     },
     [firebaseUser, profile?.ghostMode]
   );
+
+  // Update lastSeen strictly every 60 seconds (never every second)
+  useEffect(() => {
+    if (!firebaseUser || !isUserAuthVerified(firebaseUser)) return;
+    const uid = firebaseUser.uid;
+    const isGhost = Boolean(profile?.ghostMode);
+
+    const writeHeartbeat = () => {
+      if (isFirestoreWritesPaused() || isGhost) return;
+      if (document.visibilityState !== 'visible') return;
+      const now = Date.now();
+      if (now - lastPresenceWriteRef.current < 60_000) return;
+      lastPresenceWriteRef.current = now;
+      void updateDoc(doc(db, 'users_public', uid), {
+        isOnline: true,
+        lastSeen: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      }).catch((err) => {
+        if (isQuotaExhaustedError(err)) pauseFirestoreWrites();
+      });
+    };
+
+    const timer = window.setInterval(writeHeartbeat, 60_000);
+    return () => window.clearInterval(timer);
+  }, [firebaseUser, isVerified, profile?.ghostMode]);
 
   const logout = useCallback(async () => {
     syncAttemptedUidRef.current = null;

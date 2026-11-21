@@ -1,6 +1,6 @@
 import { ARCADE_STICKER_PACK } from '../assets/stickers/arcadeStickers';
 
-export interface DankSticker {
+export interface EraSticker {
   id: string;
   packId?: string;
   labelAr: string;
@@ -19,10 +19,10 @@ export interface StickerPack {
   badge: string;
   previewEmoji: string;
   accent: string;
-  stickers: DankSticker[];
+  stickers: EraSticker[];
 }
 
-export interface DankGifItem {
+export interface EraGifItem {
   id: string;
   titleEn: string;
   titleAr: string;
@@ -30,19 +30,19 @@ export interface DankGifItem {
   dataUrl: string;
 }
 
-export const DANK_STICKER_PACKS: StickerPack[] = [
+export const ERA_STICKER_PACKS: StickerPack[] = [
   ARCADE_STICKER_PACK,
   {
-    id: 'dank_funny',
-    nameEn: 'DANK Funny',
-    nameAr: 'كوميديا DANK',
+    id: 'era_funny',
+    nameEn: 'ERA Funny',
+    nameAr: 'كوميديا ERA',
     badge: 'FUN',
     previewEmoji: '🤣',
     accent: '#1DB954',
     stickers: [
       {
         id: 'funny_rofl',
-        packId: 'dank_funny',
+        packId: 'era_funny',
         labelEn: 'ROFL',
         labelAr: 'موت ضحك',
         emoji: '🤣',
@@ -53,7 +53,7 @@ export const DANK_STICKER_PACKS: StickerPack[] = [
       },
       {
         id: 'funny_clown',
-        packId: 'dank_funny',
+        packId: 'era_funny',
         labelEn: 'Clown Mode',
         labelAr: 'يا عم بهزر',
         emoji: '🤡',
@@ -64,7 +64,7 @@ export const DANK_STICKER_PACKS: StickerPack[] = [
       },
       {
         id: 'funny_skull',
-        packId: 'dank_funny',
+        packId: 'era_funny',
         labelEn: "I'm Dead",
         labelAr: 'وقعت ضحك',
         emoji: '💀',
@@ -75,7 +75,7 @@ export const DANK_STICKER_PACKS: StickerPack[] = [
       },
       {
         id: 'funny_sideeye',
-        packId: 'dank_funny',
+        packId: 'era_funny',
         labelEn: 'Sus',
         labelAr: 'مش مرتاحلك',
         emoji: '🤨',
@@ -86,7 +86,7 @@ export const DANK_STICKER_PACKS: StickerPack[] = [
       },
       {
         id: 'funny_popcorn',
-        packId: 'dank_funny',
+        packId: 'era_funny',
         labelEn: 'Drama Time',
         labelAr: 'فرجة ودراما',
         emoji: '🍿',
@@ -97,7 +97,7 @@ export const DANK_STICKER_PACKS: StickerPack[] = [
       },
       {
         id: 'funny_brain',
-        packId: 'dank_funny',
+        packId: 'era_funny',
         labelEn: 'Big Brain',
         labelAr: 'دماغ شغالة',
         emoji: '🧠',
@@ -108,7 +108,7 @@ export const DANK_STICKER_PACKS: StickerPack[] = [
       },
       {
         id: 'funny_shush',
-        packId: 'dank_funny',
+        packId: 'era_funny',
         labelEn: 'No Comment',
         labelAr: 'هس خالص',
         emoji: '🤫',
@@ -119,7 +119,7 @@ export const DANK_STICKER_PACKS: StickerPack[] = [
       },
       {
         id: 'funny_melting',
-        packId: 'dank_funny',
+        packId: 'era_funny',
         labelEn: 'Melting',
         labelAr: 'سيحت خلاص',
         emoji: '🫠',
@@ -427,27 +427,27 @@ export const DANK_STICKER_PACKS: StickerPack[] = [
 ];
 
 // Flat list preserved for compatibility
-export const DANK_STICKERS: DankSticker[] = [
+export const ERA_STICKERS: EraSticker[] = [
   {
-    id: 'dank_salute',
-    labelAr: 'تحية DANK',
-    labelEn: 'DANK Salute',
+    id: 'era_salute',
+    labelAr: 'تحية ERA',
+    labelEn: 'ERA Salute',
     emoji: '🫡',
     bg: 'from-[#121F17] to-[#1DB954]',
     accent: '#1DB954',
-    tagline: 'DANK!',
+    tagline: 'ERA!',
   },
-  ...DANK_STICKER_PACKS.flatMap((pack) => pack.stickers),
+  ...ERA_STICKER_PACKS.flatMap((pack) => pack.stickers),
 ];
 
-export function getStickerById(id?: string): DankSticker | undefined {
+export function getStickerById(id?: string): EraSticker | undefined {
   if (!id) return undefined;
-  return DANK_STICKERS.find((s) => s.id === id);
+  return ERA_STICKERS.find((s) => s.id === id);
 }
 
 export function getStickerPackById(packId?: string): StickerPack | undefined {
   if (!packId) return undefined;
-  return DANK_STICKER_PACKS.find((p) => p.id === packId);
+  return ERA_STICKER_PACKS.find((p) => p.id === packId);
 }
 
 function makeAnimatedGifDataUrl(opts: {
@@ -508,7 +508,7 @@ function makeAnimatedGifDataUrl(opts: {
   return `data:image/svg+xml;base64,${base64}`;
 }
 
-export const DANK_GIFS: DankGifItem[] = [
+export const ERA_GIFS: EraGifItem[] = [
   {
     id: 'gif_haha',
     titleEn: 'LOL Haha',

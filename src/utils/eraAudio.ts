@@ -1,5 +1,5 @@
-// Web Audio API Sound Effects for Dank Brand
-class DankAudioEngine {
+// Web Audio API Sound Effects for Era Brand
+class EraAudioEngine {
   private ctx: AudioContext | null = null;
   private muted: boolean = false;
 
@@ -84,7 +84,7 @@ class DankAudioEngine {
     }
   }
 
-  // 3. App Open: Distinct 2-second cinematic Netflix-style Dank signature sound
+  // 3. App Open: Distinct 2-second cinematic Netflix-style Era signature sound
   public playAppOpenCinematic() {
     if (this.muted) return;
     try {
@@ -184,5 +184,5 @@ class DankAudioEngine {
   }
 }
 
-export const dankAudio = new DankAudioEngine();
+export const eraAudio = new EraAudioEngine();
 

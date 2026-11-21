@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { AlarmClock, Calendar, Clock, Trash2, X } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
-import type { ChatReminder, ScheduledMessage } from '../types/dank';
+import type { ChatReminder, ScheduledMessage } from '../types/era';
 
 function toLocalDateInput(ms: number): string {
   const d = new Date(ms);
@@ -144,14 +144,14 @@ export const ScheduleMessageModal: React.FC<ScheduleMessageModalProps> = ({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl bg-[var(--dank-surface)] border border-[var(--dank-border)] text-[var(--dank-text)] shadow-2xl overflow-hidden"
+        className="w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl bg-[var(--era-surface)] border border-[var(--era-border)] text-[var(--era-text)] shadow-2xl overflow-hidden"
       >
-        <div className="px-4 py-3.5 border-b border-[var(--dank-border)] flex items-center justify-between">
+        <div className="px-4 py-3.5 border-b border-[var(--era-border)] flex items-center justify-between">
           <div className="flex items-center gap-2 min-w-0">
-            <Clock className="w-5 h-5 text-[var(--dank-accent)] shrink-0" />
+            <Clock className="w-5 h-5 text-[var(--era-accent)] shrink-0" />
             <div className="min-w-0">
               <h3 className="text-sm font-bold truncate">{t.schedule.scheduleMessage}</h3>
-              <p dir="auto" className="text-[11px] text-[var(--dank-muted)] truncate">
+              <p dir="auto" className="text-[11px] text-[var(--era-muted)] truncate">
                 {chatTitle}
               </p>
             </div>
@@ -160,7 +160,7 @@ export const ScheduleMessageModal: React.FC<ScheduleMessageModalProps> = ({
             type="button"
             onClick={onClose}
             aria-label={t.common.close}
-            className="w-8 h-8 rounded-full hover:bg-[var(--dank-hover)] flex items-center justify-center text-[var(--dank-muted)] cursor-pointer"
+            className="w-8 h-8 rounded-full hover:bg-[var(--era-hover)] flex items-center justify-center text-[var(--era-muted)] cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -172,28 +172,28 @@ export const ScheduleMessageModal: React.FC<ScheduleMessageModalProps> = ({
             <button
               type="button"
               onClick={() => applyPresetMs(Date.now() + 15 * 60 * 1000)}
-              className="h-7 px-3 rounded-full bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] border border-[var(--dank-border)] text-[11px] font-semibold cursor-pointer"
+              className="h-7 px-3 rounded-full bg-[var(--era-elevated)] hover:bg-[var(--era-hover)] border border-[var(--era-border)] text-[11px] font-semibold cursor-pointer"
             >
               {t.schedule.in15m}
             </button>
             <button
               type="button"
               onClick={() => applyPresetMs(Date.now() + 60 * 60 * 1000)}
-              className="h-7 px-3 rounded-full bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] border border-[var(--dank-border)] text-[11px] font-semibold cursor-pointer"
+              className="h-7 px-3 rounded-full bg-[var(--era-elevated)] hover:bg-[var(--era-hover)] border border-[var(--era-border)] text-[11px] font-semibold cursor-pointer"
             >
               {t.schedule.in1h}
             </button>
             <button
               type="button"
               onClick={applyTonight9pm}
-              className="h-7 px-3 rounded-full bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] border border-[var(--dank-border)] text-[11px] font-semibold cursor-pointer"
+              className="h-7 px-3 rounded-full bg-[var(--era-elevated)] hover:bg-[var(--era-hover)] border border-[var(--era-border)] text-[11px] font-semibold cursor-pointer"
             >
               {t.schedule.tonight9pm}
             </button>
             <button
               type="button"
               onClick={applyTomorrow8am}
-              className="h-7 px-3 rounded-full bg-[var(--dank-accent-soft)] border border-[var(--dank-accent-border)] text-[var(--dank-accent)] text-[11px] font-bold cursor-pointer"
+              className="h-7 px-3 rounded-full bg-[var(--era-accent-soft)] border border-[var(--era-accent-border)] text-[var(--era-accent)] text-[11px] font-bold cursor-pointer"
             >
               {t.schedule.tomorrow8am}
             </button>
@@ -201,8 +201,8 @@ export const ScheduleMessageModal: React.FC<ScheduleMessageModalProps> = ({
 
           <div className="grid grid-cols-2 gap-2.5">
             <div>
-              <label className="block text-[11px] font-bold text-[var(--dank-muted)] mb-1 flex items-center gap-1">
-                <Calendar className="w-3 h-3 text-[var(--dank-accent)]" />
+              <label className="block text-[11px] font-bold text-[var(--era-muted)] mb-1 flex items-center gap-1">
+                <Calendar className="w-3 h-3 text-[var(--era-accent)]" />
                 {t.schedule.pickDate}
               </label>
               <input
@@ -211,13 +211,13 @@ export const ScheduleMessageModal: React.FC<ScheduleMessageModalProps> = ({
                 value={dateStr}
                 min={toLocalDateInput(Date.now())}
                 onChange={(e) => setDateStr(e.target.value)}
-                className="w-full h-10 px-3 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] text-sm text-[var(--dank-text)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)]"
+                className="w-full h-10 px-3 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] text-sm text-[var(--era-text)] focus:outline-none focus:ring-2 focus:ring-[var(--era-accent)]"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-[var(--dank-muted)] mb-1 flex items-center gap-1">
-                <Clock className="w-3 h-3 text-[var(--dank-accent)]" />
+              <label className="block text-[11px] font-bold text-[var(--era-muted)] mb-1 flex items-center gap-1">
+                <Clock className="w-3 h-3 text-[var(--era-accent)]" />
                 {t.schedule.pickTime}
               </label>
               <input
@@ -225,13 +225,13 @@ export const ScheduleMessageModal: React.FC<ScheduleMessageModalProps> = ({
                 required
                 value={timeStr}
                 onChange={(e) => setTimeStr(e.target.value)}
-                className="w-full h-10 px-3 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] text-sm text-[var(--dank-text)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)]"
+                className="w-full h-10 px-3 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] text-sm text-[var(--era-text)] focus:outline-none focus:ring-2 focus:ring-[var(--era-accent)]"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-[var(--dank-muted)] mb-1">
+            <label className="block text-[11px] font-bold text-[var(--era-muted)] mb-1">
               {t.schedule.messageLabel}
             </label>
             <textarea
@@ -242,14 +242,14 @@ export const ScheduleMessageModal: React.FC<ScheduleMessageModalProps> = ({
               value={messageText}
               onChange={(e) => setMessageText(e.target.value)}
               placeholder={t.schedule.messagePlaceholder}
-              className="w-full p-3 rounded-2xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] text-sm text-[var(--dank-text)] placeholder:text-[var(--dank-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)] resize-none"
+              className="w-full p-3 rounded-2xl bg-[var(--era-canvas)] border border-[var(--era-border)] text-sm text-[var(--era-text)] placeholder:text-[var(--era-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--era-accent)] resize-none"
             />
           </div>
 
           <button
             type="submit"
             disabled={!messageText.trim() || saving}
-            className="w-full h-11 rounded-full bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-40 cursor-pointer"
+            className="w-full h-11 rounded-full bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-40 cursor-pointer"
           >
             <Clock className="w-4 h-4" />
             <span>{editingSchedule ? t.schedule.updateSchedule : t.schedule.saveSchedule}</span>
@@ -322,14 +322,14 @@ export const ChatReminderModal: React.FC<ChatReminderModalProps> = ({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl bg-[var(--dank-surface)] border border-[var(--dank-border)] text-[var(--dank-text)] shadow-2xl overflow-hidden"
+        className="w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl bg-[var(--era-surface)] border border-[var(--era-border)] text-[var(--era-text)] shadow-2xl overflow-hidden"
       >
-        <div className="px-4 py-3.5 border-b border-[var(--dank-border)] flex items-center justify-between">
+        <div className="px-4 py-3.5 border-b border-[var(--era-border)] flex items-center justify-between">
           <div className="flex items-center gap-2 min-w-0">
-            <AlarmClock className="w-5 h-5 text-[var(--dank-accent)] shrink-0" />
+            <AlarmClock className="w-5 h-5 text-[var(--era-accent)] shrink-0" />
             <div className="min-w-0">
               <h3 className="text-sm font-bold truncate">{t.schedule.setReminder}</h3>
-              <p dir="auto" className="text-[11px] text-[var(--dank-muted)] truncate">
+              <p dir="auto" className="text-[11px] text-[var(--era-muted)] truncate">
                 {chatTitle}
               </p>
             </div>
@@ -338,7 +338,7 @@ export const ChatReminderModal: React.FC<ChatReminderModalProps> = ({
             type="button"
             onClick={onClose}
             aria-label={t.common.close}
-            className="w-8 h-8 rounded-full hover:bg-[var(--dank-hover)] flex items-center justify-center text-[var(--dank-muted)] cursor-pointer"
+            className="w-8 h-8 rounded-full hover:bg-[var(--era-hover)] flex items-center justify-center text-[var(--era-muted)] cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -350,10 +350,10 @@ export const ChatReminderModal: React.FC<ChatReminderModalProps> = ({
               {existingReminders.map((rem) => (
                 <div
                   key={rem.id}
-                  className="px-3 py-2 rounded-2xl bg-[var(--dank-accent-soft)] border border-[var(--dank-accent-border)] flex items-center justify-between gap-2"
+                  className="px-3 py-2 rounded-2xl bg-[var(--era-accent-soft)] border border-[var(--era-accent-border)] flex items-center justify-between gap-2"
                 >
                   <div className="min-w-0">
-                    <p className="text-xs font-bold text-[var(--dank-accent)] truncate">
+                    <p className="text-xs font-bold text-[var(--era-accent)] truncate">
                       {t.schedule.activeReminder}:{' '}
                       {formatScheduledTarget(rem.remindAt.toMillis(), language, {
                         today: t.schedule.today,
@@ -361,7 +361,7 @@ export const ChatReminderModal: React.FC<ChatReminderModalProps> = ({
                       })}
                     </p>
                     {rem.note && (
-                      <p dir="auto" className="text-[11px] text-[var(--dank-text)] truncate">
+                      <p dir="auto" className="text-[11px] text-[var(--era-text)] truncate">
                         {rem.note}
                       </p>
                     )}
@@ -383,21 +383,21 @@ export const ChatReminderModal: React.FC<ChatReminderModalProps> = ({
             <button
               type="button"
               onClick={() => applyPresetMs(Date.now() + 15 * 60 * 1000)}
-              className="h-7 px-3 rounded-full bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] border border-[var(--dank-border)] text-[11px] font-semibold cursor-pointer"
+              className="h-7 px-3 rounded-full bg-[var(--era-elevated)] hover:bg-[var(--era-hover)] border border-[var(--era-border)] text-[11px] font-semibold cursor-pointer"
             >
               {t.schedule.in15m}
             </button>
             <button
               type="button"
               onClick={() => applyPresetMs(Date.now() + 60 * 60 * 1000)}
-              className="h-7 px-3 rounded-full bg-[var(--dank-elevated)] hover:bg-[var(--dank-hover)] border border-[var(--dank-border)] text-[11px] font-semibold cursor-pointer"
+              className="h-7 px-3 rounded-full bg-[var(--era-elevated)] hover:bg-[var(--era-hover)] border border-[var(--era-border)] text-[11px] font-semibold cursor-pointer"
             >
               {t.schedule.in1h}
             </button>
             <button
               type="button"
               onClick={applyTomorrow8am}
-              className="h-7 px-3 rounded-full bg-[var(--dank-accent-soft)] border border-[var(--dank-accent-border)] text-[var(--dank-accent)] text-[11px] font-bold cursor-pointer"
+              className="h-7 px-3 rounded-full bg-[var(--era-accent-soft)] border border-[var(--era-accent-border)] text-[var(--era-accent)] text-[11px] font-bold cursor-pointer"
             >
               {t.schedule.tomorrow8am}
             </button>
@@ -405,7 +405,7 @@ export const ChatReminderModal: React.FC<ChatReminderModalProps> = ({
 
           <div className="grid grid-cols-2 gap-2.5">
             <div>
-              <label className="block text-[11px] font-bold text-[var(--dank-muted)] mb-1">
+              <label className="block text-[11px] font-bold text-[var(--era-muted)] mb-1">
                 {t.schedule.pickDate}
               </label>
               <input
@@ -414,12 +414,12 @@ export const ChatReminderModal: React.FC<ChatReminderModalProps> = ({
                 value={dateStr}
                 min={toLocalDateInput(Date.now())}
                 onChange={(e) => setDateStr(e.target.value)}
-                className="w-full h-10 px-3 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] text-sm text-[var(--dank-text)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)]"
+                className="w-full h-10 px-3 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] text-sm text-[var(--era-text)] focus:outline-none focus:ring-2 focus:ring-[var(--era-accent)]"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-[var(--dank-muted)] mb-1">
+              <label className="block text-[11px] font-bold text-[var(--era-muted)] mb-1">
                 {t.schedule.pickTime}
               </label>
               <input
@@ -427,13 +427,13 @@ export const ChatReminderModal: React.FC<ChatReminderModalProps> = ({
                 required
                 value={timeStr}
                 onChange={(e) => setTimeStr(e.target.value)}
-                className="w-full h-10 px-3 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] text-sm text-[var(--dank-text)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)]"
+                className="w-full h-10 px-3 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] text-sm text-[var(--era-text)] focus:outline-none focus:ring-2 focus:ring-[var(--era-accent)]"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-[var(--dank-muted)] mb-1">
+            <label className="block text-[11px] font-bold text-[var(--era-muted)] mb-1">
               {t.schedule.reminderNote}
             </label>
             <input
@@ -443,14 +443,14 @@ export const ChatReminderModal: React.FC<ChatReminderModalProps> = ({
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder={t.schedule.reminderNotePlaceholder}
-              className="w-full h-10 px-3.5 rounded-xl bg-[var(--dank-canvas)] border border-[var(--dank-border)] text-sm text-[var(--dank-text)] placeholder:text-[var(--dank-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--dank-accent)]"
+              className="w-full h-10 px-3.5 rounded-xl bg-[var(--era-canvas)] border border-[var(--era-border)] text-sm text-[var(--era-text)] placeholder:text-[var(--era-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--era-accent)]"
             />
           </div>
 
           <button
             type="submit"
             disabled={saving}
-            className="w-full h-11 rounded-full bg-[var(--dank-accent)] hover:bg-[var(--dank-accent-hover)] text-[var(--dank-accent-fg)] text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-40 cursor-pointer"
+            className="w-full h-11 rounded-full bg-[var(--era-accent)] hover:bg-[var(--era-accent-hover)] text-[var(--era-accent-fg)] text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-40 cursor-pointer"
           >
             <AlarmClock className="w-4 h-4" />
             <span>{t.schedule.saveReminder}</span>

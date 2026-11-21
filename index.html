@@ -3,37 +3,34 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>Dank Chat | دانك شات</title>
-    <meta name="description" content="Dank Chat | مساحة حرة للتواصل، شارك أفكارك وتواصل مع مجتمعك بـ أمان." />
-    <link rel="canonical" href="https://dank-virid.vercel.app/" />
+    <title>Era Chat | إيرا شات</title>
+    <meta name="description" content="Era Chat | مساحة حرة للتواصل، شارك أفكارك وتواصل مع مجتمعك بـ أمان." />
+    <link rel="canonical" href="https://era-virid.vercel.app/" />
     <meta name="google-site-verification" content="TF7u7Luql718ZqsQrquvDX7qNlp7g9oRsxWf-APQswM" />
     <meta name="theme-color" content="#040409" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="DANK" />
+    <meta name="apple-mobile-web-app-title" content="ERA" />
     <link rel="manifest" href="/manifest.json" />
-    <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
-    <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
-    <link rel="icon" type="image/png" sizes="512x512" href="/pwa-512x512.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-    <meta property="og:site_name" content="Dank Chat" />
-    <meta property="og:title" content="Dank Chat | تواصل بـ أمان" />
-    <meta property="og:description" content="Dank Chat | مساحة حرة للتواصل، شارك أفكارك وتواصل مع مجتمعك بـ أمان." />
-    <meta property="og:url" content="https://dank-virid.vercel.app/" />
+    <link rel="apple-touch-icon" href="/assets/aistudio/BBC80EAD-8D76-4B66-AC36-8F51FB6F8E80_dd189a2c.jpeg" />
+    <meta property="og:site_name" content="Era Chat" />
+    <meta property="og:title" content="Era Chat | تواصل بـ أمان" />
+    <meta property="og:description" content="Era Chat | مساحة حرة للتواصل، شارك أفكارك وتواصل مع مجتمعك بـ أمان." />
+    <meta property="og:url" content="https://era-virid.vercel.app/" />
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="/pwa-512x512.png" />
+    <meta property="og:image" content="/assets/aistudio/BBC80EAD-8D76-4B66-AC36-8F51FB6F8E80_dd189a2c.jpeg" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Dank Chat | تواصل بـ أمان" />
-    <meta name="twitter:description" content="Dank Chat | مساحة حرة للتواصل، شارك أفكارك وتواصل مع مجتمعك بـ أمان." />
+    <meta name="twitter:title" content="Era Chat | تواصل بـ أمان" />
+    <meta name="twitter:description" content="Era Chat | مساحة حرة للتواصل، شارك أفكارك وتواصل مع مجتمعك بـ أمان." />
     <script type="application/ld+json">
-      {"@context":"https://schema.org","@type":"WebSite","name":"Dank Chat","url":"https://dank-virid.vercel.app/","inLanguage":"ar"}
+      {"@context":"https://schema.org","@type":"WebSite","name":"Era Chat","url":"https://era-virid.vercel.app/","inLanguage":"ar"}
     </script>
     <script>
       (function () {
         try {
-          var lang = localStorage.getItem('dank_lang');
+          var lang = localStorage.getItem('era_lang');
           if (lang === 'en') {
             document.documentElement.lang = 'en';
             document.documentElement.dir = 'ltr';
@@ -46,7 +43,7 @@
           document.documentElement.style.backgroundColor = '#040409';
           document.documentElement.classList.add('dark');
           try {
-            localStorage.setItem('dank_theme', 'arcade');
+            localStorage.setItem('era_theme', 'arcade');
           } catch (e) {}
           var metaThemeColor = document.querySelector('meta[name="theme-color"]');
           if (metaThemeColor) {
@@ -65,7 +62,7 @@
         height: 100%;
         background-color: #040409;
       }
-      @keyframes dank-hello-gradient {
+      @keyframes era-hello-gradient {
         0% {
           background-position: 0% 50%;
         }
@@ -76,7 +73,7 @@
           background-position: 0% 50%;
         }
       }
-      #dank-boot-splash {
+      #era-boot-splash {
         position: fixed;
         inset: 0;
         min-height: 100vh;
@@ -84,13 +81,15 @@
         width: 100%;
         background-color: #040409;
         display: flex;
+        flex-direction: column;
         align-items: center;
         justify-content: center;
+        gap: 16px;
         padding: 24px;
         box-sizing: border-box;
         overflow: hidden;
       }
-      #dank-boot-hello {
+      #era-boot-hello {
         margin: 0;
         font-family: 'Cairo', 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif;
         font-size: clamp(3rem, 11vw, 5rem);
@@ -103,9 +102,9 @@
         background-clip: text;
         color: transparent;
         -webkit-text-fill-color: transparent;
-        animation: dank-hello-gradient 3.6s ease infinite;
+        animation: era-hello-gradient 3.6s ease infinite;
       }
-      #dank-boot-copyright {
+      #era-boot-copyright {
         position: fixed;
         bottom: 24px;
         left: 0;
@@ -126,10 +125,11 @@
   </head>
   <body class="antialiased selection:bg-[#A855F7]/30">
     <div id="root">
-      <div id="dank-boot-splash" aria-label="Welcome">
-        <h1 style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0">Dank Chat</h1>
-        <span id="dank-boot-hello" dir="rtl" lang="ar">مرحبًا</span>
-        <p id="dank-boot-copyright" dir="rtl">© 2027 YOUSSEF DANK - جميع الحقوق محفوظة</p>
+      <div id="era-boot-splash" aria-label="Welcome">
+        <h1 style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0">Era Chat</h1>
+        <img src="/assets/aistudio/BBC80EAD-8D76-4B66-AC36-8F51FB6F8E80_dd189a2c.jpeg" alt="Era" style="height:48px;width:auto;border-radius:12px;object-fit:contain;" />
+        <span id="era-boot-hello" dir="rtl" lang="ar">مرحبًا</span>
+        <p id="era-boot-copyright" dir="rtl">© Era 2027 — جميع الحقوق محفوظة لـ Era</p>
       </div>
     </div>
     <script type="module" src="/src/main.tsx"></script>
