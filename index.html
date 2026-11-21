@@ -12,15 +12,15 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="ERA" />
-    <link rel="manifest" href="/manifest.json" />
-    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
-    <link rel="apple-touch-icon" href="/assets/aistudio/BBC80EAD-8D76-4B66-AC36-8F51FB6F8E80_dd189a2c.jpeg" />
+    <link rel="manifest" href="/manifest.json?v=2.0.0" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg?v=2.0.0" />
+    <link rel="apple-touch-icon" href="/assets/aistudio/BBC80EAD-8D76-4B66-AC36-8F51FB6F8E80_dd189a2c.jpeg?v=2.0.0" />
     <meta property="og:site_name" content="Era Chat" />
     <meta property="og:title" content="Era Chat | تواصل بـ أمان" />
     <meta property="og:description" content="Era Chat | مساحة حرة للتواصل، شارك أفكارك وتواصل مع مجتمعك بـ أمان." />
     <meta property="og:url" content="https://era-virid.vercel.app/" />
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="/assets/aistudio/BBC80EAD-8D76-4B66-AC36-8F51FB6F8E80_dd189a2c.jpeg" />
+    <meta property="og:image" content="/assets/aistudio/BBC80EAD-8D76-4B66-AC36-8F51FB6F8E80_dd189a2c.jpeg?v=2.0.0" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Era Chat | تواصل بـ أمان" />
     <meta name="twitter:description" content="Era Chat | مساحة حرة للتواصل، شارك أفكارك وتواصل مع مجتمعك بـ أمان." />
@@ -48,6 +48,25 @@
           var metaThemeColor = document.querySelector('meta[name="theme-color"]');
           if (metaThemeColor) {
             metaThemeColor.setAttribute('content', '#040409');
+          }
+          var targetVer = '2.0.0';
+          var currentPrefix = 'era-v' + targetVer;
+          if ('caches' in window) {
+            caches.keys().then(function (keys) {
+              keys.forEach(function (k) {
+                if (/dank/i.test(k) || k.indexOf(currentPrefix) !== 0) {
+                  caches.delete(k);
+                }
+              });
+            }).catch(function () {});
+          }
+          if ('serviceWorker' in navigator && navigator.serviceWorker.getRegistrations) {
+            navigator.serviceWorker.getRegistrations().then(function (regs) {
+              regs.forEach(function (reg) {
+                if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+                reg.update().catch(function () {});
+              });
+            }).catch(function () {});
           }
         } catch (e) {}
       })();

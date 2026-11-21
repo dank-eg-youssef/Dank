@@ -26,6 +26,7 @@ import type {
   AdminActiveUserStat,
   AdminDailyStat,
   AdminStatsData,
+  AdsBanner,
   AppLanguage,
   CallRecord,
   Chat,
@@ -51,6 +52,12 @@ import {
   OperationType,
   pauseFirestoreWrites,
 } from '../utils/firestoreErrors';
+import { removeMessageFromSessionCache } from '../utils/chatCache';
+import {
+  trackDocRead,
+  trackDocSnapshotReads,
+  trackQueryRead,
+} from '../utils/firestoreReadTracker';
 import { encryptSecretText } from '../utils/secretCrypto';
 import { isUserActuallyOnline, sanitizeUsername, timestampToMs } from '../utils/timeFormat';
 import { getTranslations } from '../i18n';
@@ -107,6 +114,7 @@ export async function ensureUserInviteCode(uid: string): Promise<string> {
   try {
     const pubRef = doc(db, 'users_public', uid);
     const pubSnap = await getDoc(pubRef);
+    trackDocRead('inviteCode.userPub', pubSnap);
     const existingCode = pubSnap.exists() ? (pubSnap.data() as UserPublic).inviteCode : '';
     if (existingCode) return existingCode;
 
@@ -114,6 +122,7 @@ export async function ensureUserInviteCode(uid: string): Promise<string> {
       const candidate = `ERA-${makeCodeSuffix(4)}`;
       const codeRef = doc(db, 'invite_codes', candidate);
       const codeSnap = await getDoc(codeRef);
+      trackDocRead('inviteCode.check', codeSnap);
       if (!codeSnap.exists()) {
         const batch = writeBatch(db);
         batch.set(codeRef, {
@@ -252,9 +261,11 @@ export async function ensureOfficialChannelForAdmin(adminUid: string): Promise<v
 export async function ensureUserJoinedOfficialChannel(uid: string): Promise<void> {
   try {
     const refDoc = await getDoc(doc(db, 'user_chats', `${uid}_${OFFICIAL_CHANNEL_ID}`));
+    trackDocRead('officialChannel.membership', refDoc);
     if (refDoc.exists()) return;
 
     const officialSnap = await getDoc(doc(db, 'chats', OFFICIAL_CHANNEL_ID));
+    trackDocRead('officialChannel.doc', officialSnap);
     if (!officialSnap.exists()) return;
 
     await joinChatById(OFFICIAL_CHANNEL_ID, uid);
@@ -339,9 +350,11 @@ export async function ensureEraTeamChannelForAdmin(adminUid: string): Promise<vo
 export async function ensureUserJoinedEraTeam(uid: string): Promise<void> {
   try {
     const refDoc = await getDoc(doc(db, 'user_chats', `${uid}_${ERA_TEAM_CHANNEL_ID}`));
+    trackDocRead('eraTeam.membership', refDoc);
     if (refDoc.exists()) return;
 
     const snap = await getDoc(doc(db, 'chats', ERA_TEAM_CHANNEL_ID));
+    trackDocRead('eraTeam.doc', snap);
     if (!snap.exists()) return;
 
     await joinChatById(ERA_TEAM_CHANNEL_ID, uid);
@@ -354,6 +367,7 @@ export async function ensureSavedMessagesChat(user: UserPublic): Promise<string>
   const chatId = `saved_${user.uid}`;
   try {
     const refSnap = await getDoc(doc(db, 'user_chats', `${user.uid}_${chatId}`));
+    trackDocRead('savedMessages.membership', refSnap);
     if (refSnap.exists()) return chatId;
 
     const batch = writeBatch(db);
@@ -524,6 +538,7 @@ export async function areUsersFriends(uidA: string, uidB: string): Promise<boole
   if (!uidA || !uidB || uidA === uidB) return false;
   const pairId = uidA < uidB ? `${uidA}_${uidB}` : `${uidB}_${uidA}`;
   const snap = await getDoc(doc(db, 'friendships', pairId));
+  trackDocRead('friends.check', snap);
   return snap.exists();
 }
 
@@ -546,6 +561,7 @@ export async function createOrOpenPrivateChat(
 
   try {
     const existingRef = await getDoc(doc(db, 'user_chats', refKey));
+    trackDocRead('privateChat.membership', existingRef);
     if (existingRef.exists()) {
       return chatId;
     }
@@ -1290,7 +1306,7 @@ export async function forwardMessage(params: {
 
 const VIEWED_CHANNEL_MSGS_KEY = 'era_viewed_channel_msgs';
 
-function hasLocalViewedChannelMsg(chatId: string, messageId: string): boolean {
+export function hasLocalViewedChannelMsg(chatId: string, messageId: string): boolean {
   try {
     const raw = localStorage.getItem(VIEWED_CHANNEL_MSGS_KEY);
     if (!raw) return false;
@@ -1326,6 +1342,7 @@ export async function recordChannelMessageView(
   try {
     const viewRef = doc(db, 'chats', chatId, 'messages', messageId, 'views', uid);
     const snap = await getDoc(viewRef);
+    trackDocRead('channelView.check', snap);
     if (snap.exists()) {
       markLocalViewedChannelMsg(chatId, messageId);
       return;
@@ -1403,6 +1420,7 @@ export async function markChatMessagesDelivered(chat: Chat, currentUid: string):
       limit(50)
     );
     const snap = await getDocs(q);
+    trackQueryRead(`chat.deliverCheck(${chat.id})`, snap);
     const toDeliver = snap.docs.filter((d) => d.data().senderId !== currentUid);
 
     if (
@@ -1520,6 +1538,7 @@ export async function toggleReaction(params: {
 export async function deleteMessage(chatId: string, messageId: string): Promise<void> {
   try {
     await deleteDoc(doc(db, 'chats', chatId, 'messages', messageId));
+    removeMessageFromSessionCache(chatId, messageId);
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, `chats/${chatId}/messages/${messageId}`);
   }
@@ -1755,6 +1774,7 @@ export async function registerActiveSession(uid: string, sessionId: string): Pro
   try {
     const ref = doc(db, 'users_private', uid, 'sessions', sessionId);
     const snap = await getDoc(ref);
+    trackDocRead('session.registerCheck', snap);
     if (!snap.exists()) {
       await setDoc(ref, {
         id: sessionId,
@@ -1895,6 +1915,7 @@ export async function postMissedCallMessage(
   try {
     const msgRef = doc(db, 'chats', call.chatId, 'messages', msgId);
     const existingSnap = await getDoc(msgRef);
+    trackDocRead('call.missedMsgCheck', existingSnap);
     if (existingSnap.exists()) return;
 
     const missedText = '📞 Missed voice call';
@@ -2400,12 +2421,36 @@ export async function saveSystemSettings(params: {
   }
 }
 
+export async function fetchSystemSettingsOnce(): Promise<SystemSettings | null> {
+  try {
+    const snap = await getDoc(doc(db, 'app_config', SYSTEM_SETTINGS_DOC_ID));
+    trackDocRead('appConfig.systemSettingsOnce', snap);
+    return snap.exists() ? (snap.data() as SystemSettings) : null;
+  } catch (error) {
+    if (!isOfflineError(error)) {
+      console.warn('Could not fetch system_settings:', error);
+    }
+    return null;
+  }
+}
+
+export async function fetchAdsBannerOnce(): Promise<AdsBanner | null> {
+  try {
+    const snap = await getDoc(doc(db, 'app_config', ADS_BANNER_DOC_ID));
+    trackDocRead('appConfig.adsBannerOnce', snap);
+    return snap.exists() ? (snap.data() as AdsBanner) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function subscribeSystemSettings(
   onUpdate: (settings: SystemSettings | null) => void
 ): () => void {
   return onSnapshot(
     doc(db, 'app_config', SYSTEM_SETTINGS_DOC_ID),
     (snap) => {
+      trackDocSnapshotReads('appConfig.systemSettingsSub', snap);
       if (snap.exists()) {
         onUpdate(snap.data() as SystemSettings);
       } else {

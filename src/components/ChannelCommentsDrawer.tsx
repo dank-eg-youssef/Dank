@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
+import { collection, limit, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { Send, Trash2, X } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { db } from '../lib/firebase';
 import { addChannelComment, deleteChannelComment } from '../services/chatService';
 import type { ChannelComment, Message, UserPublic } from '../types/era';
+import { trackSnapshotReads } from '../utils/firestoreReadTracker';
 import { formatChatTime } from '../utils/timeFormat';
 import { Avatar } from './Avatar';
 import { RichEmojiText } from './RichEmojiText';
@@ -32,11 +33,15 @@ export const ChannelCommentsDrawer: React.FC<ChannelCommentsDrawerProps> = ({
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
+    let isFirst = true;
     const q = query(
       collection(db, 'chats', chatId, 'messages', message.id, 'comments'),
-      orderBy('createdAt', 'asc')
+      orderBy('createdAt', 'asc'),
+      limit(100)
     );
     const unsub = onSnapshot(q, (snap) => {
+      trackSnapshotReads(`channelComments.${message.id}`, snap, isFirst);
+      isFirst = false;
       setComments(snap.docs.map((d) => d.data() as ChannelComment));
     });
     return () => unsub();

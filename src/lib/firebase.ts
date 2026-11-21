@@ -11,6 +11,7 @@ import {
   persistentMultipleTabManager,
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
+import { trackDocRead } from '../utils/firestoreReadTracker';
 
 const app = initializeApp(firebaseConfig);
 
@@ -88,7 +89,8 @@ export async function validateFirestoreConnection(): Promise<void> {
     const quotaHit = sessionStorage.getItem('era_firestore_quota_until');
     if (quotaHit && Number(quotaHit) > Date.now()) return;
 
-    await getDocFromServer(doc(db, 'test', 'connection'));
+    const snap = await getDocFromServer(doc(db, 'test', 'connection'));
+    trackDocRead('firebase.validateConnection', snap);
   } catch (error) {
     if (isOfflineConnectionError(error)) {
       try {

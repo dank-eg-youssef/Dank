@@ -1,10 +1,12 @@
 import type { Timestamp } from 'firebase/firestore';
-import type { Message } from '../types/era';
+import type { ChatMember, Message } from '../types/era';
 
 // In-memory cache retains full messages (including media) for instant switching within session
 const memoryMessageCache = new Map<string, Message[]>();
+const sessionSyncMeta = new Map<string, { lastUpdatedMs: number; hasMoreOlder: boolean }>();
+const sessionMembersCache = new Map<string, ChatMember[]>();
 
-const MAX_CACHED_MESSAGES = 30;
+const MAX_CACHED_MESSAGES = 50;
 const CACHE_PREFIX = 'era_msg_cache_';
 
 interface SerializedMessage extends Omit<Message, 'createdAt' | 'updatedAt' | 'expiresAt'> {
@@ -88,4 +90,38 @@ export function setCachedChatMessages(chatId: string, messages: Message[]): void
   } catch {
     // Ignore localStorage quota overflow
   }
+}
+
+export function getSessionChatSyncMeta(
+  chatId: string
+): { lastUpdatedMs: number; hasMoreOlder: boolean } | null {
+  return sessionSyncMeta.get(chatId) || null;
+}
+
+export function setSessionChatSyncMeta(
+  chatId: string,
+  meta: { lastUpdatedMs: number; hasMoreOlder: boolean }
+): void {
+  sessionSyncMeta.set(chatId, meta);
+}
+
+export function removeMessageFromSessionCache(chatId: string, messageId: string): void {
+  const existing = memoryMessageCache.get(chatId);
+  if (!existing) return;
+  const next = existing.filter((m) => m.id !== messageId);
+  setCachedChatMessages(chatId, next);
+}
+
+export function getSessionCachedMembers(chatId: string): ChatMember[] | null {
+  return sessionMembersCache.get(chatId) || null;
+}
+
+export function setSessionCachedMembers(chatId: string, members: ChatMember[]): void {
+  sessionMembersCache.set(chatId, members);
+}
+
+export function clearAllSessionChatCaches(): void {
+  memoryMessageCache.clear();
+  sessionSyncMeta.clear();
+  sessionMembersCache.clear();
 }

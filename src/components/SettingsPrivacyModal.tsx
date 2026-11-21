@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
+import { collection, limit, onSnapshot, orderBy, query } from 'firebase/firestore';
 import {
   Ban,
   Bell,
@@ -32,6 +32,7 @@ import type {
   PrivacyVisibility,
   UserPublic,
 } from '../types/era';
+import { trackSnapshotReads } from '../utils/firestoreReadTracker';
 import { formatChatTime, sanitizeUsername } from '../utils/timeFormat';
 
 interface SettingsPrivacyModalProps {
@@ -95,11 +96,15 @@ export const SettingsPrivacyModal: React.FC<SettingsPrivacyModalProps> = ({
   const [sessions, setSessions] = useState<ActiveSession[]>([]);
 
   useEffect(() => {
+    let isFirst = true;
     const q = query(
       collection(db, 'users_private', currentUser.uid, 'sessions'),
-      orderBy('lastActiveAt', 'desc')
+      orderBy('lastActiveAt', 'desc'),
+      limit(25)
     );
     const unsub = onSnapshot(q, (snap) => {
+      trackSnapshotReads('settings.sessions', snap, isFirst);
+      isFirst = false;
       setSessions(
         snap.docs
           .map((d) => d.data() as ActiveSession)

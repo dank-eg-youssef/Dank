@@ -5,6 +5,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { db } from '../lib/firebase';
 import { joinChatById } from '../services/chatService';
 import type { Chat } from '../types/era';
+import { trackDocRead } from '../utils/firestoreReadTracker';
 import { Avatar } from './Avatar';
 
 interface JoinInviteModalProps {
@@ -34,6 +35,7 @@ export const JoinInviteModal: React.FC<JoinInviteModalProps> = ({
       try {
         const snap = await getDoc(doc(db, 'chats', chatId));
         if (!active) return;
+        trackDocRead(`joinInvite.preview(${chatId})`, snap);
         if (!snap.exists()) {
           setError(t.joinInvite.invalidLink);
         } else {

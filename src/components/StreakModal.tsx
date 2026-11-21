@@ -35,13 +35,15 @@ export const StreakModal: React.FC<StreakModalProps> = ({
   const [inventory, setInventory] = useState<UserStreakInventory | null>(null);
   const [buying, setBuying] = useState(false);
   const [timeLeftStr, setTimeLeftStr] = useState<string>('');
+  const onInventoryUpdateRef = React.useRef(onInventoryUpdate);
+  onInventoryUpdateRef.current = onInventoryUpdate;
 
   useEffect(() => {
     void ensureUserStreakInventory(currentUser.uid).then((inv) => {
       setInventory(inv);
-      onInventoryUpdate?.(inv);
+      onInventoryUpdateRef.current?.(inv);
     });
-  }, [currentUser.uid, onInventoryUpdate]);
+  }, [currentUser.uid]);
 
   // Calculate live countdown timer
   useEffect(() => {

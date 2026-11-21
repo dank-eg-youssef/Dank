@@ -42,6 +42,13 @@ import {
   pauseFirestoreWrites,
 } from '../utils/firestoreErrors';
 import { sanitizeUsername, timestampToMs } from '../utils/timeFormat';
+import { clearAllSessionChatCaches } from '../utils/chatCache';
+import { clearStreakInventoryCache } from '../services/streakService';
+import {
+  resetFirestoreReadStats,
+  trackDocRead,
+  trackDocSnapshotReads,
+} from '../utils/firestoreReadTracker';
 
 const ADMIN_EMAIL = 'youssefdankapp@gmail.com';
 const EMAIL_VERIFICATION_BYPASS_EMAIL = 'dankapp@gmail.com';
@@ -111,8 +118,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const activeChatRef = useRef<string>('');
   const lastPresenceWriteRef = useRef<number>(0);
+  const lastUserActivityRef = useRef<number>(Date.now());
+  const isMarkedIdleRef = useRef<boolean>(false);
   const syncAttemptedUidRef = useRef<string | null>(null);
   const inFlightSyncUidRef = useRef<string | null>(null);
+  const firebaseUserRef = useRef<User | null>(null);
+  firebaseUserRef.current = firebaseUser;
 
   const isVerified = isUserAuthVerified(firebaseUser);
   const isAdmin = Boolean(
@@ -229,6 +240,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const runSync = async () => {
       const [pubSnap, privSnap] = await Promise.all([getDoc(pubRef), getDoc(privRef)]);
+      trackDocRead('auth.syncProfilePub', pubSnap);
+      trackDocRead('auth.syncProfilePriv', privSnap);
 
       if (pubSnap.exists()) {
         const pubData = pubSnap.data() as UserPublic;
@@ -399,12 +412,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Listen to public & private user profiles + current session revocation in background
   useEffect(() => {
-    if (!firebaseUser || !isUserAuthVerified(firebaseUser)) return;
+    const activeAuthUser = firebaseUserRef.current;
+    if (!activeAuthUser || !isUserAuthVerified(activeAuthUser)) return;
 
-    const uid = firebaseUser.uid;
+    const uid = activeAuthUser.uid;
     const unsubPub = onSnapshot(
       doc(db, 'users_public', uid),
       (snap) => {
+        trackDocSnapshotReads('auth.myPublicProfile', snap);
         if (snap.exists()) {
           const data = snap.data() as UserPublic;
           setProfile(data);
@@ -414,9 +429,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } else if (
           !isFirestoreWritesPaused() &&
           inFlightSyncUidRef.current !== uid &&
-          syncAttemptedUidRef.current !== uid
+          syncAttemptedUidRef.current !== uid &&
+          firebaseUserRef.current
         ) {
-          void ensureUserProfileDocsOnce(firebaseUser);
+          void ensureUserProfileDocsOnce(firebaseUserRef.current);
         }
       },
       (error) => {
@@ -428,6 +444,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const unsubPriv = onSnapshot(
       doc(db, 'users_private', uid),
       (snap) => {
+        trackDocSnapshotReads('auth.myPrivateProfile', snap);
         if (snap.exists()) {
           setPrivateProfile(snap.data() as UserPrivate);
         }
@@ -442,7 +459,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       unsubPub();
       unsubPriv();
     };
-  }, [firebaseUser, isVerified, authRefreshTick, ensureUserProfileDocsOnce]);
+  }, [firebaseUser?.uid, isVerified, authRefreshTick, ensureUserProfileDocsOnce]);
 
   const signInWithEmail = useCallback(
     async (email: string, password: string) => {
@@ -634,16 +651,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [firebaseUser, profile?.ghostMode]
   );
 
-  // Update lastSeen strictly every 60 seconds (never every second)
+  // Update lastSeen every 60 seconds ONLY while user is actively interacting (0 writes/reads when idle)
   useEffect(() => {
-    if (!firebaseUser || !isUserAuthVerified(firebaseUser)) return;
-    const uid = firebaseUser.uid;
+    const activeAuthUser = firebaseUserRef.current;
+    if (!activeAuthUser || !isUserAuthVerified(activeAuthUser)) return;
+    const uid = activeAuthUser.uid;
     const isGhost = Boolean(profile?.ghostMode);
+    const IDLE_CUTOFF_MS = 90_000;
+
+    const markUserActive = () => {
+      lastUserActivityRef.current = Date.now();
+      isMarkedIdleRef.current = false;
+    };
 
     const writeHeartbeat = () => {
       if (isFirestoreWritesPaused() || isGhost) return;
-      if (document.visibilityState !== 'visible') return;
       const now = Date.now();
+      const isVisible = document.visibilityState === 'visible';
+      const isIdle = now - lastUserActivityRef.current > IDLE_CUTOFF_MS;
+
+      if (!isVisible || isIdle) {
+        if (!isMarkedIdleRef.current) {
+          isMarkedIdleRef.current = true;
+          void updateDoc(doc(db, 'users_public', uid), {
+            isOnline: false,
+            lastSeen: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          }).catch((err) => {
+            if (isQuotaExhaustedError(err)) pauseFirestoreWrites();
+          });
+        }
+        return;
+      }
+
       if (now - lastPresenceWriteRef.current < 60_000) return;
       lastPresenceWriteRef.current = now;
       void updateDoc(doc(db, 'users_public', uid), {
@@ -655,14 +695,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
     };
 
+    window.addEventListener('pointerdown', markUserActive, { passive: true });
+    window.addEventListener('keydown', markUserActive, { passive: true });
+    window.addEventListener('touchstart', markUserActive, { passive: true });
+    window.addEventListener('focus', markUserActive);
+    document.addEventListener('visibilitychange', markUserActive);
+
     const timer = window.setInterval(writeHeartbeat, 60_000);
-    return () => window.clearInterval(timer);
-  }, [firebaseUser, isVerified, profile?.ghostMode]);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('pointerdown', markUserActive);
+      window.removeEventListener('keydown', markUserActive);
+      window.removeEventListener('touchstart', markUserActive);
+      window.removeEventListener('focus', markUserActive);
+      document.removeEventListener('visibilitychange', markUserActive);
+    };
+  }, [firebaseUser?.uid, isVerified, profile?.ghostMode]);
 
   const logout = useCallback(async () => {
     syncAttemptedUidRef.current = null;
     inFlightSyncUidRef.current = null;
     activeChatRef.current = '';
+    lastPresenceWriteRef.current = 0;
+    isMarkedIdleRef.current = false;
+    clearAllSessionChatCaches();
+    clearStreakInventoryCache();
+    resetFirestoreReadStats();
+    setAuthRefreshTick(0);
     await signOut(auth);
     setProfile(null);
     setPrivateProfile(null);

@@ -11,7 +11,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { collection, doc, onSnapshot } from 'firebase/firestore';
+import { collection, doc, limit, onSnapshot, query } from 'firebase/firestore';
 import { useLanguage } from '../contexts/LanguageContext';
 import { db } from '../lib/firebase';
 import {
@@ -21,6 +21,7 @@ import {
   recordStoryView,
 } from '../services/chatService';
 import type { StoryView, UserPublic } from '../types/era';
+import { trackDocSnapshotReads, trackSnapshotReads } from '../utils/firestoreReadTracker';
 import { compressImageFile } from '../utils/imageCompress';
 import { formatMessageTime } from '../utils/timeFormat';
 import { RichEmojiText } from './RichEmojiText';
@@ -439,9 +440,12 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
     setShowViewersDrawer(false);
 
     if (isAuthor || currentUser.isAdmin) {
+      let isFirst = true;
       const unsub = onSnapshot(
-        collection(db, 'stories', currentStory.id, 'views'),
+        query(collection(db, 'stories', currentStory.id, 'views'), limit(80)),
         (snap) => {
+          trackSnapshotReads(`storyViews.${currentStory.id}`, snap, isFirst);
+          isFirst = false;
           const list = snap.docs
             .map((d) => d.data() as StoryView)
             .filter((v) => v.uid !== currentStory.authorId)
@@ -459,6 +463,7 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
       const unsub = onSnapshot(
         doc(db, 'stories', currentStory.id, 'views', currentUser.uid),
         (snap) => {
+          trackDocSnapshotReads(`storyViewSelf.${currentStory.id}`, snap);
           if (snap.exists()) {
             setMyEmoji((snap.data() as StoryView).emoji || '');
           }

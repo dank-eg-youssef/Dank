@@ -8,7 +8,7 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-react';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, limit, onSnapshot, query } from 'firebase/firestore';
 import { useLanguage } from '../contexts/LanguageContext';
 import { db } from '../lib/firebase';
 import {
@@ -18,6 +18,7 @@ import {
   updateCallState,
 } from '../services/chatService';
 import type { CallIceCandidate, CallRecord, UserPublic } from '../types/era';
+import { trackSnapshotReads } from '../utils/firestoreReadTracker';
 import { Avatar } from './Avatar';
 
 interface CallModalProps {
@@ -267,9 +268,12 @@ export const CallModal: React.FC<CallModalProps> = ({ call, currentUser, onClose
     if (call.status === 'ended' || call.status === 'declined' || call.status === 'missed') {
       return;
     }
+    let isFirst = true;
     const unsub = onSnapshot(
-      collection(db, 'calls', call.id, 'candidates'),
+      query(collection(db, 'calls', call.id, 'candidates'), limit(50)),
       (snap) => {
+        trackSnapshotReads(`callCandidates.${call.id}`, snap, isFirst);
+        isFirst = false;
         snap.docs.forEach((d) => {
           const item = d.data() as CallIceCandidate;
           if (!item || item.senderId === currentUser.uid) return;

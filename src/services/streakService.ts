@@ -19,12 +19,20 @@ import type {
   UserStreakInventory,
 } from '../types/era';
 import { isFirestoreWritesPaused } from '../utils/firestoreErrors';
+import { trackDocRead, trackDocSnapshotReads, trackSnapshotReads } from '../utils/firestoreReadTracker';
 import { createAppNotification } from './notificationService';
 import { saveUserSticker } from './chatService';
 
 const STREAK_RESCUE_THRESHOLD_MS = 60 * 60 * 1000; // 1 hour
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const INVENTORY_STORAGE_KEY_PREFIX = 'era_streak_inventory_';
+const INVENTORY_CACHE_TTL_MS = 15 * 60 * 1000;
+
+const inventoryCacheByUid = new Map<string, { inv: UserStreakInventory; syncedAtMs: number }>();
+
+export function clearStreakInventoryCache(): void {
+  inventoryCacheByUid.clear();
+}
 
 /**
  * Formats a local calendar day key YYYY-MM-DD for a timestamp in ms.
@@ -104,7 +112,11 @@ export function getLocalStreakInventory(uid: string): UserStreakInventory {
   }
 }
 
-export function saveLocalStreakInventory(inv: UserStreakInventory): void {
+export function saveLocalStreakInventory(
+  inv: UserStreakInventory,
+  emitEvent = true
+): void {
+  inventoryCacheByUid.set(inv.uid, { inv, syncedAtMs: Date.now() });
   try {
     localStorage.setItem(
       `${INVENTORY_STORAGE_KEY_PREFIX}${inv.uid}`,
@@ -115,7 +127,9 @@ export function saveLocalStreakInventory(inv: UserStreakInventory): void {
         lastWeeklyRefillAtMs: inv.lastWeeklyRefillAt?.toMillis?.() ?? Date.now(),
       })
     );
-    window.dispatchEvent(new CustomEvent('era:streak-inventory-updated', { detail: inv.uid }));
+    if (emitEvent) {
+      window.dispatchEvent(new CustomEvent('era:streak-inventory-updated', { detail: inv.uid }));
+    }
   } catch {
     // ignore
   }
@@ -123,10 +137,27 @@ export function saveLocalStreakInventory(inv: UserStreakInventory): void {
 
 /**
  * Ensures user has an initialized streak inventory and processes weekly free freeze refills.
+ * Uses session memory cache so repeated checks never spam Firestore getDoc reads.
  */
 export async function ensureUserStreakInventory(uid: string): Promise<UserStreakInventory> {
-  const local = getLocalStreakInventory(uid);
   const now = Date.now();
+  const cached = inventoryCacheByUid.get(uid);
+  if (cached && now - cached.syncedAtMs < INVENTORY_CACHE_TTL_MS) {
+    const cachedLastRefillMs = cached.inv.lastWeeklyRefillAt?.toMillis?.() ?? 0;
+    if (!cachedLastRefillMs || now - cachedLastRefillMs >= WEEK_MS) {
+      const refilled: UserStreakInventory = {
+        ...cached.inv,
+        freezesCount: (cached.inv.freezesCount || 0) + 1,
+        lastWeeklyRefillAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      };
+      saveLocalStreakInventory(refilled, false);
+      return refilled;
+    }
+    return cached.inv;
+  }
+
+  const local = getLocalStreakInventory(uid);
   const lastRefillMs = local.lastWeeklyRefillAt?.toMillis?.() ?? 0;
 
   let current = { ...local };
@@ -136,14 +167,18 @@ export async function ensureUserStreakInventory(uid: string): Promise<UserStreak
     current.freezesCount = (current.freezesCount || 0) + 1;
     current.lastWeeklyRefillAt = Timestamp.now();
     current.updatedAt = Timestamp.now();
-    saveLocalStreakInventory(current);
+    saveLocalStreakInventory(current, false);
   }
 
-  if (isFirestoreWritesPaused()) return current;
+  if (isFirestoreWritesPaused()) {
+    inventoryCacheByUid.set(uid, { inv: current, syncedAtMs: now });
+    return current;
+  }
 
   try {
     const invRef = doc(db, 'users_private', uid, 'streak_inventory', 'main');
     const snap = await getDoc(invRef);
+    trackDocRead('streakInventory.get', snap);
     if (!snap.exists()) {
       await setDoc(invRef, {
         uid,
@@ -192,9 +227,10 @@ export async function ensureUserStreakInventory(uid: string): Promise<UserStreak
         lastWeeklyRefillAt: nextRefill,
         updatedAt: Timestamp.now(),
       };
-      saveLocalStreakInventory(current);
     }
+    saveLocalStreakInventory(current, false);
   } catch (err) {
+    inventoryCacheByUid.set(uid, { inv: current, syncedAtMs: now });
     console.warn('Could not sync streak inventory with Firestore:', err);
   }
 
@@ -319,6 +355,7 @@ export function subscribeChatStreak(
   return onSnapshot(
     ref,
     (snap) => {
+      trackDocSnapshotReads(`streak.${chatId}`, snap);
       if (snap.exists()) {
         onUpdate(snap.data() as ChatStreak);
       } else {
@@ -341,9 +378,12 @@ export function subscribeUserStreaks(
 ): () => void {
   if (!uid) return () => {};
   const q = query(collection(db, 'streaks'), where('users', 'array-contains', uid));
+  let isFirst = true;
   return onSnapshot(
     q,
     (snap) => {
+      trackSnapshotReads('userStreaks', snap, isFirst);
+      isFirst = false;
       const next: Record<string, ChatStreak> = {};
       snap.docs.forEach((d) => {
         const data = d.data() as ChatStreak;
@@ -602,6 +642,7 @@ export async function recordMessageStreak(params: {
   let existing: ChatStreak | null = null;
   try {
     const snap = await getDoc(streakRef);
+    trackDocRead(`recordMessageStreak.${chat.id}`, snap);
     if (snap.exists()) {
       existing = snap.data() as ChatStreak;
     }

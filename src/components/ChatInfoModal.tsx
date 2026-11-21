@@ -13,7 +13,7 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, limit, onSnapshot, query } from 'firebase/firestore';
 import { useLanguage } from '../contexts/LanguageContext';
 import { db } from '../lib/firebase';
 import {
@@ -37,6 +37,7 @@ import {
 } from '../services/socialService';
 import type { Chat, ChatMember, FriendRequest, UserPublic } from '../types/era';
 import { handleFirestoreError, isOfflineError, OperationType } from '../utils/firestoreErrors';
+import { trackSnapshotReads } from '../utils/firestoreReadTracker';
 import { formatLastSeen, isUserActuallyOnline } from '../utils/timeFormat';
 import { Avatar } from './Avatar';
 import { UserBadges } from './UserBadges';
@@ -85,9 +86,12 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = ({
   const isSaved = chat.id === `saved_${currentUser.uid}`;
 
   useEffect(() => {
+    let isFirst = true;
     const unsub = onSnapshot(
-      collection(db, 'chats', chat.id, 'members'),
+      query(collection(db, 'chats', chat.id, 'members'), limit(100)),
       (snap) => {
+        trackSnapshotReads(`chatInfo.members(${chat.id})`, snap, isFirst);
+        isFirst = false;
         setMembers(snap.docs.map((d) => d.data() as ChatMember));
       },
       (error) => {

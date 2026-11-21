@@ -2,6 +2,7 @@
   "id": "/",
   "name": "Era",
   "short_name": "Era",
+  "version": "2.0.0",
   "description": "Era — تواصل بحرية. منصة مراسلة فورية ومجتمعات وقنوات ومكالمات في الوقت الحقيقي.",
   "start_url": "/",
   "scope": "/",
@@ -14,13 +15,13 @@
   "categories": ["social", "communication"],
   "icons": [
     {
-      "src": "/icon.svg",
+      "src": "/icon.svg?v=2.0.0",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
     },
     {
-      "src": "/assets/aistudio/BBC80EAD-8D76-4B66-AC36-8F51FB6F8E80_dd189a2c.jpeg",
+      "src": "/assets/aistudio/BBC80EAD-8D76-4B66-AC36-8F51FB6F8E80_dd189a2c.jpeg?v=2.0.0",
       "sizes": "1280x427",
       "type": "image/jpeg",
       "purpose": "any"

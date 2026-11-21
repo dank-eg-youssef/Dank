@@ -37,10 +37,15 @@ import {
 import {
   collection,
   doc,
+  getDoc,
+  getDocs,
   limit,
   onSnapshot,
   orderBy,
   query,
+  Timestamp,
+  where,
+  type Unsubscribe,
 } from 'firebase/firestore';
 import { useLanguage } from '../contexts/LanguageContext';
 import { db } from '../lib/firebase';
@@ -54,6 +59,7 @@ import {
   deleteScheduledMessage,
   deleteUserSticker,
   editMessage,
+  hasLocalViewedChannelMsg,
   markChatMessagesSeen,
   markScheduledMessageSent,
   pinMessage,
@@ -76,8 +82,8 @@ import {
   checkAndAutoFreezeChatStreak,
   ensureUserStreakInventory,
   getLocalDayKey,
+  getLocalStreakInventory,
   recordMessageStreak,
-  subscribeChatStreak,
   triggerRescueNotificationIfNeeded,
 } from '../services/streakService';
 import type {
@@ -94,13 +100,25 @@ import type {
   UserSticker,
   UserStreakInventory,
 } from '../types/era';
-import { getCachedChatMessages, setCachedChatMessages } from '../utils/chatCache';
+import {
+  getCachedChatMessages,
+  getSessionCachedMembers,
+  getSessionChatSyncMeta,
+  setCachedChatMessages,
+  setSessionCachedMembers,
+  setSessionChatSyncMeta,
+} from '../utils/chatCache';
 import {
   handleFirestoreError,
   isFirestoreWritesPaused,
   isOfflineError,
   OperationType,
 } from '../utils/firestoreErrors';
+import {
+  trackDocRead,
+  trackQueryRead,
+  trackSnapshotReads,
+} from '../utils/firestoreReadTracker';
 import { uploadChatImage, uploadToCloudinary } from '../utils/mediaStorage';
 import { decryptSecretText } from '../utils/secretCrypto';
 import type { EraGifItem, EraSticker } from '../utils/stickers';
@@ -174,6 +192,8 @@ const LazyMedia: React.FC<{
   );
 };
 
+const EMPTY_TYPING_STATES: TypingState[] = [];
+
 interface ChatWindowProps {
   chat: Chat;
   chats: Chat[];
@@ -186,6 +206,8 @@ interface ChatWindowProps {
   isMuted: boolean;
   userStickers: UserSticker[];
   scheduledMessages: ScheduledMessage[];
+  chatStreak?: ChatStreak | null;
+  typingStates?: TypingState[];
   onBackMobile: () => void;
   onOpenChatInfo: () => void;
   onOpenProfile?: (user: UserPublic) => void;
@@ -206,6 +228,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   isMuted,
   userStickers,
   scheduledMessages,
+  chatStreak = null,
+  typingStates = EMPTY_TYPING_STATES,
   onBackMobile,
   onOpenChatInfo,
   onOpenProfile,
@@ -223,8 +247,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const [loadingOlder, setLoadingOlder] = useState(false);
 
   const [reactions, setReactions] = useState<Reaction[]>([]);
-  const [members, setMembers] = useState<ChatMember[]>([]);
-  const [typingStates, setTypingStates] = useState<TypingState[]>([]);
+  const [members, setMembers] = useState<ChatMember[]>(() => getSessionCachedMembers(chat.id) || []);
   const [loadingMessages, setLoadingMessages] = useState(
     () => getCachedChatMessages(chat.id).length === 0
   );
@@ -304,64 +327,176 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     }
   }, [chat.id]);
 
-  // Subscribe to last `limitCount` messages
+  // Fetch initial messages ONCE per session per chat, then listen ONLY to incremental changes
   useEffect(() => {
-    const msgQuery = query(
-      collection(db, 'chats', chat.id, 'messages'),
-      orderBy('createdAt', 'desc'),
-      limit(limitCount)
-    );
+    let cancelled = false;
+    let unsubDelta: Unsubscribe | null = null;
 
-    const unsubMsgs = onSnapshot(
-      msgQuery,
-      (snap) => {
-        const desc = snap.docs.map((d) => d.data() as Message);
-        const asc = desc.slice().reverse();
-        setMessages(asc);
-        setCachedChatMessages(chat.id, asc);
-        setHasMoreOlder(snap.docs.length >= limitCount);
-        setLoadingMessages(false);
-        setLoadingOlder(false);
-        setOptimisticMsgs((prev) =>
-          prev.filter((opt) => !asc.some((real) => real.id === opt.id))
-        );
-      },
-      (error) => {
-        setLoadingMessages(false);
-        setLoadingOlder(false);
-        if (!isOfflineError(error)) {
-          handleFirestoreError(error, OperationType.LIST, `chats/${chat.id}/messages`);
+    const attachIncrementalListener = (sinceMs: number, initialHasMore: boolean) => {
+      let isFirstDelta = true;
+      const deltaQuery = query(
+        collection(db, 'chats', chat.id, 'messages'),
+        where('updatedAt', '>', Timestamp.fromMillis(sinceMs)),
+        limit(50)
+      );
+      unsubDelta = onSnapshot(
+        deltaQuery,
+        (deltaSnap) => {
+          trackSnapshotReads(`messages.delta(${chat.id})`, deltaSnap, isFirstDelta);
+          isFirstDelta = false;
+          if (deltaSnap.empty) return;
+
+          setMessages((prev) => {
+            const map = new Map<string, Message>();
+            for (const m of prev) map.set(m.id, m);
+            let maxUpdatedMs = sinceMs;
+
+            for (const change of deltaSnap.docChanges()) {
+              const m = change.doc.data() as Message;
+              if (change.type === 'removed') {
+                map.delete(m.id);
+              } else {
+                map.set(m.id, m);
+                const mTs = Math.max(timestampToMs(m.updatedAt), timestampToMs(m.createdAt));
+                if (mTs > maxUpdatedMs) maxUpdatedMs = mTs;
+              }
+            }
+
+            const sorted = Array.from(map.values()).sort(
+              (a, b) => timestampToMs(a.createdAt) - timestampToMs(b.createdAt)
+            );
+            const keepCount = Math.max(limitCount, sorted.length);
+            const trimmed = sorted.slice(-keepCount);
+
+            setCachedChatMessages(chat.id, trimmed);
+            setSessionChatSyncMeta(chat.id, {
+              lastUpdatedMs: maxUpdatedMs,
+              hasMoreOlder: initialHasMore,
+            });
+            setOptimisticMsgs((optPrev) =>
+              optPrev.filter((opt) => !trimmed.some((real) => real.id === opt.id))
+            );
+            return trimmed;
+          });
+        },
+        (error) => {
+          if (!isOfflineError(error)) {
+            handleFirestoreError(error, OperationType.LIST, `chats/${chat.id}/messages`);
+          }
         }
-      }
-    );
+      );
+    };
 
-    return () => unsubMsgs();
-  }, [chat.id, limitCount]);
+    const existingMeta = getSessionChatSyncMeta(chat.id);
+    if (limitCount <= 50 && existingMeta) {
+      const cached = getCachedChatMessages(chat.id);
+      setMessages(cached);
+      setHasMoreOlder(existingMeta.hasMoreOlder);
+      setLoadingMessages(false);
+      setLoadingOlder(false);
+      attachIncrementalListener(existingMeta.lastUpdatedMs, existingMeta.hasMoreOlder);
+    } else {
+      void (async () => {
+        try {
+          const snap = await getDocs(
+            query(
+              collection(db, 'chats', chat.id, 'messages'),
+              orderBy('createdAt', 'desc'),
+              limit(limitCount)
+            )
+          );
+          if (cancelled) return;
+          trackQueryRead(
+            limitCount > 50 ? `messages.older(${chat.id})` : `messages.initial(${chat.id})`,
+            snap
+          );
 
-  // Subscribe to reactions, members, and typing
-  useEffect(() => {
-    const unsubReactions = onSnapshot(
-      collection(db, 'chats', chat.id, 'reactions'),
-      (snap) => setReactions(snap.docs.map((d) => d.data() as Reaction)),
-      () => {}
-    );
+          const asc = snap.docs
+            .map((d) => d.data() as Message)
+            .reverse();
+          const moreOlder = snap.docs.length >= limitCount;
 
-    const unsubMembers = onSnapshot(
-      collection(db, 'chats', chat.id, 'members'),
-      (snap) => setMembers(snap.docs.map((d) => d.data() as ChatMember)),
-      () => {}
-    );
+          let maxUpdatedMs = 0;
+          for (const m of asc) {
+            const ts = Math.max(timestampToMs(m.updatedAt), timestampToMs(m.createdAt));
+            if (ts > maxUpdatedMs) maxUpdatedMs = ts;
+          }
 
-    const unsubTyping = onSnapshot(
-      collection(db, 'chats', chat.id, 'typing'),
-      (snap) => setTypingStates(snap.docs.map((d) => d.data() as TypingState)),
-      () => {}
-    );
+          setMessages(asc);
+          setCachedChatMessages(chat.id, asc);
+          setSessionChatSyncMeta(chat.id, {
+            lastUpdatedMs: maxUpdatedMs,
+            hasMoreOlder: moreOlder,
+          });
+          setHasMoreOlder(moreOlder);
+          setLoadingMessages(false);
+          setLoadingOlder(false);
+          setOptimisticMsgs((prev) =>
+            prev.filter((opt) => !asc.some((real) => real.id === opt.id))
+          );
+
+          attachIncrementalListener(maxUpdatedMs, moreOlder);
+        } catch (error) {
+          if (cancelled) return;
+          setLoadingMessages(false);
+          setLoadingOlder(false);
+          if (!isOfflineError(error)) {
+            handleFirestoreError(error, OperationType.LIST, `chats/${chat.id}/messages`);
+          }
+        }
+      })();
+    }
 
     return () => {
+      cancelled = true;
+      if (unsubDelta) unsubDelta();
+    };
+  }, [chat.id, limitCount]);
+
+  // Subscribe to reactions (capped) & load members ONCE per session (typing uses App.tsx shared listener)
+  useEffect(() => {
+    let isFirstReactions = true;
+    const unsubReactions = onSnapshot(
+      query(collection(db, 'chats', chat.id, 'reactions'), limit(80)),
+      (snap) => {
+        trackSnapshotReads(`reactions.${chat.id}`, snap, isFirstReactions);
+        isFirstReactions = false;
+        setReactions(snap.docs.map((d) => d.data() as Reaction));
+      },
+      () => {}
+    );
+
+    let cancelled = false;
+    const cachedMembers = getSessionCachedMembers(chat.id);
+    if (chat.type === 'private') {
+      setMembers([]);
+    } else if (cachedMembers) {
+      setMembers(cachedMembers);
+    } else if (chat.type === 'channel') {
+      void getDoc(doc(db, 'chats', chat.id, 'members', currentUser.uid))
+        .then((snap) => {
+          if (cancelled) return;
+          trackDocRead(`chatMember.self(${chat.id})`, snap);
+          const list = snap.exists() ? [snap.data() as ChatMember] : [];
+          setSessionCachedMembers(chat.id, list);
+          setMembers(list);
+        })
+        .catch(() => {});
+    } else {
+      void getDocs(query(collection(db, 'chats', chat.id, 'members'), limit(100)))
+        .then((snap) => {
+          if (cancelled) return;
+          trackQueryRead(`chatMembers(${chat.id})`, snap);
+          const list = snap.docs.map((d) => d.data() as ChatMember);
+          setSessionCachedMembers(chat.id, list);
+          setMembers(list);
+        })
+        .catch(() => {});
+    }
+
+    return () => {
+      cancelled = true;
       unsubReactions();
-      unsubMembers();
-      unsubTyping();
       if (isTypingSentRef.current) {
         isTypingSentRef.current = false;
         void setTypingStatus(chat.id, currentUser, false);
@@ -370,7 +505,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         window.clearTimeout(typingTimerRef.current);
       }
     };
-  }, [chat.id, currentUser.uid]);
+  }, [chat.id, chat.type, currentUser.uid]);
 
   const [nowTick, setNowTick] = useState(() => Date.now());
 
@@ -416,18 +551,15 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     };
   }, [chat.id, chat.isSecret, chat.dmPeerIds, visibleMessages]);
 
-  // Secret chat self-destruct timer
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
+  const chatRef = useRef(chat);
+  chatRef.current = chat;
+  const hasExpiringSecretMsgs = chat.isSecret && messages.some((m) => Boolean(m.expiresAt));
+
+  // Secret chat self-destruct timer (only runs when expiring secret messages actually exist)
   useEffect(() => {
     if (!chat.isSecret) return;
-    const id = window.setInterval(() => {
-      const now = Date.now();
-      setNowTick(now);
-      for (const m of messages) {
-        if (m.expiresAt && m.expiresAt.toMillis() <= now) {
-          void deleteMessage(chat.id, m.id).catch(() => {});
-        }
-      }
-    }, 2000);
 
     const handleCopyOrKey = (e: KeyboardEvent) => {
       if (e.key === 'PrintScreen') {
@@ -435,34 +567,69 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       }
     };
     window.addEventListener('keyup', handleCopyOrKey);
+
+    let id: number | null = null;
+    if (hasExpiringSecretMsgs) {
+      id = window.setInterval(() => {
+        if (document.visibilityState !== 'visible') return;
+        const now = Date.now();
+        setNowTick(now);
+        for (const m of messagesRef.current) {
+          if (m.expiresAt && m.expiresAt.toMillis() <= now) {
+            void deleteMessage(chat.id, m.id).catch(() => {});
+          }
+        }
+      }, 2000);
+    }
+
     return () => {
-      window.clearInterval(id);
+      if (id !== null) window.clearInterval(id);
       window.removeEventListener('keyup', handleCopyOrKey);
     };
-  }, [chat.id, chat.isSecret, messages, onNotify, t.telegram.secretBanner]);
+  }, [chat.id, chat.isSecret, hasExpiringSecretMsgs, onNotify, t.telegram.secretBanner]);
 
   // Mark received messages as SEEN when chat is open & visible
   useEffect(() => {
     const syncSeen = () => {
-      if (document.visibilityState === 'visible' && !isFirestoreWritesPaused()) {
-        void markChatMessagesSeen(chat, messages, currentUser.uid, currentUser.ghostMode);
-      }
+      if (document.visibilityState !== 'visible' || isFirestoreWritesPaused()) return;
+      const curChat = chatRef.current;
+      const curMsgs = messagesRef.current;
+      const hasUnseenMsg = curMsgs.some(
+        (m) => m.senderId !== currentUser.uid && (m.status === 'sent' || m.status === 'delivered')
+      );
+      const needChatSummarySeen =
+        Boolean(curChat.lastMessageSenderId) &&
+        curChat.lastMessageSenderId !== currentUser.uid &&
+        (curChat.lastMessageStatus === 'sent' || curChat.lastMessageStatus === 'delivered');
+      if (!hasUnseenMsg && !needChatSummarySeen) return;
+      void markChatMessagesSeen(curChat, curMsgs, currentUser.uid, currentUser.ghostMode);
     };
     syncSeen();
     document.addEventListener('visibilitychange', syncSeen);
     return () => document.removeEventListener('visibilitychange', syncSeen);
-  }, [chat, messages, currentUser.uid, currentUser.ghostMode]);
+  }, [
+    chat.id,
+    chat.lastMessageStatus,
+    chat.lastMessageSenderId,
+    messages.length,
+    currentUser.uid,
+    currentUser.ghostMode,
+  ]);
 
   // Record unique views for channel broadcast posts
   useEffect(() => {
     if (chat.type !== 'channel' || isFirestoreWritesPaused()) return;
-    for (const m of visibleMessages) {
-      if (!viewedIdsSentRef.current.has(m.id) && !m.id.startsWith('opt_')) {
+    for (const m of messages) {
+      if (
+        !viewedIdsSentRef.current.has(m.id) &&
+        !m.id.startsWith('opt_') &&
+        !hasLocalViewedChannelMsg(chat.id, m.id)
+      ) {
         viewedIdsSentRef.current.add(m.id);
         void recordChannelMessageView(chat.id, m.id, currentUser.uid);
       }
     }
-  }, [chat.id, chat.type, currentUser.uid, visibleMessages]);
+  }, [chat.id, chat.type, currentUser.uid, messages]);
 
   // Scroll to bottom on initial load or new messages
   useEffect(() => {
@@ -584,7 +751,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     }).length;
   }, [currentUser.uid, friendIds, members, usersMap]);
 
-  const [chatStreak, setChatStreak] = useState<ChatStreak | null>(null);
   const [streakInventory, setStreakInventory] = useState<UserStreakInventory | null>(null);
   const [showStreakModal, setShowStreakModal] = useState(false);
   const [streakCelebration, setStreakCelebration] = useState<{
@@ -592,63 +758,66 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     stickerUrl?: string;
   } | null>(null);
 
-  // Subscribe to Chat Streak & User Streak Inventory
+  // Sync User Streak Inventory (cached in session; local updates never re-trigger Firestore reads)
   useEffect(() => {
     void ensureUserStreakInventory(currentUser.uid).then((inv) => {
       setStreakInventory(inv);
     });
 
     const handleInventoryUpdate = () => {
-      void ensureUserStreakInventory(currentUser.uid).then(setStreakInventory);
+      setStreakInventory(getLocalStreakInventory(currentUser.uid));
     };
     window.addEventListener('era:streak-inventory-updated', handleInventoryUpdate);
 
-    if (chat.type !== 'private' || isSavedMessages) {
-      setChatStreak(null);
-      return () => {
-        window.removeEventListener('era:streak-inventory-updated', handleInventoryUpdate);
-      };
-    }
-
-    const unsub = subscribeChatStreak(chat.id, (st) => {
-      setChatStreak(st);
-    });
-
     return () => {
-      unsub();
       window.removeEventListener('era:streak-inventory-updated', handleInventoryUpdate);
     };
-  }, [chat.id, chat.type, currentUser.uid, isSavedMessages]);
+  }, [currentUser.uid]);
 
-  // Passive auto-freeze & periodic rescue alert check
+  const currentUserRef = useRef(currentUser);
+  currentUserRef.current = currentUser;
+  const peerUserRef = useRef(peerUser);
+  peerUserRef.current = peerUser;
+  const chatStreakRef = useRef(chatStreak);
+  chatStreakRef.current = chatStreak;
+  const chatStreakExpiresMs = chatStreak?.expiresAt?.toMillis?.() ?? 0;
+
+  // Passive auto-freeze & periodic rescue alert check (stabilized on primitives)
   useEffect(() => {
-    if (!chatStreak || !peerUser || isSavedMessages || !isFriendWithPeer) return;
+    if (!chatStreakRef.current || !peerUserRef.current || isSavedMessages || !isFriendWithPeer) return;
 
-    void checkAndAutoFreezeChatStreak({
-      chat,
-      streak: chatStreak,
-      currentUser,
-      peerUser,
-    });
-
-    void triggerRescueNotificationIfNeeded({
-      chat,
-      streak: chatStreak,
-      currentUser,
-      peerUser,
-    });
-
-    const timer = setInterval(() => {
-      void triggerRescueNotificationIfNeeded({
-        chat,
-        streak: chatStreak,
-        currentUser,
-        peerUser,
+    const runChecks = () => {
+      if (document.visibilityState !== 'visible') return;
+      const st = chatStreakRef.current;
+      const peer = peerUserRef.current;
+      if (!st || !peer) return;
+      void checkAndAutoFreezeChatStreak({
+        chat: chatRef.current,
+        streak: st,
+        currentUser: currentUserRef.current,
+        peerUser: peer,
       });
-    }, 60 * 1000);
+      void triggerRescueNotificationIfNeeded({
+        chat: chatRef.current,
+        streak: st,
+        currentUser: currentUserRef.current,
+        peerUser: peer,
+      });
+    };
 
-    return () => clearInterval(timer);
-  }, [chat, chatStreak, currentUser, isFriendWithPeer, isSavedMessages, peerUser]);
+    runChecks();
+    const timer = window.setInterval(runChecks, 60 * 1000);
+    return () => window.clearInterval(timer);
+  }, [
+    chat.id,
+    currentUser.uid,
+    peerUser?.uid,
+    chatStreak?.streakCount,
+    chatStreak?.completedDayKey,
+    chatStreakExpiresMs,
+    isFriendWithPeer,
+    isSavedMessages,
+  ]);
 
   const isRescueActive = useMemo(() => {
     if (!chatStreak || chatStreak.streakCount <= 0 || !chatStreak.expiresAt) return false;
@@ -2659,7 +2828,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           peerUser={peerUser}
           onClose={() => setShowStreakModal(false)}
           onNotify={onNotify}
-          onInventoryUpdate={(inv) => setStreakInventory(inv)}
+          onInventoryUpdate={setStreakInventory}
         />
       )}
 

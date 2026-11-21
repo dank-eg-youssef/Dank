@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   collection,
   doc,
+  getDocs,
   limit,
   onSnapshot,
   orderBy,
@@ -10,7 +11,7 @@ import {
   where,
   type Unsubscribe,
 } from 'firebase/firestore';
-import { registerSW } from 'virtual:pwa-register';
+import { initAppUpdater } from './utils/appUpdater';
 import {
   Ban,
   Bell,
@@ -73,7 +74,6 @@ import { useLanguage } from './contexts/LanguageContext';
 import { THEME_OPTIONS, useTheme } from './contexts/ThemeContext';
 import { db } from './lib/firebase';
 import {
-  ADS_BANNER_DOC_ID,
   canSeePrivacyField,
   createChatReminder,
   createOrOpenPrivateChat,
@@ -82,6 +82,8 @@ import {
   ensureUserJoinedEraTeam,
   ensureUserJoinedOfficialChannel,
   ERA_TEAM_CHANNEL_ID,
+  fetchAdsBannerOnce,
+  fetchSystemSettingsOnce,
   initiateCall,
   joinChatById,
   markChatMessagesDelivered,
@@ -90,7 +92,6 @@ import {
   OFFICIAL_CHANNEL_ID,
   sendMessage,
   setUserChatPref,
-  subscribeSystemSettings,
 } from './services/chatService';
 import {
   appendLocalNotification,
@@ -136,10 +137,70 @@ import {
   pauseFirestoreWrites,
   subscribeQuotaPaused,
 } from './utils/firestoreErrors';
+import {
+  trackDocSnapshotReads,
+  trackQueryRead,
+  trackSnapshotReads,
+} from './utils/firestoreReadTracker';
 import { formatChatTime, timestampToMs } from './utils/timeFormat';
 import { eraAudio } from './utils/eraAudio';
 
 type MainTab = 'chats' | 'updates' | 'communities' | 'calls' | 'settings';
+
+const EMPTY_TYPING_STATES: TypingState[] = [];
+
+function makeCachedUserTimestamp(ms: number | null | undefined): Timestamp | null {
+  if (!ms) return null;
+  return {
+    seconds: Math.floor(ms / 1000),
+    nanoseconds: (ms % 1000) * 1_000_000,
+    toMillis: () => ms,
+    toDate: () => new Date(ms),
+    isEqual: (other: Timestamp) => other?.toMillis?.() === ms,
+    toJSON: () => ({ seconds: Math.floor(ms / 1000), nanoseconds: (ms % 1000) * 1_000_000 }),
+    valueOf: () => String(ms),
+  } as unknown as Timestamp;
+}
+
+function hydrateCachedUsers(uid: string): UserPublic[] {
+  try {
+    const raw = localStorage.getItem(`era_users_cache_${uid}`);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as Array<
+      Omit<UserPublic, 'lastSeen' | 'createdAt' | 'updatedAt' | 'mutedUntil'> & {
+        lastSeenMs?: number | null;
+        createdAtMs?: number | null;
+        updatedAtMs?: number | null;
+        mutedUntilMs?: number | null;
+      }
+    >;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map(({ lastSeenMs, createdAtMs, updatedAtMs, mutedUntilMs, ...rest }) => ({
+      ...rest,
+      lastSeen: makeCachedUserTimestamp(lastSeenMs),
+      createdAt: makeCachedUserTimestamp(createdAtMs),
+      updatedAt: makeCachedUserTimestamp(updatedAtMs),
+      mutedUntil: makeCachedUserTimestamp(mutedUntilMs),
+    }));
+  } catch {
+    return [];
+  }
+}
+
+function saveCachedUsers(uid: string, users: UserPublic[]): void {
+  try {
+    const serialized = users.slice(0, 200).map(({ lastSeen, createdAt, updatedAt, mutedUntil, ...rest }) => ({
+      ...rest,
+      lastSeenMs: timestampToMs(lastSeen) || null,
+      createdAtMs: timestampToMs(createdAt) || null,
+      updatedAtMs: timestampToMs(updatedAt) || null,
+      mutedUntilMs: timestampToMs(mutedUntil) || null,
+    }));
+    localStorage.setItem(`era_users_cache_${uid}`, JSON.stringify(serialized));
+  } catch {
+    // ignore storage quota errors
+  }
+}
 
 export default function App() {
   const {
@@ -286,13 +347,8 @@ export default function App() {
   const getThemeLabel = (_id: AppThemeId) => t.theme.arcade;
 
   useEffect(() => {
-    registerSW({
-      immediate: true,
-      onRegisteredSW(_swUrl, reg) {
-        if (reg) {
-          swRegRef.current = reg;
-        }
-      },
+    const cleanupUpdater = initAppUpdater((reg) => {
+      swRegRef.current = reg;
     });
 
     if ('serviceWorker' in navigator) {
@@ -309,8 +365,13 @@ export default function App() {
         }
       };
       navigator.serviceWorker.addEventListener('message', handleSwMsg);
-      return () => navigator.serviceWorker.removeEventListener('message', handleSwMsg);
+      return () => {
+        cleanupUpdater();
+        navigator.serviceWorker.removeEventListener('message', handleSwMsg);
+      };
     }
+
+    return cleanupUpdater;
   }, []);
 
   useEffect(() => {
@@ -337,25 +398,81 @@ export default function App() {
     chatsById[activeChatId || '']?.lastMessageSenderId,
   ]);
 
-  // 1. Public users
+  // 1. Public users (fetch once per session + incremental delta listener for changes)
   useEffect(() => {
     if (!isVerified || !firebaseUser) {
       setAllUsers([]);
       return;
     }
 
-    const unsub = onSnapshot(
-      collection(db, 'users_public'),
-      (snap) => {
-        setAllUsers(snap.docs.map((d) => d.data() as UserPublic));
-      },
-      (error) => {
+    const uid = firebaseUser.uid;
+    let cancelled = false;
+    let unsubDelta: Unsubscribe | null = null;
+
+    const cached = hydrateCachedUsers(uid);
+    if (cached.length > 0) {
+      setAllUsers(cached);
+    }
+
+    void (async () => {
+      try {
+        const snap = await getDocs(query(collection(db, 'users_public'), limit(200)));
+        if (cancelled) return;
+        trackQueryRead('users_public.initial', snap);
+        const initialUsers = snap.docs.map((d) => d.data() as UserPublic);
+        setAllUsers(initialUsers);
+        saveCachedUsers(uid, initialUsers);
+
+        let maxUpdatedMs = Date.now();
+        for (const u of initialUsers) {
+          const ts = timestampToMs(u.updatedAt);
+          if (ts > maxUpdatedMs) maxUpdatedMs = ts;
+        }
+
+        let isFirstDelta = true;
+        unsubDelta = onSnapshot(
+          query(
+            collection(db, 'users_public'),
+            where('updatedAt', '>', Timestamp.fromMillis(maxUpdatedMs)),
+            limit(50)
+          ),
+          (deltaSnap) => {
+            trackSnapshotReads('users_public.delta', deltaSnap, isFirstDelta);
+            isFirstDelta = false;
+            if (deltaSnap.empty) return;
+            setAllUsers((prev) => {
+              const map = new Map<string, UserPublic>();
+              for (const u of prev) map.set(u.uid, u);
+              for (const change of deltaSnap.docChanges()) {
+                const u = change.doc.data() as UserPublic;
+                if (change.type === 'removed') {
+                  map.delete(u.uid);
+                } else {
+                  map.set(u.uid, u);
+                }
+              }
+              const merged = Array.from(map.values());
+              saveCachedUsers(uid, merged);
+              return merged;
+            });
+          },
+          (error) => {
+            if (!isOfflineError(error)) {
+              console.warn('users_public delta listener error:', error);
+            }
+          }
+        );
+      } catch (error) {
         if (!isOfflineError(error)) {
           handleFirestoreError(error, OperationType.LIST, 'users_public');
         }
       }
-    );
-    return () => unsub();
+    })();
+
+    return () => {
+      cancelled = true;
+      if (unsubDelta) unsubDelta();
+    };
   }, [isVerified, firebaseUser?.uid]);
 
   // 2. Joined chats
@@ -366,6 +483,7 @@ export default function App() {
       return;
     }
 
+    let isFirst = true;
     const q = query(
       collection(db, 'user_chats'),
       where('uid', '==', firebaseUser.uid),
@@ -374,6 +492,8 @@ export default function App() {
     const unsub = onSnapshot(
       q,
       (snap) => {
+        trackSnapshotReads('user_chats', snap, isFirst);
+        isFirst = false;
         const ids = snap.docs.map((d) => (d.data() as UserChatRef).chatId);
         setJoinedChatIds(Array.from(new Set(ids)));
       },
@@ -393,10 +513,13 @@ export default function App() {
       return;
     }
 
-    const q = query(collection(db, 'chats'), where('isPublic', '==', true));
+    let isFirst = true;
+    const q = query(collection(db, 'chats'), where('isPublic', '==', true), limit(50));
     const unsub = onSnapshot(
       q,
       (snap) => {
+        trackSnapshotReads('publicChannels', snap, isFirst);
+        isFirst = false;
         setPublicChannels(snap.docs.map((d) => d.data() as Chat));
       },
       (error) => {
@@ -415,9 +538,12 @@ export default function App() {
       return;
     }
 
+    let isFirst = true;
     const unsub = onSnapshot(
-      collection(db, 'users_private', firebaseUser.uid, 'muted_chats'),
+      query(collection(db, 'users_private', firebaseUser.uid, 'muted_chats'), limit(60)),
       (snap) => {
+        trackSnapshotReads('muted_chats', snap, isFirst);
+        isFirst = false;
         const next = new Set<string>();
         snap.docs.forEach((d) => {
           const data = d.data() as { chatId: string; muted: boolean };
@@ -445,9 +571,12 @@ export default function App() {
       return;
     }
 
+    let isFirst = true;
     const unsub = onSnapshot(
-      collection(db, 'users_private', firebaseUser.uid, 'chat_prefs'),
+      query(collection(db, 'users_private', firebaseUser.uid, 'chat_prefs'), limit(60)),
       (snap) => {
+        trackSnapshotReads('chat_prefs', snap, isFirst);
+        isFirst = false;
         const next: Record<string, UserChatPref> = {};
         snap.docs.forEach((d) => {
           const data = d.data() as UserChatPref;
@@ -478,9 +607,12 @@ export default function App() {
     }
 
     const uid = firebaseUser.uid;
+    let firstFriendships = true;
     const unsubFriendships = onSnapshot(
-      query(collection(db, 'friendships'), where('users', 'array-contains', uid)),
+      query(collection(db, 'friendships'), where('users', 'array-contains', uid), limit(100)),
       (snap) => {
+        trackSnapshotReads('friendships', snap, firstFriendships);
+        firstFriendships = false;
         setFriendships(snap.docs.map((d) => d.data() as Friendship));
       },
       (err) => {
@@ -488,9 +620,12 @@ export default function App() {
       }
     );
 
+    let firstRequests = true;
     const unsubRequests = onSnapshot(
-      query(collection(db, 'friend_requests'), where('users', 'array-contains', uid)),
+      query(collection(db, 'friend_requests'), where('users', 'array-contains', uid), limit(50)),
       (snap) => {
+        trackSnapshotReads('friend_requests', snap, firstRequests);
+        firstRequests = false;
         setFriendRequests(snap.docs.map((d) => d.data() as FriendRequest));
       },
       (err) => {
@@ -498,9 +633,12 @@ export default function App() {
       }
     );
 
+    let firstBlocked = true;
     const unsubBlocked = onSnapshot(
-      collection(db, 'users_private', uid, 'blocked_users'),
+      query(collection(db, 'users_private', uid, 'blocked_users'), limit(50)),
       (snap) => {
+        trackSnapshotReads('blocked_users', snap, firstBlocked);
+        firstBlocked = false;
         setBlockedUsers(snap.docs.map((d) => d.data() as BlockedUser));
       },
       () => {}
@@ -540,9 +678,12 @@ export default function App() {
       }
     };
 
+    let firstCaller = true;
     const unsubCaller = onSnapshot(
-      query(collection(db, 'calls'), where('callerId', '==', uid)),
+      query(collection(db, 'calls'), where('callerId', '==', uid), limit(40)),
       (snap) => {
+        trackSnapshotReads('calls.caller', snap, firstCaller);
+        firstCaller = false;
         Object.keys(callerMap).forEach((k) => delete callerMap[k]);
         snap.docs.forEach((d) => {
           const rec = d.data() as CallRecord;
@@ -555,9 +696,12 @@ export default function App() {
       }
     );
 
+    let firstCallee = true;
     const unsubCallee = onSnapshot(
-      query(collection(db, 'calls'), where('calleeId', '==', uid)),
+      query(collection(db, 'calls'), where('calleeId', '==', uid), limit(40)),
       (snap) => {
+        trackSnapshotReads('calls.callee', snap, firstCallee);
+        firstCallee = false;
         Object.keys(calleeMap).forEach((k) => delete calleeMap[k]);
         snap.docs.forEach((d) => {
           const rec = d.data() as CallRecord;
@@ -583,9 +727,12 @@ export default function App() {
       return;
     }
 
+    let isFirst = true;
     const unsub = onSnapshot(
-      collection(db, 'stories'),
+      query(collection(db, 'stories'), orderBy('createdAt', 'desc'), limit(50)),
       (snap) => {
+        trackSnapshotReads('stories', snap, isFirst);
+        isFirst = false;
         const now = Date.now();
         const active = snap.docs
           .map((d) => d.data() as Story)
@@ -601,28 +748,31 @@ export default function App() {
     return () => unsub();
   }, [isVerified, firebaseUser?.uid]);
 
-  // 4d. Ads banner
+  // 4d. Ads banner (single read per session login, not a permanent listener)
   useEffect(() => {
     if (!isVerified || !firebaseUser) {
       setAdsBanner(null);
       return;
     }
 
-    const unsub = onSnapshot(
-      doc(db, 'app_config', ADS_BANNER_DOC_ID),
-      (snap) => {
-        setAdsBanner(snap.exists() ? (snap.data() as AdsBanner) : null);
-      },
-      () => {
-        setAdsBanner(null);
-      }
-    );
-    return () => unsub();
+    let cancelled = false;
+    void fetchAdsBannerOnce().then((banner) => {
+      if (!cancelled) setAdsBanner(banner);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [isVerified, firebaseUser?.uid]);
 
-  // 4d2. Live global system settings (publicly readable so AuthScreen respects allowSignups)
+  // 4d2. Global system settings (fetched once on app load, zero permanent listener)
   useEffect(() => {
-    return subscribeSystemSettings(setSystemSettings);
+    let cancelled = false;
+    void fetchSystemSettingsOnce().then((settings) => {
+      if (!cancelled) setSystemSettings(settings);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // 4g3. App Notifications
@@ -646,6 +796,7 @@ export default function App() {
     };
     window.addEventListener('era:notifications-updated', handleLocalNotifs);
 
+    let isFirst = true;
     const q = query(
       collection(db, 'notifications'),
       where('recipientUid', '==', uid),
@@ -655,6 +806,8 @@ export default function App() {
     const unsub = onSnapshot(
       q,
       (snap) => {
+        trackSnapshotReads('notifications', snap, isFirst);
+        isFirst = false;
         const list = snap.docs.map((d) => d.data() as AppNotification);
         setRemoteNotifications(list);
       },
@@ -678,9 +831,12 @@ export default function App() {
       return;
     }
 
+    let isFirst = true;
     const unsub = onSnapshot(
-      collection(db, 'users_private', firebaseUser.uid, 'saved_items'),
+      query(collection(db, 'users_private', firebaseUser.uid, 'saved_items'), limit(100)),
       (snap) => {
+        trackSnapshotReads('saved_items', snap, isFirst);
+        isFirst = false;
         setSavedItems(snap.docs.map((d) => d.data() as SavedItem));
       },
       (error) => {
@@ -706,27 +862,48 @@ export default function App() {
     }
 
     const uid = firebaseUser.uid;
+    let firstStickers = true;
     const unsubStickers = onSnapshot(
-      query(collection(db, 'users_private', uid, 'stickers'), orderBy('createdAt', 'desc')),
-      (snap) => setUserStickers(snap.docs.map((d) => d.data() as UserSticker)),
+      query(
+        collection(db, 'users_private', uid, 'stickers'),
+        orderBy('createdAt', 'desc'),
+        limit(60)
+      ),
+      (snap) => {
+        trackSnapshotReads('user_stickers', snap, firstStickers);
+        firstStickers = false;
+        setUserStickers(snap.docs.map((d) => d.data() as UserSticker));
+      },
       () => {}
     );
 
+    let firstScheduled = true;
     const unsubScheduled = onSnapshot(
       query(
         collection(db, 'users_private', uid, 'scheduled_messages'),
-        where('status', '==', 'pending')
+        where('status', '==', 'pending'),
+        limit(30)
       ),
-      (snap) => setScheduledMessages(snap.docs.map((d) => d.data() as ScheduledMessage)),
+      (snap) => {
+        trackSnapshotReads('scheduled_messages', snap, firstScheduled);
+        firstScheduled = false;
+        setScheduledMessages(snap.docs.map((d) => d.data() as ScheduledMessage));
+      },
       () => {}
     );
 
+    let firstReminders = true;
     const unsubReminders = onSnapshot(
       query(
         collection(db, 'users_private', uid, 'chat_reminders'),
-        where('status', '==', 'pending')
+        where('status', '==', 'pending'),
+        limit(30)
       ),
-      (snap) => setChatReminders(snap.docs.map((d) => d.data() as ChatReminder)),
+      (snap) => {
+        trackSnapshotReads('chat_reminders', snap, firstReminders);
+        firstReminders = false;
+        setChatReminders(snap.docs.map((d) => d.data() as ChatReminder));
+      },
       () => {}
     );
 
@@ -862,6 +1039,7 @@ export default function App() {
       const unsubChat = onSnapshot(
         doc(db, 'chats', chatId),
         (snap) => {
+          trackDocSnapshotReads(`chat.${chatId}`, snap);
           if (!snap.exists()) return;
           const chat = snap.data() as Chat;
           setChatsById((prev) => ({ ...prev, [chatId]: chat }));
@@ -869,6 +1047,10 @@ export default function App() {
           const nextMsgTs = timestampToMs(chat.lastMessageAt);
           const prevKnownTs = lastSeenMsgTsByChatRef.current[chatId];
           lastSeenMsgTsByChatRef.current[chatId] = nextMsgTs;
+
+          if (prevKnownTs !== undefined && nextMsgTs > prevKnownTs) {
+            deliveredCheckedRef.current.delete(chatId);
+          }
 
           if (
             prevKnownTs !== undefined &&
@@ -932,7 +1114,12 @@ export default function App() {
             chat.lastMessageSenderId !== uid &&
             chat.lastMessageStatus === 'sent';
 
-          if (hasNewSentFromOther && chatId !== activeChatIdRef.current && !isFirestoreWritesPaused()) {
+          if (
+            hasNewSentFromOther &&
+            !deliveredCheckedRef.current.has(chatId) &&
+            chatId !== activeChatIdRef.current &&
+            !isFirestoreWritesPaused()
+          ) {
             deliveredCheckedRef.current.add(chatId);
             void markChatMessagesDelivered(chat, uid);
           }
@@ -955,13 +1142,16 @@ export default function App() {
     };
   }, []);
 
-  // Typing listener scoped strictly to the active chat (instead of reading all chats)
+  // Typing listener scoped strictly to the active chat (shared with ChatWindow)
   useEffect(() => {
     if (!isVerified || !firebaseUser || !activeChatId) return;
     const targetChatId = activeChatId;
+    let isFirst = true;
     const unsubTyping = onSnapshot(
-      collection(db, 'chats', targetChatId, 'typing'),
+      query(collection(db, 'chats', targetChatId, 'typing'), limit(20)),
       (snap) => {
+        trackSnapshotReads(`typing.${targetChatId}`, snap, isFirst);
+        isFirst = false;
         const states = snap.docs.map((d) => d.data() as TypingState);
         setTypingByChat((prev) => ({ ...prev, [targetChatId]: states }));
       },
@@ -998,30 +1188,47 @@ export default function App() {
     return next;
   }, [friendships, firebaseUser?.uid]);
 
-  // Global streak rescue & auto-freeze monitor (every 60s across all private friend chats)
+  const chatsByIdRef = useRef(chatsById);
+  chatsByIdRef.current = chatsById;
+  const friendIdsRef = useRef(friendIds);
+  friendIdsRef.current = friendIds;
+  const profileRef = useRef(profile);
+  profileRef.current = profile;
+  const streaksByChatIdRef = useRef(streaksByChatId);
+  streaksByChatIdRef.current = streaksByChatId;
+  const usersMapRef = useRef(usersMap);
+  usersMapRef.current = usersMap;
+
+  // Global streak rescue & auto-freeze monitor (runs once per minute only when visible and streaks exist)
   useEffect(() => {
-    if (!isVerified || !profile) return;
+    if (!isVerified || !profile?.uid) return;
 
     const runStreakChecks = () => {
-      for (const st of Object.values(streaksByChatId)) {
-        const chat = chatsById[st.chatId];
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      const currentProfile = profileRef.current;
+      if (!currentProfile) return;
+      const streakEntries = Object.values(streaksByChatIdRef.current);
+      if (streakEntries.length === 0) return;
+
+      for (const st of streakEntries) {
+        const chat = chatsByIdRef.current[st.chatId];
         if (!chat || chat.type !== 'private') continue;
-        const peerId = st.users.find((id) => id !== profile.uid);
-        if (!peerId || !friendIds.has(peerId)) continue;
-        const peerUser = usersMap[peerId];
+        const peerId = st.users.find((id) => id !== currentProfile.uid);
+        if (!peerId || !friendIdsRef.current.has(peerId)) continue;
+        const peerUser = usersMapRef.current[peerId];
         if (!peerUser) continue;
 
         void checkAndAutoFreezeChatStreak({
           chat,
           streak: st,
-          currentUser: profile,
+          currentUser: currentProfile,
           peerUser,
         });
 
         void triggerRescueNotificationIfNeeded({
           chat,
           streak: st,
-          currentUser: profile,
+          currentUser: currentProfile,
           peerUser,
         });
       }
@@ -1030,7 +1237,7 @@ export default function App() {
     runStreakChecks();
     const timer = window.setInterval(runStreakChecks, 60_000);
     return () => window.clearInterval(timer);
-  }, [chatsById, friendIds, isVerified, profile, streaksByChatId, usersMap]);
+  }, [isVerified, profile?.uid]);
 
   const incomingFriendRequests = useMemo(() => {
     if (!firebaseUser) return [] as FriendRequest[];
@@ -1102,12 +1309,18 @@ export default function App() {
     return map;
   }, [chatReminders]);
 
-  // Global timer: auto-send due scheduled messages & trigger due chat reminders
+  const publicChatMapRef = useRef(publicChatMap);
+  publicChatMapRef.current = publicChatMap;
+
+  // Global timer: auto-send due scheduled messages & trigger due chat reminders (only active when items exist)
   useEffect(() => {
-    if (!isVerified || !profile) return;
+    if (!isVerified || !profile?.uid) return;
+    if (scheduledMessages.length === 0 && chatReminders.length === 0) return;
 
     const processDueItems = () => {
       if (isFirestoreWritesPaused()) return;
+      const currentProfile = profileRef.current;
+      if (!currentProfile) return;
       const now = Date.now();
 
       for (const sched of scheduledMessages) {
@@ -1115,19 +1328,19 @@ export default function App() {
         if (sched.scheduledAt.toMillis() > now) continue;
         if (processingScheduledIdsRef.current.has(sched.id)) continue;
 
-        const targetChat = chatsById[sched.chatId] || publicChatMap[sched.chatId];
+        const targetChat = chatsByIdRef.current[sched.chatId] || publicChatMapRef.current[sched.chatId];
         if (!targetChat) continue;
 
         processingScheduledIdsRef.current.add(sched.id);
         void (async () => {
           try {
-            await markScheduledMessageSent(profile.uid, sched.id);
+            await markScheduledMessageSent(currentProfile.uid, sched.id);
             await sendMessage({
               chat: targetChat,
-              sender: profile,
+              sender: currentProfile,
               type: 'text',
               text: sched.text,
-              usersMap,
+              usersMap: usersMapRef.current,
             });
             notify(t.schedule.scheduledSentToast);
           } catch (err) {
@@ -1148,13 +1361,13 @@ export default function App() {
         processingReminderIdsRef.current.add(rem.id);
         void (async () => {
           try {
-            await markChatReminderFired(profile.uid, rem.id);
+            await markChatReminderFired(currentProfile.uid, rem.id);
             const msgText = rem.note
               ? `${t.schedule.reminderDueTitle}: ${rem.chatTitle} — ${rem.note}`
               : `${t.schedule.reminderDueTitle}: ${rem.chatTitle}`;
             const notif: AppNotification = {
               id: `rem_${rem.id}`,
-              recipientUid: profile.uid,
+              recipientUid: currentProfile.uid,
               actorUid: 'era_reminder',
               actorName: rem.chatTitle,
               type: 'message',
@@ -1163,7 +1376,7 @@ export default function App() {
               read: false,
               createdAt: Timestamp.now(),
             };
-            appendLocalNotification(profile.uid, notif);
+            appendLocalNotification(currentProfile.uid, notif);
             setLiveNotifPopup(notif);
             if (livePopupTimerRef.current) window.clearTimeout(livePopupTimerRef.current);
             livePopupTimerRef.current = window.setTimeout(() => setLiveNotifPopup(null), 5000);
@@ -1202,12 +1415,9 @@ export default function App() {
     return () => window.clearInterval(timer);
   }, [
     isVerified,
-    profile,
+    profile?.uid,
     scheduledMessages,
     chatReminders,
-    chatsById,
-    publicChatMap,
-    usersMap,
     notify,
     t.schedule.reminderDueTitle,
     t.schedule.scheduledSentToast,
@@ -2143,6 +2353,8 @@ export default function App() {
                 isMuted={mutedChatIds.has(activeChat.id)}
                 userStickers={userStickers}
                 scheduledMessages={scheduledMessages}
+                chatStreak={streaksByChatId[activeChat.id] || null}
+                typingStates={typingByChat[activeChat.id] || EMPTY_TYPING_STATES}
                 onBackMobile={() => setActiveChatId(null)}
                 onOpenChatInfo={() => setShowChatInfoModal(true)}
                 onOpenProfile={(user) => openProfileFor(user)}
